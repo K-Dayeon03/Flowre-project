@@ -1,0 +1,22 @@
+{
+  "name": "flowre-qa-agents",
+  "version": "1.0.0",
+  "description": "Flowre 도메인별 QA 자동화 에이전트",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "ts-node index.ts",
+    "auth": "ts-node index.ts auth",
+    "schedule": "ts-node index.ts schedule",
+    "document": "ts-node index.ts document",
+    "chat": "ts-node index.ts chat",
+    "all": "ts-node index.ts all"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  }
+}

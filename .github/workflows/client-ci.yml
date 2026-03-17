@@ -1,0 +1,69 @@
+name: Client CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'client/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'client/**'
+
+jobs:
+  test:
+    name: Jest 테스트 & 커버리지
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: 의존성 설치
+        working-directory: client
+        run: npm ci --legacy-peer-deps
+
+      - name: 테스트 실행
+        working-directory: client
+        run: npx jest --coverage --coverageReporters=text-summary --passWithNoTests
+
+      - name: 커버리지 코멘트 (PR 전용)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ **Client CI 통과** — Jest 테스트가 모두 성공했습니다.'
+            });
+
+  type-check:
+    name: TypeScript 타입 체크
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: 의존성 설치
+        working-directory: client
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript 타입 체크
+        working-directory: client
+        run: npx tsc --noEmit

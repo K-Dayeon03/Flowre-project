@@ -1,0 +1,45 @@
+# ===== OS =====
+.DS_Store
+Thumbs.db
+*.log
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.iml
+
+# ===== Java / Spring Boot =====
+server/build/
+server/.gradle/
+server/out/
+*.class
+*.jar
+!**/wrapper/gradle-wrapper.jar
+hs_err_pid*.log
+replay_pid*.log
+
+# ===== Node / React Native =====
+node_modules/
+client/node_modules/
+qa-agents/node_modules/
+.expo/
+dist/
+.metro-cache/
+*.orig.*
+
+# ===== Expo =====
+.expo-shared/
+web-build/
+
+# ===== Env =====
+.env
+.env.local
+.env.production
+application-prod.yml
+
+# ===== Coverage =====
+client/coverage/
+server/build/reports/
+
+# ===== QA =====
+qa-results/issues/

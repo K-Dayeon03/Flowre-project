@@ -1,0 +1,42 @@
+server:
+  - changed-files:
+    - any-glob-to-any-file: 'server/**'
+
+client:
+  - changed-files:
+    - any-glob-to-any-file: 'client/**'
+
+auth:
+  - changed-files:
+    - any-glob-to-any-file: 'server/**/auth/**'
+    - any-glob-to-any-file: 'client/src/screens/auth/**'
+    - any-glob-to-any-file: 'client/src/api/authApi.ts'
+    - any-glob-to-any-file: 'client/src/store/useAuthStore.ts'
+
+schedule:
+  - changed-files:
+    - any-glob-to-any-file: 'server/**/schedule/**'
+    - any-glob-to-any-file: 'client/src/screens/schedule/**'
+    - any-glob-to-any-file: 'client/src/api/scheduleApi.ts'
+
+document:
+  - changed-files:
+    - any-glob-to-any-file: 'server/**/document/**'
+    - any-glob-to-any-file: 'client/src/screens/document/**'
+    - any-glob-to-any-file: 'client/src/api/documentApi.ts'
+
+chat:
+  - changed-files:
+    - any-glob-to-any-file: 'server/**/chat/**'
+    - any-glob-to-any-file: 'client/src/screens/chat/**'
+    - any-glob-to-any-file: 'client/src/api/chatApi.ts'
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file: '.github/**'
+
+test:
+  - changed-files:
+    - any-glob-to-any-file: '**/__tests__/**'
+    - any-glob-to-any-file: '**/*.test.ts'
+    - any-glob-to-any-file: 'qa-agents/**'
