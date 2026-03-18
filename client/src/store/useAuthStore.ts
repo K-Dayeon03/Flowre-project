@@ -6,7 +6,7 @@ export type UserRole = 'STORE_STAFF' | 'STORE_MANAGER' | 'HQ_STAFF' | 'ADMIN';
 
 export interface User {
   id: number;
-  email: string;
+  employeeCode: string;
   name: string;
   role: UserRole;
   brandId: number;
@@ -34,14 +34,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoggedIn: false,
   loading: false,
 
-  login: async (email, password) => {
+  login: async (employeeCode, password) => {
     set({ loading: true });
     try {
-      // 개발 모드: 백엔드 없이 바로 로그인 (임의 계정 허용)
       if (__DEV__) {
+        // 개발 모드: 백엔드 없이도 UI 테스트 가능
         const mockUser: User = {
           id: 1,
-          email,
+          employeeCode,
           name: '김민지',
           role: 'STORE_MANAGER',
           brandId: 1,
@@ -52,9 +52,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ accessToken: 'dev-token', user: mockUser, isLoggedIn: true });
         return;
       }
-      const { accessToken, user } = await authApi.login(email, password);
+      const { accessToken, user } = await authApi.login(employeeCode, password);
+      const mappedUser: User = { ...user, employeeCode: (user as any).email ?? employeeCode };
       await AsyncStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-      set({ accessToken, user, isLoggedIn: true });
+      set({ accessToken, user: mappedUser, isLoggedIn: true });
     } finally {
       set({ loading: false });
     }
@@ -75,7 +76,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
     if (!token) return;
     try {
-      const user = await authApi.me(token);
+      const rawUser = await authApi.me(token);
+      const user: User = { ...rawUser, employeeCode: (rawUser as any).email ?? '' };
       set({ accessToken: token, user, isLoggedIn: true });
     } catch {
       await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);

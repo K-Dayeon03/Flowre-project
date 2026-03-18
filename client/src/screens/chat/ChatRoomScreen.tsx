@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
@@ -19,9 +20,6 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { Message } from '../../api/chatApi';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'ChatRoom'>;
-
-const MY_ID = 1;
-
 
 /** 날짜 구분선 */
 function DateSeparator({ date }: { date: string }) {
@@ -40,7 +38,10 @@ export default function ChatRoomScreen({ route }: Props) {
   const flatListRef = useRef<FlatList>(null);
 
   const user = useAuthStore((s) => s.user);
-  const messages = useChatStore((s) => s.messages[roomId] ?? []);
+  const messagesMap = useChatStore((s) => s.messages);
+  const messages = messagesMap[roomId] ?? [];
+  // roomId가 messages 맵에 키로 없으면 아직 초기화 전 (로딩 중)
+  const isInitialized = roomId in messagesMap;
   const fetchMessages = useChatStore((s) => s.fetchMessages);
   const { sendMessage, connected } = useStompChat(roomId);
 
@@ -72,13 +73,24 @@ export default function ChatRoomScreen({ route }: Props) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}
       >
+        {!isInitialized ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={Colors.accent} />
+          </View>
+        ) : (
         <FlatList
           ref={flatListRef}
+          style={styles.flex}
           data={messages}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.messageList}
           onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
           ListHeaderComponent={<DateSeparator date="2025년 3월 11일" />}
+          ListEmptyComponent={
+            <View style={styles.emptyMessages}>
+              <Text style={styles.emptyMessagesText}>아직 메시지가 없습니다.</Text>
+            </View>
+          }
           renderItem={({ item }) => (
             <View style={[styles.messageRow, item.isMe && styles.messageRowMe]}>
               {/* 상대방 아바타 (그룹 채팅에서만 표시) */}
@@ -107,6 +119,7 @@ export default function ChatRoomScreen({ route }: Props) {
             </View>
           )}
         />
+        )}
 
         {/* 입력 바 */}
         <View style={styles.inputBar}>
@@ -192,6 +205,9 @@ const styles = StyleSheet.create({
   },
   bubbleText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 20 },
   bubbleTextMe: { color: Colors.surface },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyMessages: { flex: 1, paddingTop: 80, alignItems: 'center' },
+  emptyMessagesText: { fontSize: FontSize.md, color: Colors.textMuted },
   timeText: { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: 4 },
   inputBar: {
     flexDirection: 'row',

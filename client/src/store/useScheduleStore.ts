@@ -32,6 +32,23 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   createSchedule: async (data) => {
     set({ loading: true, error: null });
     try {
+      if (__DEV__) {
+        // 개발 모드: 로컬에 바로 추가
+        const local: Schedule = {
+          id: Date.now(),
+          title: data.title,
+          type: data.type,
+          status: 'PENDING',
+          dueDate: data.dueDate,
+          assignee: data.assignee ?? '',
+          storeId: 1,
+          description: data.description,
+          createdAt: new Date().toISOString(),
+          createdBy: '김민지',
+        };
+        set((state) => ({ schedules: [local, ...state.schedules] }));
+        return;
+      }
       const created = await scheduleApi.create(data);
       set((state) => ({ schedules: [created, ...state.schedules] }));
     } finally {

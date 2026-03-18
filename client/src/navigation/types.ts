@@ -14,6 +14,11 @@ export type MainTabParamList = {
   ChatTab: undefined;
 };
 
+export type HomeStackParamList = {
+  Home: undefined;
+  Profile: undefined;
+};
+
 export type ScheduleStackParamList = {
   ScheduleList: undefined;
   ScheduleDetail: { scheduleId: number };

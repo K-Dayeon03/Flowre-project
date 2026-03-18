@@ -9,6 +9,7 @@ import {
   RootStackParamList,
   AuthStackParamList,
   MainTabParamList,
+  HomeStackParamList,
   ScheduleStackParamList,
   DocumentStackParamList,
   ChatStackParamList,
@@ -17,6 +18,7 @@ import {
 // Screens
 import LoginScreen from '../screens/auth/LoginScreen';
 import HomeScreen from '../screens/home/HomeScreen';
+import ProfileScreen from '../screens/home/ProfileScreen';
 import ScheduleListScreen from '../screens/schedule/ScheduleListScreen';
 import ScheduleDetailScreen from '../screens/schedule/ScheduleDetailScreen';
 import ScheduleCreateScreen from '../screens/schedule/ScheduleCreateScreen';
@@ -29,6 +31,7 @@ import ChatRoomScreen from '../screens/chat/ChatRoomScreen';
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const ScheduleStack = createNativeStackNavigator<ScheduleStackParamList>();
 const DocumentStack = createNativeStackNavigator<DocumentStackParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
@@ -56,6 +59,21 @@ function AuthNavigator() {
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
     </AuthStack.Navigator>
+  );
+}
+
+function HomeNavigator() {
+  return (
+    <HomeStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: Colors.surface },
+        headerTitleStyle: { fontSize: FontSize.lg, color: Colors.textPrimary },
+        headerTintColor: Colors.primary,
+      }}
+    >
+      <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="Profile" component={ProfileScreen} options={{ title: '내 프로필' }} />
+    </HomeStack.Navigator>
   );
 }
 
@@ -149,7 +167,7 @@ function MainNavigator() {
     >
       <Tab.Screen
         name="HomeTab"
-        component={HomeScreen}
+        component={HomeNavigator}
         options={{ tabBarIcon: ({ focused }) => <TabIcon label="홈" focused={focused} /> }}
       />
       <Tab.Screen

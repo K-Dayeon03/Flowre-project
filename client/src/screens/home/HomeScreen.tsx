@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useScheduleStore } from '../../store/useScheduleStore';
+import { useChatStore } from '../../store/useChatStore';
 
 /** 오늘 날짜 포맷 */
 function getTodayLabel() {
@@ -17,15 +20,10 @@ function getTodayLabel() {
   return `${now.getMonth() + 1}월 ${now.getDate()}일 (${days[now.getDay()]})`;
 }
 
-const MOCK_SCHEDULES = [
-  { id: 1, title: '봄 시즌 마네킹 교체', type: 'MANNEQUIN', status: 'IN_PROGRESS', dueDate: '오늘 18:00' },
-  { id: 2, title: 'VM 점검 - 1층', type: 'VM_CHECK', status: 'PENDING', dueDate: '오늘 15:00' },
-];
-
-const MOCK_NOTICES = [
-  { id: 1, title: '2025 SS 시즌 VM 가이드라인 배포', date: '03.10' },
-  { id: 2, title: '4월 본사 방문 일정 안내', date: '03.09' },
-];
+function getTodayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '대기',
@@ -34,7 +32,27 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function HomeScreen() {
+  // any 타입 사용 — HomeStack + MainTab 양쪽으로 네비게이션 필요
   const navigation = useNavigation<any>();
+  const user = useAuthStore((s) => s.user);
+
+  const schedules = useScheduleStore((s) => s.schedules);
+  const fetchSchedules = useScheduleStore((s) => s.fetchSchedules);
+  const rooms = useChatStore((s) => s.rooms);
+  const fetchRooms = useChatStore((s) => s.fetchRooms);
+
+  useEffect(() => {
+    fetchSchedules();
+    fetchRooms();
+  }, []);
+
+  const todayKey = getTodayKey();
+  const todaySchedules = schedules.filter((s) => s.dueDate.startsWith(todayKey));
+  const inProgressCount = todaySchedules.filter((s) => s.status === 'IN_PROGRESS').length;
+  const totalUnread = rooms.reduce((sum, r) => sum + r.unread, 0);
+
+  const storeName = user ? `${user.storeName} · JAJU` : 'JAJU';
+  const initial = user?.name[0] ?? '?';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -42,19 +60,28 @@ export default function HomeScreen() {
         {/* 헤더 */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.storeName}>강남점 · JAJU</Text>
+            <Text style={styles.storeName}>{storeName}</Text>
             <Text style={styles.todayLabel}>{getTodayLabel()}</Text>
           </View>
-          <TouchableOpacity style={styles.profileBtn}>
-            <Text style={styles.profileInitial}>김</Text>
+          <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate('Profile')}>
+            <Text style={styles.profileInitial}>{initial}</Text>
           </TouchableOpacity>
         </View>
 
         {/* 요약 카드 */}
         <View style={styles.summaryRow}>
-          <SummaryCard label="오늘 스케줄" value="2" sub="진행 중 1건" color={Colors.accent} />
-          <SummaryCard label="미확인 문서" value="3" sub="새 파일" color={Colors.info} />
-          <SummaryCard label="안읽은 채팅" value="5" sub="메시지" color={Colors.success} />
+          <SummaryCard
+            label="오늘 스케줄"
+            value={String(todaySchedules.length)}
+            sub={inProgressCount > 0 ? `진행 중 ${inProgressCount}건` : '진행 중 없음'}
+            color={Colors.accent}
+          />
+          <SummaryCard
+            label="안읽은 채팅"
+            value={String(totalUnread)}
+            sub="메시지"
+            color={Colors.success}
+          />
         </View>
 
         {/* 오늘 스케줄 */}
@@ -62,41 +89,64 @@ export default function HomeScreen() {
           title="오늘 스케줄"
           onMore={() => navigation.navigate('ScheduleTab')}
         >
-          {MOCK_SCHEDULES.map((s) => (
-            <TouchableOpacity
-              key={s.id}
-              style={styles.scheduleCard}
-              onPress={() => navigation.navigate('ScheduleTab', {
-                screen: 'ScheduleDetail',
-                params: { scheduleId: s.id },
-              })}
-            >
-              <View style={[styles.typeBar, { backgroundColor: Colors.scheduleType[s.type as keyof typeof Colors.scheduleType] }]} />
-              <View style={styles.scheduleInfo}>
-                <Text style={styles.scheduleTitle}>{s.title}</Text>
-                <Text style={styles.scheduleDue}>{s.dueDate}</Text>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: Colors.statusBadge[s.status as keyof typeof Colors.statusBadge] + '20' }]}>
-                <Text style={[styles.statusText, { color: Colors.statusBadge[s.status as keyof typeof Colors.statusBadge] }]}>
-                  {STATUS_LABEL[s.status]}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          {todaySchedules.length === 0 ? (
+            <View style={styles.emptySection}>
+              <Text style={styles.emptySectionText}>오늘 등록된 스케줄이 없습니다.</Text>
+            </View>
+          ) : (
+            todaySchedules.slice(0, 3).map((s) => (
+              <TouchableOpacity
+                key={s.id}
+                style={styles.scheduleCard}
+                onPress={() => navigation.navigate('ScheduleTab', {
+                  screen: 'ScheduleDetail',
+                  params: { scheduleId: s.id },
+                })}
+              >
+                <View style={[styles.typeBar, { backgroundColor: Colors.scheduleType[s.type as keyof typeof Colors.scheduleType] }]} />
+                <View style={styles.scheduleInfo}>
+                  <Text style={styles.scheduleTitle}>{s.title}</Text>
+                  <Text style={styles.scheduleDue}>{s.dueDate.split('T')[0]}</Text>
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: Colors.statusBadge[s.status as keyof typeof Colors.statusBadge] + '20' }]}>
+                  <Text style={[styles.statusText, { color: Colors.statusBadge[s.status as keyof typeof Colors.statusBadge] }]}>
+                    {STATUS_LABEL[s.status]}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
         </Section>
 
-        {/* 최근 공지 */}
+        {/* 최근 채팅방 */}
         <Section
-          title="최근 공지"
-          onMore={() => navigation.navigate('DocumentTab')}
+          title="최근 채팅"
+          onMore={() => navigation.navigate('ChatTab')}
         >
-          {MOCK_NOTICES.map((n) => (
-            <TouchableOpacity key={n.id} style={styles.noticeRow}>
-              <Text style={styles.noticeDot}>•</Text>
-              <Text style={styles.noticeTitle} numberOfLines={1}>{n.title}</Text>
-              <Text style={styles.noticeDate}>{n.date}</Text>
-            </TouchableOpacity>
-          ))}
+          {rooms.length === 0 ? (
+            <View style={styles.emptySection}>
+              <Text style={styles.emptySectionText}>참여 중인 채팅방이 없습니다.</Text>
+            </View>
+          ) : (
+            rooms.slice(0, 3).map((r) => (
+              <TouchableOpacity
+                key={r.id}
+                style={styles.noticeRow}
+                onPress={() => navigation.navigate('ChatTab', {
+                  screen: 'ChatRoom',
+                  params: { roomId: r.id, roomName: r.name, roomType: r.type },
+                })}
+              >
+                <Text style={styles.noticeDot}>{r.type === 'GROUP' ? '👥' : '💬'}</Text>
+                <Text style={styles.noticeTitle} numberOfLines={1}>{r.name}</Text>
+                {r.unread > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadText}>{r.unread}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))
+          )}
         </Section>
       </ScrollView>
     </SafeAreaView>
@@ -205,5 +255,21 @@ const styles = StyleSheet.create({
   },
   noticeDot: { color: Colors.accent, marginRight: Spacing.sm, fontSize: FontSize.lg },
   noticeTitle: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary },
-  noticeDate: { fontSize: FontSize.sm, color: Colors.textMuted, marginLeft: Spacing.sm },
+  emptySection: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.sm,
+    padding: Spacing.md,
+    alignItems: 'center',
+  },
+  emptySectionText: { fontSize: FontSize.sm, color: Colors.textMuted },
+  unreadBadge: {
+    backgroundColor: Colors.error,
+    borderRadius: Radius.full,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  unreadText: { color: Colors.surface, fontSize: FontSize.xs, fontWeight: '700' },
 });

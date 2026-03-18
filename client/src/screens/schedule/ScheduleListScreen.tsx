@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
 import { ScheduleStackParamList } from '../../navigation/types';
 import Calendar, { MarkedDate } from '../../components/Calendar';
+import { useScheduleStore } from '../../store/useScheduleStore';
 
 type Nav = NativeStackNavigationProp<ScheduleStackParamList, 'ScheduleList'>;
 
@@ -28,38 +29,41 @@ const STATUS_LABEL: Record<string, string> = {
   DONE: '완료',
 };
 
-const MOCK_SCHEDULES = [
-  { id: 1, title: '봄 시즌 마네킹 교체', type: 'MANNEQUIN', status: 'IN_PROGRESS', dueDate: '2025-03-11', assignee: '김민지' },
-  { id: 2, title: 'VM 점검 - 1층 윈도우', type: 'VM_CHECK', status: 'PENDING', dueDate: '2025-03-11', assignee: '이수진' },
-  { id: 3, title: '본사 VMD 팀 방문', type: 'HQ_VISIT', status: 'PENDING', dueDate: '2025-03-13', assignee: '전체' },
-  { id: 4, title: '여름 시즌 마네킹 준비', type: 'MANNEQUIN', status: 'PENDING', dueDate: '2025-03-20', assignee: '박소연' },
-  { id: 5, title: '주간 VM 체크리스트', type: 'VM_CHECK', status: 'DONE', dueDate: '2025-03-07', assignee: '김민지' },
-];
-
-/** 날짜별 dot 색상: 첫 번째 스케줄의 타입 색상 사용 */
-const markedDates: MarkedDate[] = Object.entries(
-  MOCK_SCHEDULES.reduce<Record<string, string>>((acc, s) => {
-    if (!acc[s.dueDate]) {
-      acc[s.dueDate] = Colors.scheduleType[s.type as keyof typeof Colors.scheduleType];
-    }
-    return acc;
-  }, {})
-).map(([date, color]) => ({ date, color }));
-
 const today = new Date();
 const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+/** dueDate가 'YYYY-MM-DDTHH:mm:ss' 형식이면 날짜 부분만 추출 */
+function toDateKey(dueDate: string): string {
+  return dueDate.split('T')[0];
+}
 
 export default function ScheduleListScreen() {
   const navigation = useNavigation<Nav>();
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
 
-  // 선택된 날짜의 스케줄 (캘린더 모드) 또는 전체 (목록 모드)
-  const displayed = viewMode === 'calendar'
-    ? MOCK_SCHEDULES.filter((s) => s.dueDate === selectedDate)
-    : MOCK_SCHEDULES;
+  const schedules = useScheduleStore((s) => s.schedules);
+  const fetchSchedules = useScheduleStore((s) => s.fetchSchedules);
 
-  const selectedCount = MOCK_SCHEDULES.filter((s) => s.dueDate === selectedDate).length;
+  useEffect(() => {
+    fetchSchedules();
+  }, []);
+
+  const markedDates: MarkedDate[] = Object.entries(
+    schedules.reduce<Record<string, string>>((acc, s) => {
+      const key = toDateKey(s.dueDate);
+      if (!acc[key]) {
+        acc[key] = Colors.scheduleType[s.type as keyof typeof Colors.scheduleType];
+      }
+      return acc;
+    }, {})
+  ).map(([date, color]) => ({ date, color }));
+
+  const displayed = viewMode === 'calendar'
+    ? schedules.filter((s) => toDateKey(s.dueDate) === selectedDate)
+    : schedules;
+
+  const selectedCount = schedules.filter((s) => toDateKey(s.dueDate) === selectedDate).length;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -90,13 +94,11 @@ export default function ScheduleListScreen() {
         ListHeaderComponent={
           viewMode === 'calendar' ? (
             <View>
-              {/* 캘린더 */}
               <Calendar
                 markedDates={markedDates}
                 selectedDate={selectedDate}
                 onDateSelect={setSelectedDate}
               />
-              {/* 선택 날짜 라벨 */}
               <View style={styles.dateLabelRow}>
                 <Text style={styles.dateLabel}>{selectedDate}</Text>
                 <Text style={styles.dateCount}>
@@ -126,8 +128,8 @@ export default function ScheduleListScreen() {
             </View>
             <Text style={styles.cardTitle}>{item.title}</Text>
             <View style={styles.cardBottom}>
-              <Text style={styles.cardMeta}>📅 {item.dueDate}</Text>
-              <Text style={styles.cardMeta}>👤 {item.assignee}</Text>
+              <Text style={styles.cardMeta}>📅 {toDateKey(item.dueDate)}</Text>
+              <Text style={styles.cardMeta}>👤 {item.assignee ?? '-'}</Text>
             </View>
           </TouchableOpacity>
         )}

@@ -3,7 +3,6 @@ import { chatApi, ChatRoom, Message } from '../api/chatApi';
 
 interface ChatState {
   rooms: ChatRoom[];
-  // roomId → Message[]
   messages: Record<number, Message[]>;
   loading: boolean;
 
@@ -19,28 +18,35 @@ export const useChatStore = create<ChatState>((set) => ({
   loading: false,
 
   fetchRooms: async () => {
+    if (__DEV__) return;
     set({ loading: true });
     try {
       const rooms = await chatApi.getRooms();
       set({ rooms });
-    } finally {
+    } catch {}
+    finally {
       set({ loading: false });
     }
   },
 
   fetchMessages: async (roomId) => {
+    if (__DEV__) {
+      set((state) => ({
+        messages: { ...state.messages, [roomId]: state.messages[roomId] ?? [] },
+      }));
+      return;
+    }
     set({ loading: true });
     try {
       const msgs = await chatApi.getMessages(roomId);
-      set((state) => ({
-        messages: { ...state.messages, [roomId]: msgs },
-      }));
+      set((state) => ({ messages: { ...state.messages, [roomId]: msgs } }));
+    } catch {
+      set((state) => ({ messages: { ...state.messages, [roomId]: [] } }));
     } finally {
       set({ loading: false });
     }
   },
 
-  /** STOMP 수신 메시지를 store에 즉시 반영 */
   addMessage: (roomId, message) => {
     set((state) => {
       const prev = state.messages[roomId] ?? [];
@@ -56,7 +62,6 @@ export const useChatStore = create<ChatState>((set) => ({
     });
   },
 
-  /** 채팅방 입장 시 unread 초기화 */
   markRoomRead: (roomId) => {
     set((state) => ({
       rooms: state.rooms.map((r) => (r.id === roomId ? { ...r, unread: 0 } : r)),

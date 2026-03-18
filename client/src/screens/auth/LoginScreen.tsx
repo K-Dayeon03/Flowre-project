@@ -14,7 +14,7 @@ import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const [employeeCode, setEmployeeCode] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,16 +22,16 @@ export default function LoginScreen() {
   const login = useAuthStore((s) => s.login);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      setError('이메일과 비밀번호를 입력해주세요.');
+    if (!employeeCode || !password) {
+      setError('직원 코드와 비밀번호를 입력해주세요.');
       return;
     }
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(employeeCode, password);
     } catch {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.');
+      setError('직원 코드 또는 비밀번호가 올바르지 않습니다.');
     } finally {
       setLoading(false);
     }
@@ -52,16 +52,15 @@ export default function LoginScreen() {
         {/* 입력 폼 */}
         <View style={styles.form}>
           <View style={styles.inputWrapper}>
-            <Text style={styles.label}>이메일</Text>
+            <Text style={styles.label}>직원 코드</Text>
             <TextInput
               style={styles.input}
-              placeholder="이메일을 입력하세요"
+              placeholder="직원 코드를 입력하세요"
               placeholderTextColor={Colors.textMuted}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
+              value={employeeCode}
+              onChangeText={setEmployeeCode}
               autoCapitalize="none"
-              autoComplete="email"
+              autoCorrect={false}
             />
           </View>
 
