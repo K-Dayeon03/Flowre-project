@@ -68,18 +68,44 @@ public class InventoryService {
         return InventoryLabelResponse.from(label);
     }
 
-    /** 재고 항목에 자유 라벨을 부여하고 아카이브 목록으로 보냅니다. */
+    /**
+     * 입력한 수량만큼 실시간 재고에서 차감하고, 그 수량을 아카이브 항목으로 분리·이동합니다.
+     *
+     * 원본(실시간 재고) 항목은 수량만 줄어든 채 목록에 남고,
+     * 입력한 라벨·재고명·재고 코드로 아카이브 신규 항목이 생성됩니다.
+     *
+     * @return 수량이 차감된 원본(실시간 재고) 항목
+     */
     @Transactional
     public InventoryResponse archive(User user, Long id, InventoryArchiveRequest request) {
-        InventoryItem item = getItem(user, id);
-        assertStoreVisible(user, item);
+        InventoryItem source = getItem(user, id);
+        assertStoreVisible(user, source);
+
+        int moveQuantity = request.getArchiveQuantity();
+        if (moveQuantity > source.getQuantity()) {
+            throw new CustomException(ErrorCode.INVENTORY_NOT_ENOUGH);
+        }
 
         String labelName = StringUtils.hasText(request.getLabelName())
                 ? request.getLabelName()
                 : DEFAULT_ARCHIVE_LABEL;
         InventoryLabel label = getOrCreateLabel(user.getBrandId(), labelName);
-        item.archive(label, user.getName(), request.getArchiveItemName().trim(), request.getArchiveQuantity());
-        return InventoryResponse.from(item);
+
+        // 1) 실시간 재고에서 필요한 수량만큼 차감
+        source.deduct(moveQuantity);
+
+        // 2) 차감한 수량만큼 아카이브 항목으로 이동(신규 생성)
+        InventoryItem archived = InventoryItem.createArchivedFrom(
+                source,
+                label,
+                user.getName(),
+                request.getArchiveItemName().trim(),
+                StringUtils.hasText(request.getArchiveItemCode()) ? request.getArchiveItemCode().trim() : null,
+                moveQuantity
+        );
+        inventoryItemRepository.save(archived);
+
+        return InventoryResponse.from(source);
     }
 
     /** 재고 항목을 아카이브에서 해제합니다. */

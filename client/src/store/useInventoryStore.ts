@@ -9,53 +9,15 @@ interface InventoryState {
 
   fetchItems: (params?: { query?: string; archived?: boolean; labelName?: string }) => Promise<void>;
   fetchLabels: () => Promise<void>;
-  archiveItem: (id: number, data: { labelName: string; archiveItemName: string; archiveQuantity: number }) => Promise<void>;
+  archiveItem: (
+    id: number,
+    data: { labelName: string; archiveItemName: string; archiveItemCode?: string; archiveQuantity: number }
+  ) => Promise<void>;
   unarchiveItem: (id: number) => Promise<void>;
   adjustItem: (item: InventoryItem, quantityChange: number, reason?: string) => Promise<void>;
   deductItem: (item: InventoryItem, quantity: number, reason?: string) => Promise<void>;
   reloadFromExcel: () => Promise<void>;
 }
-
-const mockItems: InventoryItem[] = [
-  {
-    id: 1,
-    version: 0,
-    storeId: 1,
-    storeCode: '81542',
-    storeName: 'FLOWRE',
-    productCode: 'J1-0-4-4-01-101',
-    colorCode: '48',
-    colorName: 'KHAKI',
-    sizeName: 'L',
-    productName: '남녀공용 라이트 다운필 베스트',
-    barcode: '8806077980199',
-    sourceCode: '--',
-    packQuantity: 1,
-    normalPrice: 49900,
-    retailPrice: 29900,
-    quantity: 0,
-    archived: false,
-  },
-  {
-    id: 2,
-    version: 0,
-    storeId: 1,
-    storeCode: '81542',
-    storeName: 'FLOWRE',
-    productCode: 'J1-0-4-4-01-102',
-    colorCode: '48',
-    colorName: 'KHAKI',
-    sizeName: 'M',
-    productName: '남녀공용 라이트 다운필 베스트',
-    barcode: '8806077980205',
-    sourceCode: '--',
-    packQuantity: 1,
-    normalPrice: 49900,
-    retailPrice: 29900,
-    quantity: 12,
-    archived: false,
-  },
-];
 
 export const useInventoryStore = create<InventoryState>((set, get) => ({
   items: [],
@@ -63,30 +25,10 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   loading: false,
   error: null,
 
+  /** 점별 재고 현황을 서버에서 조회해 목록을 갱신합니다. */
   fetchItems: async (params) => {
     set({ loading: true, error: null });
     try {
-      if (__DEV__) {
-        const query = params?.query?.trim().toLowerCase();
-        const archived = params?.archived ?? false;
-        const labelName = params?.labelName;
-        const items = mockItems.filter((item) => {
-          const matchesArchive = item.archived === archived;
-          const matchesLabel = !labelName || item.archiveLabelName === labelName;
-          const searchable = [
-            item.storeName,
-            item.storeCode,
-            item.productCode,
-            item.productName,
-            item.barcode,
-            item.colorName,
-            item.sizeName,
-          ].join(' ').toLowerCase();
-          return matchesArchive && matchesLabel && (!query || searchable.includes(query));
-        });
-        set({ items });
-        return;
-      }
       const items = await inventoryApi.search(params);
       set({ items });
     } catch (e: any) {
@@ -96,9 +38,9 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
+  /** 아카이브 라벨 목록을 조회합니다. */
   fetchLabels: async () => {
     try {
-      if (__DEV__) return;
       const labels = await inventoryApi.getLabels();
       set({ labels });
     } catch (e: any) {
@@ -106,46 +48,27 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
+  /**
+   * 입력 수량만큼 실시간 재고에서 차감하고 그 수량을 아카이브로 이동합니다.
+   * 서버는 수량이 차감된 원본 항목을 반환하므로, 목록의 원본을 교체합니다.
+   */
   archiveItem: async (id, data) => {
-    if (__DEV__) {
-      const label = data.labelName.trim() || '추후 필요 재고';
-      set((state) => ({
-        labels: state.labels.some((l) => l.name === label)
-          ? state.labels
-          : [...state.labels, { id: Date.now(), name: label }],
-        items: state.items.filter((item) => item.id !== id),
-      }));
-      return;
-    }
-    const updated = await inventoryApi.archive(id, data);
+    const updatedSource = await inventoryApi.archive(id, data);
     set((state) => ({
-      items: state.items.filter((item) => item.id !== id),
-      labels: state.labels.some((label) => label.name === updated.archiveLabelName)
-        ? state.labels
-        : [...state.labels, { id: Date.now(), name: updated.archiveLabelName ?? data.labelName }],
+      items: state.items.map((item) => (item.id === updatedSource.id ? updatedSource : item)),
     }));
+    // 새 라벨이 생성됐을 수 있으므로 라벨 목록을 갱신한다.
+    await get().fetchLabels();
   },
 
+  /** 아카이브 항목을 실시간 재고로 되돌립니다. */
   unarchiveItem: async (id) => {
-    if (__DEV__) {
-      set((state) => ({ items: state.items.filter((item) => item.id !== id) }));
-      return;
-    }
     await inventoryApi.unarchive(id);
     set((state) => ({ items: state.items.filter((item) => item.id !== id) }));
   },
 
+  /** 본사 사용분을 차감하고 서버가 반환한 항목으로 교체합니다. */
   deductItem: async (item, quantity, reason) => {
-    if (__DEV__) {
-      set((state) => ({
-        items: state.items.map((current) =>
-          current.id === item.id
-            ? { ...current, quantity: Math.max(0, current.quantity - quantity), version: current.version + 1 }
-            : current
-        ),
-      }));
-      return;
-    }
     const updated = await inventoryApi.deduct(item.id, {
       quantity,
       version: item.version,
@@ -156,17 +79,8 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }));
   },
 
+  /** 실시간 재고 수량을 증감하고 서버가 반환한 항목으로 교체합니다. */
   adjustItem: async (item, quantityChange, reason) => {
-    if (__DEV__) {
-      set((state) => ({
-        items: state.items.map((current) =>
-          current.id === item.id
-            ? { ...current, quantity: Math.max(0, current.quantity + quantityChange), version: current.version + 1 }
-            : current
-        ),
-      }));
-      return;
-    }
     const updated = await inventoryApi.adjust(item.id, {
       quantityChange,
       version: item.version,
@@ -177,12 +91,11 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }));
   },
 
+  /** 서버에 data 폴더 재고 재적재를 요청한 뒤 목록·라벨을 새로고침합니다. */
   reloadFromExcel: async () => {
     set({ loading: true, error: null });
     try {
-      if (!__DEV__) {
-        await inventoryApi.reload();
-      }
+      await inventoryApi.reload();
       await get().fetchItems({ archived: false });
       await get().fetchLabels();
     } catch (e: any) {

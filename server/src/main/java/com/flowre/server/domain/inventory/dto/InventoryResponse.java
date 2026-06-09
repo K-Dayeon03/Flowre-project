@@ -29,6 +29,7 @@ public class InventoryResponse {
     private boolean archived;
     private String archiveLabelName;
     private String archiveItemName;
+    private String archiveItemCode;
     private Integer archiveQuantity;
     private LocalDateTime archivedAt;
     private String archivedBy;
@@ -56,6 +57,7 @@ public class InventoryResponse {
                 .archived(item.isArchived())
                 .archiveLabelName(item.getArchiveLabel() != null ? item.getArchiveLabel().getName() : null)
                 .archiveItemName(item.getArchiveItemName())
+                .archiveItemCode(item.getArchiveItemCode())
                 .archiveQuantity(item.getArchiveQuantity())
                 .archivedAt(item.getArchivedAt())
                 .archivedBy(item.getArchivedBy())

@@ -20,6 +20,7 @@ export interface InventoryItem {
   archived: boolean;
   archiveLabelName?: string;
   archiveItemName?: string;
+  archiveItemCode?: string;
   archiveQuantity?: number;
   archivedAt?: string;
   archivedBy?: string;
@@ -76,7 +77,7 @@ export const inventoryApi = {
 
   archive: async (
     id: number,
-    data: { labelName: string; archiveItemName: string; archiveQuantity: number }
+    data: { labelName: string; archiveItemName: string; archiveItemCode?: string; archiveQuantity: number }
   ): Promise<InventoryItem> => {
     const res = await apiClient.patch(`/api/inventories/${id}/archive`, data);
     return unwrap(res);

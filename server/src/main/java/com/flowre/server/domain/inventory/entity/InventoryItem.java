@@ -83,6 +83,8 @@ public class InventoryItem {
 
     private String archiveItemName;
 
+    private String archiveItemCode;
+
     private Integer archiveQuantity;
 
     @CreatedDate
@@ -91,14 +93,46 @@ public class InventoryItem {
     @LastModifiedDate
     private LocalDateTime updatedAt;
 
-    /** 재고 항목을 사용자가 지정한 라벨로 아카이브 처리합니다. */
-    public void archive(InventoryLabel label, String userName, String archiveItemName, Integer archiveQuantity) {
-        this.archived = true;
-        this.archiveLabel = label;
-        this.archiveItemName = archiveItemName;
-        this.archiveQuantity = archiveQuantity;
-        this.archivedAt = LocalDateTime.now();
-        this.archivedBy = userName;
+    /**
+     * 실시간 재고에서 분리한 수량만큼 아카이브용 신규 항목을 생성합니다.
+     *
+     * 원본 항목의 메타 정보(점포·상품·색상 등)를 복제하되,
+     * 수량은 아카이브로 이동할 수량만 담고 사용자가 입력한 라벨·재고명·재고 코드를 부여합니다.
+     *
+     * @param source           분리 원본이 되는 실시간 재고 항목
+     * @param label            아카이브 라벨
+     * @param userName         보관 처리한 사용자명
+     * @param archiveItemName  필요한 재고명
+     * @param archiveItemCode  재고 코드 (선택)
+     * @param archiveQuantity  아카이브로 이동할 수량
+     * @return 아카이브 처리된 신규 재고 항목
+     */
+    public static InventoryItem createArchivedFrom(InventoryItem source, InventoryLabel label, String userName,
+                                                   String archiveItemName, String archiveItemCode, int archiveQuantity) {
+        return InventoryItem.builder()
+                .brandId(source.brandId)
+                .storeId(source.storeId)
+                .storeCode(source.storeCode)
+                .storeName(source.storeName)
+                .productCode(source.productCode)
+                .colorCode(source.colorCode)
+                .colorName(source.colorName)
+                .sizeName(source.sizeName)
+                .productName(source.productName)
+                .barcode(source.barcode)
+                .sourceCode(source.sourceCode)
+                .packQuantity(source.packQuantity)
+                .normalPrice(source.normalPrice)
+                .retailPrice(source.retailPrice)
+                .quantity(archiveQuantity)
+                .archived(true)
+                .archiveLabel(label)
+                .archiveItemName(archiveItemName)
+                .archiveItemCode(archiveItemCode)
+                .archiveQuantity(archiveQuantity)
+                .archivedAt(LocalDateTime.now())
+                .archivedBy(userName)
+                .build();
     }
 
     /** 재고 항목을 활성 목록으로 되돌립니다. */
@@ -106,6 +140,7 @@ public class InventoryItem {
         this.archived = false;
         this.archiveLabel = null;
         this.archiveItemName = null;
+        this.archiveItemCode = null;
         this.archiveQuantity = null;
         this.archivedAt = null;
         this.archivedBy = null;

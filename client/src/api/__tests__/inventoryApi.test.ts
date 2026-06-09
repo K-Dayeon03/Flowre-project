@@ -47,24 +47,20 @@ describe('inventoryApi.archive()', () => {
     const archivePayload = {
       labelName: '추후 필요 재고',
       archiveItemName: '남녀공용 라이트 다운필 베스트',
-      archiveQuantity: 12,
+      archiveItemCode: 'J1-0-4-4-01-101',
+      archiveQuantity: 5,
     };
-    const archived = fakeInventory({
-      archived: true,
-      archiveLabelName: '추후 필요 재고',
-      archiveItemName: '남녀공용 라이트 다운필 베스트',
-      archiveQuantity: 12,
-    });
+    // 서버는 수량이 차감된 원본(실시간 재고) 항목을 반환한다.
+    const updatedSource = fakeInventory({ quantity: 7, version: 1 });
     mock.onPatch('/api/inventories/1/archive').reply((config) => {
       expect(JSON.parse(config.data)).toEqual(archivePayload);
-      return [200, { data: archived }];
+      return [200, { data: updatedSource }];
     });
 
     const result = await inventoryApi.archive(1, archivePayload);
 
-    expect(result.archived).toBe(true);
-    expect(result.archiveLabelName).toBe('추후 필요 재고');
-    expect(result.archiveQuantity).toBe(12);
+    expect(result.quantity).toBe(7);
+    expect(result.version).toBe(1);
   });
 });
 

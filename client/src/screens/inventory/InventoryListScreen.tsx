@@ -49,7 +49,8 @@ export default function InventoryListScreen() {
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [labelName, setLabelName] = useState(DEFAULT_LABEL);
   const [archiveItemName, setArchiveItemName] = useState('');
-  const [archiveQuantity, setArchiveQuantity] = useState('0');
+  const [archiveItemCode, setArchiveItemCode] = useState('');
+  const [archiveQuantity, setArchiveQuantity] = useState('1');
   const [adjustQuantity, setAdjustQuantity] = useState('1');
   const [adjustSign, setAdjustSign] = useState<1 | -1>(-1);
   const [adjustReason, setAdjustReason] = useState('');
@@ -72,7 +73,8 @@ export default function InventoryListScreen() {
     setSelectedItem(item);
     setLabelName(item.archiveLabelName ?? DEFAULT_LABEL);
     setArchiveItemName(item.archiveItemName ?? item.productName);
-    setArchiveQuantity(String(item.archiveQuantity ?? item.quantity));
+    setArchiveItemCode(item.archiveItemCode ?? item.productCode);
+    setArchiveQuantity(String(item.archiveQuantity ?? 1));
     setModalMode('archive');
   }
 
@@ -95,17 +97,18 @@ export default function InventoryListScreen() {
           Alert.alert('확인 필요', '필요한 재고명을 입력해주세요.');
           return;
         }
-        if (!Number.isInteger(quantity) || quantity < 0) {
-          Alert.alert('확인 필요', '보관 수량은 0개 이상이어야 합니다.');
+        if (!Number.isInteger(quantity) || quantity < 1) {
+          Alert.alert('확인 필요', '보관 수량은 1개 이상이어야 합니다.');
           return;
         }
         if (quantity > selectedItem.quantity) {
-          Alert.alert('확인 필요', '보관 수량은 현재 재고 수량을 초과할 수 없습니다.');
+          Alert.alert('확인 필요', '보관 수량은 현재 실시간 재고를 초과할 수 없습니다.');
           return;
         }
         await archiveItem(selectedItem.id, {
           labelName: labelName.trim() || DEFAULT_LABEL,
           archiveItemName: archiveItemName.trim(),
+          archiveItemCode: archiveItemCode.trim() || undefined,
           archiveQuantity: quantity,
         });
       }
@@ -154,7 +157,8 @@ export default function InventoryListScreen() {
             </View>
             {item.archiveItemName ? (
               <Text style={styles.archiveMeta}>
-                {item.archiveItemName} · {item.archiveQuantity ?? 0}개
+                {item.archiveItemName}
+                {item.archiveItemCode ? ` (${item.archiveItemCode})` : ''} · {item.archiveQuantity ?? 0}개
               </Text>
             ) : null}
           </View>
@@ -260,12 +264,13 @@ export default function InventoryListScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalPanel}>
             <Text style={styles.modalTitle}>
-              {modalMode === 'archive' ? '아카이브 라벨' : '실시간 수량 조정'}
+              {modalMode === 'archive' ? '재고 보관' : '실시간 수량 조정'}
             </Text>
               <Text style={styles.modalSubtitle}>{selectedItem?.productName}</Text>
 
             {modalMode === 'archive' ? (
               <>
+                <Text style={styles.modalFieldLabel}>라벨명</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={labelName}
@@ -273,6 +278,7 @@ export default function InventoryListScreen() {
                   placeholder={DEFAULT_LABEL}
                   placeholderTextColor={Colors.textMuted}
                 />
+                <Text style={styles.modalFieldLabel}>필요한 재고명</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={archiveItemName}
@@ -280,6 +286,16 @@ export default function InventoryListScreen() {
                   placeholder="필요한 재고명"
                   placeholderTextColor={Colors.textMuted}
                 />
+                <Text style={styles.modalFieldLabel}>재고 코드</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={archiveItemCode}
+                  onChangeText={setArchiveItemCode}
+                  placeholder="재고 코드"
+                  placeholderTextColor={Colors.textMuted}
+                  autoCapitalize="characters"
+                />
+                <Text style={styles.modalFieldLabel}>수량</Text>
                 <TextInput
                   style={styles.modalInput}
                   value={archiveQuantity}
@@ -288,7 +304,9 @@ export default function InventoryListScreen() {
                   placeholder="보관 수량"
                   placeholderTextColor={Colors.textMuted}
                 />
-                <Text style={styles.versionNote}>현재 재고 수량 {selectedItem?.quantity ?? 0}개 포함</Text>
+                <Text style={styles.versionNote}>
+                  현재 실시간 재고 {selectedItem?.quantity ?? 0}개 · 입력 수량만큼 차감 후 아카이브로 이동
+                </Text>
               </>
             ) : (
               <>
@@ -479,6 +497,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: FontSize.md,
   },
+  modalFieldLabel: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600', marginTop: Spacing.xs },
   versionNote: { color: Colors.textMuted, fontSize: FontSize.xs },
   adjustSignRow: { flexDirection: 'row', gap: Spacing.sm },
   adjustSignButton: {

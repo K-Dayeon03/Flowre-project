@@ -56,26 +56,25 @@ describe('fetchItems()', () => {
 });
 
 describe('archiveItem()', () => {
-  it('아카이브한 항목을 현재 목록에서 제거한다', async () => {
-    const item = fakeInventory();
+  it('보관 후 서버가 반환한 차감된 원본으로 목록 항목을 교체하고 라벨을 갱신한다', async () => {
+    const item = fakeInventory({ quantity: 12 });
     const payload = {
       labelName: '추후 필요 재고',
       archiveItemName: item.productName,
-      archiveQuantity: item.quantity,
+      archiveItemCode: item.productCode,
+      archiveQuantity: 5,
     };
-    const archived = fakeInventory({
-      archived: true,
-      archiveLabelName: '추후 필요 재고',
-      archiveItemName: item.productName,
-      archiveQuantity: item.quantity,
-    });
+    // 서버는 수량이 차감된 원본(실시간 재고) 항목을 반환한다.
+    const updatedSource = fakeInventory({ quantity: 7, version: 1 });
     useInventoryStore.setState({ items: [item] });
-    mockedApi.archive.mockResolvedValue(archived);
+    mockedApi.archive.mockResolvedValue(updatedSource);
+    mockedApi.getLabels.mockResolvedValue([{ id: 1, name: '추후 필요 재고' }]);
 
     await useInventoryStore.getState().archiveItem(1, payload);
 
     expect(mockedApi.archive).toHaveBeenCalledWith(1, payload);
-    expect(useInventoryStore.getState().items).toEqual([]);
+    expect(useInventoryStore.getState().items[0]).toEqual(updatedSource);
+    expect(mockedApi.getLabels).toHaveBeenCalled();
   });
 });
 

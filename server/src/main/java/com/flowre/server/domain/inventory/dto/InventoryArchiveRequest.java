@@ -16,7 +16,10 @@ public class InventoryArchiveRequest {
     @NotBlank
     private String archiveItemName;
 
+    /** 재고 코드 (선택) */
+    private String archiveItemCode;
+
     @NotNull
-    @Min(0)
+    @Min(1)
     private Integer archiveQuantity;
 }
