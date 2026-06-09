@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { chatApi, ChatRoom, Message } from '../api/chatApi';
+import { logger } from '../utils/logger';
 
 interface ChatState {
   rooms: ChatRoom[];
@@ -9,7 +10,7 @@ interface ChatState {
   fetchRooms: () => Promise<void>;
   fetchMessages: (roomId: number) => Promise<void>;
   addMessage: (roomId: number, message: Message) => void;
-  markRoomRead: (roomId: number) => void;
+  markRoomRead: (roomId: number) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -62,9 +63,29 @@ export const useChatStore = create<ChatState>((set) => ({
     });
   },
 
-  markRoomRead: (roomId) => {
+  /**
+   * 채팅방 읽음 처리
+   *
+   * 로컬 상태(unread=0)를 먼저 낙관적으로 갱신한 뒤, 서버에도 읽음 처리를
+   * 동기화한다. 재시작·타 기기에서도 unread가 반영되도록 서버 호출이 필요하다.
+   * DEV 모드에서는 서버 호출을 생략한다. 서버 호출 실패 시에도 로컬 상태는
+   * 유지하며 앱이 깨지지 않도록 에러를 흡수한다.
+   *
+   * @param roomId 읽음 처리할 채팅방 ID
+   */
+  markRoomRead: async (roomId) => {
+    // 1) 로컬 상태 낙관적 갱신
     set((state) => ({
       rooms: state.rooms.map((r) => (r.id === roomId ? { ...r, unread: 0 } : r)),
     }));
+
+    // 2) 서버 동기화 (DEV 모드 제외)
+    if (__DEV__) return;
+    try {
+      await chatApi.markRead(roomId);
+    } catch (err) {
+      // 서버 동기화 실패 시 로컬 상태는 그대로 두고 경고만 남긴다.
+      logger.warn('[Chat] markRead 서버 동기화 실패:', err);
+    }
   },
 }));

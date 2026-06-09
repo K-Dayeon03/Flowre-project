@@ -195,26 +195,49 @@ describe('addMessage()', () => {
 
 // ── markRoomRead() ────────────────────────────────────────────────
 describe('markRoomRead()', () => {
-  it('id=1 방의 unread = 0', () => {
+  it('id=1 방의 unread = 0 (로컬 낙관적 갱신)', async () => {
+    mockedApi.markRead.mockResolvedValue(undefined);
     useChatStore.setState({
       rooms: [fakeRoom({ id: 1, unread: 10 })],
     });
 
-    useChatStore.getState().markRoomRead(1);
+    await useChatStore.getState().markRoomRead(1);
 
     const room = useChatStore.getState().rooms.find((r) => r.id === 1)!;
     expect(room.unread).toBe(0);
   });
 
-  it('다른 방 unread 변화 없음', () => {
+  it('다른 방 unread 변화 없음', async () => {
+    mockedApi.markRead.mockResolvedValue(undefined);
     useChatStore.setState({
       rooms: [fakeRoom({ id: 1, unread: 10 }), fakeRoom({ id: 2, unread: 7 })],
     });
 
-    useChatStore.getState().markRoomRead(1);
+    await useChatStore.getState().markRoomRead(1);
 
     const state = useChatStore.getState();
     expect(state.rooms.find((r) => r.id === 1)!.unread).toBe(0);
     expect(state.rooms.find((r) => r.id === 2)!.unread).toBe(7);
+  });
+
+  it('서버 chatApi.markRead(roomId)도 호출하여 동기화', async () => {
+    mockedApi.markRead.mockResolvedValue(undefined);
+    useChatStore.setState({ rooms: [fakeRoom({ id: 5, unread: 3 })] });
+
+    await useChatStore.getState().markRoomRead(5);
+
+    expect(mockedApi.markRead).toHaveBeenCalledWith(5);
+  });
+
+  it('서버 호출 실패해도 로컬 unread는 0 유지, 에러 흡수', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedApi.markRead.mockRejectedValue(new Error('네트워크 오류'));
+    useChatStore.setState({ rooms: [fakeRoom({ id: 1, unread: 9 })] });
+
+    await expect(useChatStore.getState().markRoomRead(1)).resolves.toBeUndefined();
+
+    expect(useChatStore.getState().rooms.find((r) => r.id === 1)!.unread).toBe(0);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('markRead'), expect.any(Error));
+    warnSpy.mockRestore();
   });
 });

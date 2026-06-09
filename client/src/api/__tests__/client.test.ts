@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // client.ts를 매 테스트마다 새로 불러오면 인터셉터 중복 등록 문제가 있으므로
 // 모듈 레벨에서 한 번만 import
-import { apiClient } from '../client';
+import { apiClient, registerSessionExpiredHandler } from '../client';
 
 const mock = new MockAdapter(apiClient);
 
@@ -94,6 +94,39 @@ describe('응답 인터셉터', () => {
 
     await expect(apiClient.get('/api/protected')).rejects.toThrow('Refresh failed');
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith('flowre_access_token');
+  });
+
+  it('401 → refresh 영구 실패 → 등록된 세션 만료 핸들러 호출', async () => {
+    const handler = jest.fn();
+    registerSessionExpiredHandler(handler);
+
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue('old-token');
+    mock.onGet('/api/protected').reply(401, { message: 'Unauthorized' });
+    mockedAxiosPost.mockRejectedValueOnce(new Error('Refresh failed'));
+
+    await expect(apiClient.get('/api/protected')).rejects.toThrow('Refresh failed');
+
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    // 핸들러 해제 (다른 테스트 간섭 방지)
+    registerSessionExpiredHandler(() => {});
+  });
+
+  it('401 → refresh 응답에 accessToken 누락 → 세션 만료 처리', async () => {
+    const handler = jest.fn();
+    registerSessionExpiredHandler(handler);
+
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue('old-token');
+    mock.onGet('/api/protected').reply(401, { message: 'Unauthorized' });
+    // accessToken이 없는 비정상 응답
+    mockedAxiosPost.mockResolvedValueOnce({ data: { data: {} } });
+
+    await expect(apiClient.get('/api/protected')).rejects.toThrow();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith('flowre_access_token');
+
+    registerSessionExpiredHandler(() => {});
   });
 
   it('동시 401 응답: pendingQueue로 refresh 1회만 호출 (race condition 방지)', async () => {

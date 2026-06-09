@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi } from '../../api/authApi';
-import { useAuthStore } from '../useAuthStore';
+import { useAuthStore, bindSessionExpiredHandler } from '../useAuthStore';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = global as any;
@@ -12,6 +12,14 @@ jest.mock('../../api/authApi', () => ({
     logout: jest.fn(),
     me: jest.fn(),
     refresh: jest.fn(),
+  },
+}));
+
+// client의 세션 만료 핸들러 등록 함수를 mock — 등록된 핸들러를 캡처해 검증한다.
+let registeredHandler: (() => void) | null = null;
+jest.mock('../../api/client', () => ({
+  registerSessionExpiredHandler: (handler: () => void) => {
+    registeredHandler = handler;
   },
 }));
 
@@ -160,6 +168,55 @@ describe('logout()', () => {
     const state = useAuthStore.getState();
     expect(state.user).toBeNull();
     expect(state.isLoggedIn).toBe(false);
+  });
+});
+
+// ── clearSession() ────────────────────────────────────────────────
+describe('clearSession()', () => {
+  it('서버 logout 호출 없이 인증 상태 초기화 + 토큰 삭제', async () => {
+    useAuthStore.setState({
+      user: { id: 1, email: 'a@b.com', employeeCode: '1001ABCD!', name: 'T', role: 'STORE_STAFF', brandId: 1, storeId: 1, storeCode: '1001', storeName: 'S' },
+      accessToken: 'token',
+      isLoggedIn: true,
+    });
+
+    await useAuthStore.getState().clearSession();
+
+    const state = useAuthStore.getState();
+    expect(state.user).toBeNull();
+    expect(state.accessToken).toBeNull();
+    expect(state.isLoggedIn).toBe(false);
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith(ACCESS_TOKEN_KEY);
+    // clearSession은 서버 logout API를 호출하지 않음 (이미 세션 무효)
+    expect(mockedAuthApi.logout).not.toHaveBeenCalled();
+  });
+});
+
+// ── bindSessionExpiredHandler() ───────────────────────────────────
+describe('bindSessionExpiredHandler()', () => {
+  it('인터셉터에 핸들러 등록 → 호출 시 clearSession 실행(인증 상태 초기화)', async () => {
+    registeredHandler = null;
+
+    bindSessionExpiredHandler();
+    expect(registeredHandler).not.toBeNull();
+
+    // 로그인 상태에서 세션 만료 핸들러가 호출되면 상태가 초기화되어야 한다.
+    useAuthStore.setState({
+      user: { id: 1, email: 'a@b.com', employeeCode: '1001ABCD!', name: 'T', role: 'STORE_STAFF', brandId: 1, storeId: 1, storeCode: '1001', storeName: 'S' },
+      accessToken: 'token',
+      isLoggedIn: true,
+    });
+
+    registeredHandler!();
+    // clearSession은 async라 다음 마이크로태스크까지 기다린다.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const state = useAuthStore.getState();
+    expect(state.user).toBeNull();
+    expect(state.accessToken).toBeNull();
+    expect(state.isLoggedIn).toBe(false);
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith(ACCESS_TOKEN_KEY);
   });
 });
 

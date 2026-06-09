@@ -33,8 +33,18 @@ jest.mock('../../store/useChatStore', () => ({
     selector({ addMessage: mockAddMessage, markRoomRead: mockMarkRoomRead }),
 }));
 
+// ── chatApi 모킹 (REST fallback 검증용) ──────────────────────────
+jest.mock('../../api/chatApi', () => ({
+  chatApi: {
+    sendMessage: jest.fn(),
+    markRead: jest.fn(),
+  },
+}));
+
 import React from 'react';
 import { Client } from '@stomp/stompjs';
+import { chatApi } from '../../api/chatApi';
+const mockedChatApi = chatApi as jest.Mocked<typeof chatApi>;
 
 // react-test-renderer에 @types가 없으므로 require 사용
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -189,7 +199,7 @@ describe('sendMessage()', () => {
     });
   });
 
-  it('connected: false → publish 호출 안 됨, console.warn 호출', () => {
+  it('connected: false → publish 호출 안 됨, REST fallback(chatApi.sendMessage) 호출 + addMessage 반영', async () => {
     // connected를 false로 변경하기 위해 Client mock 재설정
     (Client as jest.Mock).mockImplementationOnce((config: any) => {
       capturedConfig = config;
@@ -203,17 +213,65 @@ describe('sendMessage()', () => {
     });
 
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const sentMsg = {
+      id: 99,
+      roomId: 1,
+      senderId: 1,
+      senderName: '나',
+      content: '안녕',
+      type: 'TEXT' as const,
+      sentAt: '2026-03-17T10:00:00Z',
+      isMe: true,
+    };
+    mockedChatApi.sendMessage.mockResolvedValueOnce(sentMsg);
 
     const { result } = renderHook(() => useStompChat(1));
 
-    act(() => {
-      result.current.sendMessage('안녕');
+    await act(async () => {
+      await result.current.sendMessage('안녕');
     });
 
     expect(mockPublish).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('연결되지 않음'));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('REST fallback'));
+    expect(mockedChatApi.sendMessage).toHaveBeenCalledWith({
+      roomId: 1,
+      content: '안녕',
+      type: 'TEXT',
+      fileName: undefined,
+    });
+    expect(mockAddMessage).toHaveBeenCalledWith(1, sentMsg);
 
     warnSpy.mockRestore();
+  });
+
+  it('connected: false + REST fallback 실패 → console.error만, 앱 안 깨짐', async () => {
+    (Client as jest.Mock).mockImplementationOnce((config: any) => {
+      capturedConfig = config;
+      return {
+        activate: mockActivate,
+        deactivate: mockDeactivate,
+        subscribe: mockSubscribe,
+        publish: mockPublish,
+        connected: false,
+      };
+    });
+
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockedChatApi.sendMessage.mockRejectedValueOnce(new Error('network'));
+
+    const { result } = renderHook(() => useStompChat(1));
+
+    await act(async () => {
+      await result.current.sendMessage('안녕');
+    });
+
+    expect(mockedChatApi.sendMessage).toHaveBeenCalled();
+    expect(mockAddMessage).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('REST fallback 전송 실패'), expect.any(Error));
+
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });
 
