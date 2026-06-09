@@ -21,6 +21,7 @@ export interface Message {
   senderName: string;
   content: string;
   type: MessageType;
+  fileName?: string;
   sentAt: string;
   isMe: boolean;
 }
@@ -29,6 +30,7 @@ export interface SendMessageRequest {
   roomId: number;
   content: string;
   type: MessageType;
+  fileName?: string;
 }
 
 export const chatApi = {
@@ -45,6 +47,12 @@ export const chatApi = {
   /** 1:1 채팅방 생성 (점장 권한 검증은 서버에서 처리) */
   createDirectRoom: async (targetUserId: number): Promise<ChatRoom> => {
     const res = await apiClient.post('/api/chat/rooms/direct', { targetUserId });
+    return unwrap(res);
+  },
+
+  /** 1:n, N:1 다자 채팅방 생성 */
+  createRoom: async (data: { name: string; memberUserIds: number[] }): Promise<ChatRoom> => {
+    const res = await apiClient.post('/api/chat/rooms', data);
     return unwrap(res);
   },
 

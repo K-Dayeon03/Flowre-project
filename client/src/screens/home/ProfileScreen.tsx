@@ -41,7 +41,7 @@ export default function ProfileScreen() {
 
         {/* 정보 카드 */}
         <View style={styles.card}>
-          <InfoRow label="직원 코드" value={user.employeeCode} />
+          <InfoRow label="직원 코드" value={user.employeeCode ?? user.email ?? '-'} />
           <Divider />
           <InfoRow label="소속 매장" value={`${user.storeName} · JAJU`} />
           <Divider />

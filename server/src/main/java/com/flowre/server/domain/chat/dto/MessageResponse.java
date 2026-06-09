@@ -14,6 +14,7 @@ public class MessageResponse {
     private String senderName;
     private String content;
     private String type;
+    private String fileName;
     private String sentAt;
     private boolean isMe;
 
@@ -25,6 +26,7 @@ public class MessageResponse {
                 .senderName(m.getSenderName())
                 .content(m.getContent())
                 .type(m.getType().name())
+                .fileName(m.getFileName())
                 .sentAt(m.getSentAt() != null ? m.getSentAt().toString() : "")
                 .isMe(m.getSenderId().equals(currentUserId))
                 .build();

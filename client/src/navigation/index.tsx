@@ -11,6 +11,7 @@ import {
   MainTabParamList,
   HomeStackParamList,
   ScheduleStackParamList,
+  InventoryStackParamList,
   DocumentStackParamList,
   ChatStackParamList,
 } from './types';
@@ -19,9 +20,11 @@ import {
 import LoginScreen from '../screens/auth/LoginScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import ProfileScreen from '../screens/home/ProfileScreen';
+import StoreManageScreen from '../screens/home/StoreManageScreen';
 import ScheduleListScreen from '../screens/schedule/ScheduleListScreen';
 import ScheduleDetailScreen from '../screens/schedule/ScheduleDetailScreen';
 import ScheduleCreateScreen from '../screens/schedule/ScheduleCreateScreen';
+import InventoryListScreen from '../screens/inventory/InventoryListScreen';
 import DocumentListScreen from '../screens/document/DocumentListScreen';
 import DocumentDetailScreen from '../screens/document/DocumentDetailScreen';
 import DocumentUploadScreen from '../screens/document/DocumentUploadScreen';
@@ -33,6 +36,7 @@ const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const ScheduleStack = createNativeStackNavigator<ScheduleStackParamList>();
+const InventoryStack = createNativeStackNavigator<InventoryStackParamList>();
 const DocumentStack = createNativeStackNavigator<DocumentStackParamList>();
 const ChatStack = createNativeStackNavigator<ChatStackParamList>();
 
@@ -41,6 +45,7 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   const icons: Record<string, string> = {
     홈: '🏠',
     스케줄: '📅',
+    재고: '🔎',
     문서: '📁',
     채팅: '💬',
   };
@@ -73,6 +78,7 @@ function HomeNavigator() {
     >
       <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <HomeStack.Screen name="Profile" component={ProfileScreen} options={{ title: '내 프로필' }} />
+      <HomeStack.Screen name="StoreManage" component={StoreManageScreen} options={{ title: '매장 등록' }} />
     </HomeStack.Navigator>
   );
 }
@@ -105,6 +111,24 @@ function ScheduleNavigator() {
   );
 }
 
+function InventoryNavigator() {
+  return (
+    <InventoryStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: Colors.surface },
+        headerTitleStyle: { fontSize: FontSize.lg, color: Colors.textPrimary },
+        headerTintColor: Colors.primary,
+      }}
+    >
+      <InventoryStack.Screen
+        name="InventoryList"
+        component={InventoryListScreen}
+        options={{ title: '재고' }}
+      />
+    </InventoryStack.Navigator>
+  );
+}
+
 function DocumentNavigator() {
   return (
     <DocumentStack.Navigator
@@ -127,7 +151,7 @@ function DocumentNavigator() {
       <DocumentStack.Screen
         name="DocumentUpload"
         component={DocumentUploadScreen}
-        options={{ title: '문서 업로드' }}
+        options={({ route }) => ({ title: route.params?.documentId ? '문서 수정' : '문서 업로드' })}
       />
     </DocumentStack.Navigator>
   );
@@ -174,6 +198,11 @@ function MainNavigator() {
         name="ScheduleTab"
         component={ScheduleNavigator}
         options={{ tabBarIcon: ({ focused }) => <TabIcon label="스케줄" focused={focused} /> }}
+      />
+      <Tab.Screen
+        name="InventoryTab"
+        component={InventoryNavigator}
+        options={{ tabBarIcon: ({ focused }) => <TabIcon label="재고" focused={focused} /> }}
       />
       <Tab.Screen
         name="DocumentTab"

@@ -24,7 +24,9 @@ export default function ChatRoomListScreen() {
   const navigation = useNavigation<Nav>();
   const [search, setSearch] = useState('');
   const [showNewChat, setShowNewChat] = useState(false);
+  const [chatMode, setChatMode] = useState<'DIRECT' | 'GROUP'>('DIRECT');
   const [targetId, setTargetId] = useState('');
+  const [roomName, setRoomName] = useState('');
   const [creating, setCreating] = useState(false);
 
   const rooms = useChatStore((s) => s.rooms);
@@ -39,12 +41,17 @@ export default function ChatRoomListScreen() {
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const addRoom = useChatStore((s) => s.addMessage);
-
   const handleStartChat = async () => {
-    const id = parseInt(targetId, 10);
-    if (!targetId || isNaN(id)) {
-      Alert.alert('알림', '직원 고유 번호를 숫자로 입력해주세요.');
+    const memberIds = targetId
+      .split(',')
+      .map((value) => parseInt(value.trim(), 10))
+      .filter((value) => Number.isInteger(value));
+    if (memberIds.length === 0) {
+      Alert.alert('알림', '직원 번호를 입력해주세요.');
+      return;
+    }
+    if (chatMode === 'GROUP' && !roomName.trim()) {
+      Alert.alert('알림', '그룹 채팅방 이름을 입력해주세요.');
       return;
     }
     setCreating(true);
@@ -53,16 +60,17 @@ export default function ChatRoomListScreen() {
         // 개발 모드: 로컬 채팅방 생성
         const mockRoom = {
           id: Date.now(),
-          name: `직원 #${id}`,
-          type: 'DIRECT' as const,
+          name: chatMode === 'DIRECT' ? `직원 #${memberIds[0]}` : roomName.trim(),
+          type: chatMode,
           lastMessage: '',
           lastAt: '방금',
           unread: 0,
-          members: 2,
+          members: chatMode === 'DIRECT' ? 2 : memberIds.length + 1,
         };
         useChatStore.setState((s) => ({ rooms: [mockRoom, ...s.rooms] }));
         setShowNewChat(false);
         setTargetId('');
+        setRoomName('');
         navigation.navigate('ChatRoom', {
           roomId: mockRoom.id,
           roomName: mockRoom.name,
@@ -70,9 +78,12 @@ export default function ChatRoomListScreen() {
         });
         return;
       }
-      const room = await chatApi.createDirectRoom(id);
+      const room = chatMode === 'DIRECT'
+        ? await chatApi.createDirectRoom(memberIds[0])
+        : await chatApi.createRoom({ name: roomName.trim(), memberUserIds: memberIds });
       setShowNewChat(false);
       setTargetId('');
+      setRoomName('');
       await fetchRooms();
       navigation.navigate('ChatRoom', {
         roomId: room.id,
@@ -166,22 +177,47 @@ export default function ChatRoomListScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>새 채팅 시작</Text>
-            <Text style={styles.modalDesc}>직원 고유 번호를 입력하세요</Text>
+            <Text style={styles.modalDesc}>1:1 또는 여러 명이 참여하는 채팅방을 만들 수 있습니다.</Text>
+
+            <View style={styles.modeRow}>
+              <TouchableOpacity
+                style={[styles.modeButton, chatMode === 'DIRECT' && styles.modeButtonActive]}
+                onPress={() => setChatMode('DIRECT')}
+              >
+                <Text style={[styles.modeText, chatMode === 'DIRECT' && styles.modeTextActive]}>1:1</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeButton, chatMode === 'GROUP' && styles.modeButtonActive]}
+                onPress={() => setChatMode('GROUP')}
+              >
+                <Text style={[styles.modeText, chatMode === 'GROUP' && styles.modeTextActive]}>그룹</Text>
+              </TouchableOpacity>
+            </View>
+
+            {chatMode === 'GROUP' ? (
+              <TextInput
+                style={styles.modalInput}
+                placeholder="채팅방 이름"
+                placeholderTextColor={Colors.textMuted}
+                value={roomName}
+                onChangeText={setRoomName}
+              />
+            ) : null}
 
             <TextInput
               style={styles.modalInput}
-              placeholder="직원 번호 (예: 1001)"
+              placeholder={chatMode === 'DIRECT' ? '직원 번호 (예: 1001)' : '직원 번호들 (예: 1001,1002,1003)'}
               placeholderTextColor={Colors.textMuted}
               value={targetId}
               onChangeText={setTargetId}
-              keyboardType="number-pad"
+              keyboardType={chatMode === 'DIRECT' ? 'number-pad' : 'default'}
               autoFocus
             />
 
             <View style={styles.modalBtns}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
-                onPress={() => { setShowNewChat(false); setTargetId(''); }}
+                onPress={() => { setShowNewChat(false); setTargetId(''); setRoomName(''); }}
               >
                 <Text style={styles.modalCancelText}>취소</Text>
               </TouchableOpacity>
@@ -312,6 +348,18 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   modalBtns: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  modeRow: { flexDirection: 'row', gap: Spacing.sm },
+  modeButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.sm,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  modeButtonActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  modeText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '700' },
+  modeTextActive: { color: Colors.surface },
   modalCancelBtn: {
     flex: 1,
     paddingVertical: Spacing.md,

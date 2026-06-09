@@ -12,6 +12,7 @@ import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { useChatStore } from '../../store/useChatStore';
+import { canManageStores } from './homePermissions';
 
 /** 오늘 날짜 포맷 */
 function getTodayLabel() {
@@ -53,6 +54,7 @@ export default function HomeScreen() {
 
   const storeName = user ? `${user.storeName} · JAJU` : 'JAJU';
   const initial = user?.name[0] ?? '?';
+  const canShowStoreManage = canManageStores(user?.role);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -83,6 +85,20 @@ export default function HomeScreen() {
             color={Colors.success}
           />
         </View>
+
+        {canShowStoreManage && (
+          <TouchableOpacity
+            style={styles.storeManageButton}
+            onPress={() => navigation.navigate('StoreManage')}
+            activeOpacity={0.8}
+          >
+            <View>
+              <Text style={styles.storeManageTitle}>매장 등록</Text>
+              <Text style={styles.storeManageSub}>점별 코드와 매장명 관리</Text>
+            </View>
+            <Text style={styles.storeManageArrow}>›</Text>
+          </TouchableOpacity>
+        )}
 
         {/* 오늘 스케줄 */}
         <Section
@@ -212,6 +228,32 @@ const styles = StyleSheet.create({
   summaryValue: { fontSize: FontSize.xxl, fontWeight: '700' },
   summaryLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   summarySub: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 1 },
+  storeManageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  storeManageTitle: {
+    fontSize: FontSize.md,
+    color: Colors.textPrimary,
+    fontWeight: '700',
+  },
+  storeManageSub: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  storeManageArrow: {
+    fontSize: FontSize.xxl,
+    color: Colors.accent,
+    fontWeight: '700',
+  },
   section: { marginBottom: Spacing.lg },
   sectionHeader: {
     flexDirection: 'row',

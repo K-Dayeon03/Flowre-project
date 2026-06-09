@@ -1,102 +1,133 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
+  ActivityIndicator,
+  Alert,
   FlatList,
-  TouchableOpacity,
-  StyleSheet,
   SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
+import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { DocumentStackParamList } from '../../navigation/types';
+import { Document, DocumentCategory, documentApi } from '../../api/documentApi';
 
 type Nav = NativeStackNavigationProp<DocumentStackParamList, 'DocumentList'>;
 
-const CATEGORIES = ['전체', '매뉴얼', '공지', '리포트'];
-
-const FILE_ICON: Record<string, string> = {
-  pdf: '📄',
-  jpg: '🖼️',
-  png: '🖼️',
-  xlsx: '📊',
-  docx: '📝',
-};
-
-const MOCK_DOCUMENTS = [
-  { id: 1, title: 'SS 2025 VM 가이드라인', category: '매뉴얼', fileType: 'pdf', size: '4.2MB', uploader: 'VMD팀', date: '2025-03-10' },
-  { id: 2, title: '4월 본사 방문 일정 안내', category: '공지', fileType: 'docx', size: '0.8MB', uploader: '운영팀', date: '2025-03-09' },
-  { id: 3, title: '2025년 마네킹 착장 레퍼런스', category: '매뉴얼', fileType: 'jpg', size: '12.5MB', uploader: 'VMD팀', date: '2025-03-05' },
-  { id: 4, title: '2월 매장 현황 리포트', category: '리포트', fileType: 'xlsx', size: '1.2MB', uploader: '강남점 점장', date: '2025-03-01' },
-  { id: 5, title: '매장 운영 가이드북 v3', category: '매뉴얼', fileType: 'pdf', size: '8.7MB', uploader: '운영팀', date: '2025-02-20' },
+const CATEGORIES: Array<{ label: string; value?: DocumentCategory }> = [
+  { label: '전체' },
+  { label: '매뉴얼', value: 'MANUAL' },
+  { label: '공지', value: 'NOTICE' },
+  { label: '리포트', value: 'REPORT' },
 ];
 
-const CATEGORY_KEY: Record<string, string> = {
-  전체: '',
-  매뉴얼: 'MANUAL',
-  공지: 'NOTICE',
-  리포트: 'REPORT',
+const CATEGORY_LABEL: Record<DocumentCategory, string> = {
+  MANUAL: '매뉴얼',
+  NOTICE: '공지',
+  REPORT: '리포트',
 };
+
+const FILE_ICON: Record<string, string> = {
+  pdf: 'PDF',
+  jpg: 'IMG',
+  jpeg: 'IMG',
+  png: 'IMG',
+  xlsx: 'XLS',
+  docx: 'DOC',
+};
+
+function getFileLabel(fileType?: string) {
+  const key = (fileType ?? '').split('/').pop()?.toLowerCase() ?? '';
+  return FILE_ICON[key] ?? 'FILE';
+}
 
 export default function DocumentListScreen() {
   const navigation = useNavigation<Nav>();
-  const [activeCategory, setActiveCategory] = useState('전체');
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [activeCategory, setActiveCategory] = useState<DocumentCategory | undefined>();
+  const [loading, setLoading] = useState(false);
 
-  const filtered = MOCK_DOCUMENTS.filter((d) => {
-    if (activeCategory === '전체') return true;
-    return d.category === activeCategory;
-  });
+  const fetchDocuments = async () => {
+    setLoading(true);
+    try {
+      setDocuments(await documentApi.getList(activeCategory ? { category: activeCategory } : undefined));
+    } catch {
+      Alert.alert('오류', '문서 목록을 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDocuments();
+    }, [activeCategory])
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* 카테고리 탭 */}
-      <View style={styles.tabRow}>
-        {CATEGORIES.map((c) => (
-          <TouchableOpacity
-            key={c}
-            style={[styles.tab, activeCategory === c && styles.tabActive]}
-            onPress={() => setActiveCategory(c)}
-          >
-            <Text style={[styles.tabText, activeCategory === c && styles.tabTextActive]}>{c}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => navigation.navigate('DocumentDetail', { documentId: item.id, title: item.title })}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.fileIcon}>{FILE_ICON[item.fileType] ?? '📎'}</Text>
-            <View style={styles.cardInfo}>
-              <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-              <View style={styles.cardMeta}>
-                <View style={styles.categoryChip}>
-                  <Text style={styles.categoryText}>{item.category}</Text>
-                </View>
-                <Text style={styles.metaText}>{item.size}</Text>
-                <Text style={styles.metaText}>·</Text>
-                <Text style={styles.metaText}>{item.date}</Text>
+      {loading && documents.length === 0 ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.accent} />
+        </View>
+      ) : (
+        <>
+        <View style={styles.tabRow}>
+          {CATEGORIES.map((category) => {
+            const active = activeCategory === category.value;
+            return (
+              <TouchableOpacity
+                key={category.label}
+                style={[styles.tab, active && styles.tabActive]}
+                onPress={() => setActiveCategory(category.value)}
+              >
+                <Text style={[styles.tabText, active && styles.tabTextActive]}>{category.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <FlatList
+          data={documents}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={styles.list}
+          refreshing={loading}
+          onRefresh={fetchDocuments}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => navigation.navigate('DocumentDetail', { documentId: item.id, title: item.title })}
+              activeOpacity={0.75}
+            >
+              <View style={styles.fileBadge}>
+                <Text style={styles.fileBadgeText}>{getFileLabel(item.fileType)}</Text>
               </View>
-              <Text style={styles.uploader}>{item.uploader}</Text>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                <View style={styles.cardMeta}>
+                  <View style={styles.categoryChip}>
+                    <Text style={styles.categoryText}>{CATEGORY_LABEL[item.category]}</Text>
+                  </View>
+                  <Text style={styles.metaText}>{item.size}</Text>
+                  <Text style={styles.metaText}>·</Text>
+                  <Text style={styles.metaText}>{item.createdAt?.split('T')[0] ?? '-'}</Text>
+                </View>
+                <Text style={styles.uploader}>{item.uploader}</Text>
+              </View>
+              <Text style={styles.arrow}>›</Text>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>업로드된 문서가 없습니다.</Text>
             </View>
-            <Text style={styles.arrow}>›</Text>
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>문서가 없습니다.</Text>
-          </View>
-        }
-      />
+          }
+        />
+        </>
+      )}
 
-      {/* FAB */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('DocumentUpload')}
@@ -110,6 +141,7 @@ export default function DocumentListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabRow: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
@@ -126,22 +158,28 @@ const styles = StyleSheet.create({
   tabActive: { borderBottomColor: Colors.primary },
   tabText: { fontSize: FontSize.sm, color: Colors.textSecondary },
   tabTextActive: { color: Colors.primary, fontWeight: '700' },
-  list: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 80 },
+  list: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 88 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
+    borderRadius: Radius.sm,
     padding: Spacing.md,
     gap: Spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  fileIcon: { fontSize: 32 },
+  fileBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fileBadgeText: { color: Colors.surface, fontSize: FontSize.xs, fontWeight: '800' },
   cardInfo: { flex: 1 },
-  cardTitle: { fontSize: FontSize.md, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 },
+  cardTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   categoryChip: {
     backgroundColor: Colors.accent + '20',
@@ -149,7 +187,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: Radius.full,
   },
-  categoryText: { fontSize: FontSize.xs, color: Colors.accent, fontWeight: '600' },
+  categoryText: { fontSize: FontSize.xs, color: Colors.accent, fontWeight: '700' },
   metaText: { fontSize: FontSize.xs, color: Colors.textSecondary },
   uploader: { fontSize: FontSize.xs, color: Colors.textMuted },
   arrow: { fontSize: 20, color: Colors.textMuted },

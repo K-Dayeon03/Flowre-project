@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
+  Alert,
   View,
   Text,
   FlatList,
@@ -63,7 +64,10 @@ export default function ChatRoomScreen({ route }: Props) {
   };
 
   const handleAttach = () => {
-    // TODO: ImagePicker 또는 DocumentPicker → S3 업로드 후 FILE 메시지 전송
+    const fileName = `첨부파일-${Date.now()}.pdf`;
+    const fileUrl = `https://flowre.local/chat-files/${fileName}`;
+    sendMessage(fileUrl, 'FILE', fileName);
+    Alert.alert('파일 첨부', `${fileName} 파일 메시지를 전송했습니다.`);
   };
 
   return (
@@ -109,9 +113,18 @@ export default function ChatRoomScreen({ route }: Props) {
                 <View style={styles.bubbleRow}>
                   {item.isMe && <Text style={styles.timeText}>{item.sentAt}</Text>}
                   <View style={[styles.bubble, item.isMe ? styles.bubbleMe : styles.bubbleThem]}>
-                    <Text style={[styles.bubbleText, item.isMe && styles.bubbleTextMe]}>
-                      {item.content}
-                    </Text>
+                    {item.type === 'FILE' ? (
+                      <>
+                        <Text style={[styles.fileLabel, item.isMe && styles.bubbleTextMe]}>파일</Text>
+                        <Text style={[styles.bubbleText, item.isMe && styles.bubbleTextMe]}>
+                          {item.fileName ?? item.content}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={[styles.bubbleText, item.isMe && styles.bubbleTextMe]}>
+                        {item.content}
+                      </Text>
+                    )}
                   </View>
                   {!item.isMe && <Text style={styles.timeText}>{item.sentAt}</Text>}
                 </View>
@@ -205,6 +218,7 @@ const styles = StyleSheet.create({
   },
   bubbleText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 20 },
   bubbleTextMe: { color: Colors.surface },
+  fileLabel: { fontSize: FontSize.xs, color: Colors.accent, fontWeight: '800', marginBottom: 2 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyMessages: { flex: 1, paddingTop: 80, alignItems: 'center' },
   emptyMessagesText: { fontSize: FontSize.md, color: Colors.textMuted },

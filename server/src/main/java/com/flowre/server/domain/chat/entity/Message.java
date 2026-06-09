@@ -32,6 +32,8 @@ public class Message {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    private String fileName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MessageType type;

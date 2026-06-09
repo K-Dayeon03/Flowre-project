@@ -10,6 +10,7 @@ export type AuthStackParamList = {
 export type MainTabParamList = {
   HomeTab: undefined;
   ScheduleTab: undefined;
+  InventoryTab: undefined;
   DocumentTab: undefined;
   ChatTab: undefined;
 };
@@ -17,6 +18,7 @@ export type MainTabParamList = {
 export type HomeStackParamList = {
   Home: undefined;
   Profile: undefined;
+  StoreManage: undefined;
 };
 
 export type ScheduleStackParamList = {
@@ -25,10 +27,14 @@ export type ScheduleStackParamList = {
   ScheduleCreate: undefined;
 };
 
+export type InventoryStackParamList = {
+  InventoryList: undefined;
+};
+
 export type DocumentStackParamList = {
   DocumentList: undefined;
   DocumentDetail: { documentId: number; title: string };
-  DocumentUpload: undefined;
+  DocumentUpload: { documentId?: number } | undefined;
 };
 
 export type ChatStackParamList = {

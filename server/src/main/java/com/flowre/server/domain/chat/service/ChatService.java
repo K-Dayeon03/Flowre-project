@@ -2,6 +2,7 @@ package com.flowre.server.domain.chat.service;
 
 import com.flowre.server.domain.chat.dto.ChatRoomResponse;
 import com.flowre.server.domain.chat.dto.CreateDirectRoomRequest;
+import com.flowre.server.domain.chat.dto.CreateRoomRequest;
 import com.flowre.server.domain.chat.dto.MessageResponse;
 import com.flowre.server.domain.chat.dto.SendMessageRequest;
 import com.flowre.server.domain.chat.entity.*;
@@ -20,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -102,6 +105,31 @@ public class ChatService {
     }
 
     /**
+     * 여러 사용자가 참여하는 다자 채팅방을 생성합니다.
+     * 1:n, N:1 모두 참여자 목록을 가진 GROUP 방으로 처리합니다.
+     */
+    @Transactional
+    public ChatRoomResponse createRoom(User me, CreateRoomRequest request) {
+        Set<Long> memberIds = new LinkedHashSet<>(request.getMemberUserIds());
+        memberIds.add(me.getId());
+
+        ChatRoom room = ChatRoom.builder()
+                .type(RoomType.GROUP)
+                .name(request.getName().trim())
+                .storeId(me.getStoreId())
+                .build();
+        ChatRoom saved = chatRoomRepository.save(room);
+
+        for (Long memberId : memberIds) {
+            User member = userRepository.findById(memberId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+            addMember(saved, member);
+        }
+
+        return ChatRoomResponse.of(saved, null, 0);
+    }
+
+    /**
      * REST fallback 메시지 전송 (STOMP 불가 시)
      */
     @Transactional
@@ -114,6 +142,7 @@ public class ChatService {
                 .senderName(user.getName())
                 .content(request.getContent())
                 .type(request.getType())
+                .fileName(request.getFileName())
                 .build();
 
         Message saved = messageRepository.save(message);

@@ -6,11 +6,13 @@ export type UserRole = 'STORE_STAFF' | 'STORE_MANAGER' | 'HQ_STAFF' | 'ADMIN';
 
 export interface User {
   id: number;
-  employeeCode: string;
+  email?: string;
+  employeeCode?: string;
   name: string;
   role: UserRole;
   brandId: number;
   storeId: number;
+  storeCode: string;
   storeName: string;
 }
 
@@ -20,7 +22,7 @@ interface AuthState {
   isLoggedIn: boolean;
   loading: boolean;
 
-  login: (email: string, password: string) => Promise<void>;
+  login: (storeCode: string, employeeCode: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   setTokens: (accessToken: string) => void;
   restoreSession: () => Promise<void>;
@@ -34,28 +36,29 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoggedIn: false,
   loading: false,
 
-  login: async (employeeCode, password) => {
+  login: async (storeCode, employeeCode, password) => {
     set({ loading: true });
     try {
       if (__DEV__) {
         // 개발 모드: 백엔드 없이도 UI 테스트 가능
         const mockUser: User = {
           id: 1,
+          email: 'manager@jaju.com',
           employeeCode,
           name: '김민지',
           role: 'STORE_MANAGER',
           brandId: 1,
-          storeId: 1,
+          storeId: Number(storeCode) || 1001,
+          storeCode: storeCode || '1001',
           storeName: '강남점',
         };
         await AsyncStorage.setItem(ACCESS_TOKEN_KEY, 'dev-token');
         set({ accessToken: 'dev-token', user: mockUser, isLoggedIn: true });
         return;
       }
-      const { accessToken, user } = await authApi.login(employeeCode, password);
-      const mappedUser: User = { ...user, employeeCode: (user as any).email ?? employeeCode };
+      const { accessToken, user } = await authApi.login(storeCode, employeeCode, password);
       await AsyncStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-      set({ accessToken, user: mappedUser, isLoggedIn: true });
+      set({ accessToken, user, isLoggedIn: true });
     } finally {
       set({ loading: false });
     }
@@ -76,8 +79,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
     if (!token) return;
     try {
-      const rawUser = await authApi.me(token);
-      const user: User = { ...rawUser, employeeCode: (rawUser as any).email ?? '' };
+      const user = await authApi.me(token);
       set({ accessToken: token, user, isLoggedIn: true });
     } catch {
       await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);

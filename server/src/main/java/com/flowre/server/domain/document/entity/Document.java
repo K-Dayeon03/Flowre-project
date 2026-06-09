@@ -47,4 +47,21 @@ public class Document {
 
     @CreatedDate
     private LocalDateTime createdAt;
+
+    /** 문서 메타데이터와 선택적으로 파일 정보를 수정합니다. */
+    public void update(String title, DocumentCategory category, String s3Key, String description,
+                       String fileType, Long fileSize) {
+        this.title = title;
+        this.category = category;
+        if (s3Key != null && !s3Key.isBlank()) {
+            this.s3Key = s3Key;
+        }
+        this.description = description;
+        if (fileType != null && !fileType.isBlank()) {
+            this.fileType = fileType;
+        }
+        if (fileSize != null) {
+            this.fileSize = fileSize;
+        }
+    }
 }

@@ -16,4 +16,6 @@ public class SendMessageRequest {
 
     @NotNull
     private MessageType type;
+
+    private String fileName;
 }

@@ -17,6 +17,10 @@ public enum ErrorCode {
     // User
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_001", "사용자를 찾을 수 없습니다."),
 
+    // Store
+    STORE_NOT_FOUND(HttpStatus.NOT_FOUND, "STORE_001", "매장을 찾을 수 없습니다."),
+    STORE_ALREADY_EXISTS(HttpStatus.CONFLICT, "STORE_002", "이미 등록된 점별 코드입니다."),
+
     // Schedule
     SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE_001", "스케줄을 찾을 수 없습니다."),
     SCHEDULE_ALREADY_DONE(HttpStatus.BAD_REQUEST, "SCHEDULE_002", "이미 완료된 스케줄입니다."),
@@ -29,6 +33,11 @@ public enum ErrorCode {
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_001", "채팅방을 찾을 수 없습니다."),
     DIRECT_ROOM_NOT_ALLOWED(HttpStatus.FORBIDDEN, "CHAT_002", "1:1 채팅방 생성 권한이 없습니다."),
     DIRECT_ROOM_ALREADY_EXISTS(HttpStatus.CONFLICT, "CHAT_003", "이미 존재하는 1:1 채팅방입니다."),
+
+    // Inventory
+    INVENTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "INVENTORY_001", "재고를 찾을 수 없습니다."),
+    INVENTORY_NOT_ENOUGH(HttpStatus.BAD_REQUEST, "INVENTORY_002", "차감할 재고 수량이 부족합니다."),
+    INVENTORY_VERSION_CONFLICT(HttpStatus.CONFLICT, "INVENTORY_003", "재고가 다른 사용자에 의해 변경되었습니다. 새로고침 후 다시 시도해주세요."),
 
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON_001", "입력값이 올바르지 않습니다."),

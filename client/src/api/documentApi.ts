@@ -43,8 +43,26 @@ export const documentApi = {
     category: DocumentCategory;
     s3Key: string;
     description?: string;
+    fileType?: string;
+    fileSize?: number;
   }): Promise<Document> => {
     const res = await apiClient.post('/api/documents', data);
+    return unwrap(res);
+  },
+
+  /** 문서 메타데이터 및 선택 파일 정보 수정 */
+  update: async (
+    id: number,
+    data: {
+      title: string;
+      category: DocumentCategory;
+      s3Key?: string;
+      description?: string;
+      fileType?: string;
+      fileSize?: number;
+    }
+  ): Promise<Document> => {
+    const res = await apiClient.put(`/api/documents/${id}`, data);
     return unwrap(res);
   },
 

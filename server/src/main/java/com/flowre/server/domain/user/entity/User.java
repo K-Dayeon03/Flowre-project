@@ -8,7 +8,13 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
+@Table(
+        name = "users",
+        indexes = {
+                @Index(name = "idx_users_employee_code", columnList = "employee_code"),
+                @Index(name = "idx_users_brand_store_code", columnList = "brand_id, store_code")
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -22,6 +28,9 @@ public class User {
 
     @Column(nullable = false, unique = true)
     private String email;
+
+    @Column(nullable = false, unique = true)
+    private String employeeCode;
 
     @Column(nullable = false)
     private String password;
@@ -38,6 +47,9 @@ public class User {
 
     @Column(nullable = false)
     private Long storeId;
+
+    @Column(nullable = false)
+    private String storeCode;
 
     @Column(nullable = false)
     private String storeName;

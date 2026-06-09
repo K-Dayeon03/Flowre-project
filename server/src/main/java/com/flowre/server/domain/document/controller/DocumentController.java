@@ -2,6 +2,7 @@ package com.flowre.server.domain.document.controller;
 
 import com.flowre.server.domain.document.dto.DocumentCreateRequest;
 import com.flowre.server.domain.document.dto.DocumentResponse;
+import com.flowre.server.domain.document.dto.DocumentUpdateRequest;
 import com.flowre.server.domain.document.dto.PresignedUrlRequest;
 import com.flowre.server.domain.document.dto.PresignedUrlResponse;
 import com.flowre.server.domain.document.entity.DocumentCategory;
@@ -56,6 +57,16 @@ public class DocumentController {
             @Valid @RequestBody DocumentCreateRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(documentService.create(user, request)));
+    }
+
+    /** PUT /api/documents/{id} — 문서 메타데이터 및 파일 정보 수정 */
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<DocumentResponse>> update(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id,
+            @Valid @RequestBody DocumentUpdateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(documentService.update(user, id, request)));
     }
 
     /** DELETE /api/documents/{id} */

@@ -56,10 +56,12 @@ describe('login()', () => {
     const mockUser = {
       id: 1,
       email: 'test@test.com',
+      employeeCode: '1001ABCD!',
       name: '테스트',
       role: 'STORE_STAFF' as const,
       brandId: 1,
       storeId: 1,
+      storeCode: '1001',
       storeName: '강남점',
     };
 
@@ -68,7 +70,7 @@ describe('login()', () => {
       user: mockUser,
     });
 
-    await useAuthStore.getState().login('test@test.com', 'pass');
+    await useAuthStore.getState().login('1001', '1001ABCD!', 'pass');
 
     const state = useAuthStore.getState();
     expect(state.accessToken).toBe('prod-token');
@@ -76,6 +78,7 @@ describe('login()', () => {
     expect(state.isLoggedIn).toBe(true);
     expect(state.loading).toBe(false);
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(ACCESS_TOKEN_KEY, 'prod-token');
+    expect(mockedAuthApi.login).toHaveBeenCalledWith('1001', '1001ABCD!', 'pass');
 
     g.__DEV__ = originalDev;
   });
@@ -84,12 +87,14 @@ describe('login()', () => {
     const originalDev = g.__DEV__;
     g.__DEV__ = true;
 
-    await useAuthStore.getState().login('any@email.com', 'any');
+    await useAuthStore.getState().login('1001', '1001ABCD!', 'any');
 
     const state = useAuthStore.getState();
     expect(state.accessToken).toBe('dev-token');
     expect(state.user).not.toBeNull();
     expect(state.user!.name).toBe('김민지');
+    expect(state.user!.employeeCode).toBe('1001ABCD!');
+    expect(state.user!.storeCode).toBe('1001');
     expect(state.user!.role).toBe('STORE_MANAGER');
     expect(state.isLoggedIn).toBe(true);
     expect(state.loading).toBe(false);
@@ -107,7 +112,7 @@ describe('login()', () => {
 
     mockedAuthApi.login.mockRejectedValue(new Error('Login failed'));
 
-    await expect(useAuthStore.getState().login('test@test.com', 'bad')).rejects.toThrow(
+    await expect(useAuthStore.getState().login('1001', '1001ABCD!', 'bad')).rejects.toThrow(
       'Login failed'
     );
 
@@ -125,7 +130,7 @@ describe('logout()', () => {
   it('상태 초기화 + AsyncStorage 삭제', async () => {
     // 먼저 로그인 상태로 만들기
     useAuthStore.setState({
-      user: { id: 1, email: 'a@b.com', name: 'T', role: 'ADMIN', brandId: 1, storeId: 1, storeName: 'S' },
+      user: { id: 1, email: 'a@b.com', employeeCode: '1001ABCD!', name: 'T', role: 'ADMIN', brandId: 1, storeId: 1, storeCode: '1001', storeName: 'S' },
       accessToken: 'token',
       isLoggedIn: true,
     });
@@ -143,7 +148,7 @@ describe('logout()', () => {
 
   it('authApi.logout() 실패해도 상태는 초기화됨', async () => {
     useAuthStore.setState({
-      user: { id: 1, email: 'a@b.com', name: 'T', role: 'ADMIN', brandId: 1, storeId: 1, storeName: 'S' },
+      user: { id: 1, email: 'a@b.com', employeeCode: '1001ABCD!', name: 'T', role: 'ADMIN', brandId: 1, storeId: 1, storeCode: '1001', storeName: 'S' },
       accessToken: 'token',
       isLoggedIn: true,
     });
@@ -175,10 +180,12 @@ describe('restoreSession()', () => {
     const mockUser = {
       id: 1,
       email: 'test@test.com',
+      employeeCode: '1001ABCD!',
       name: '테스트',
       role: 'STORE_STAFF' as const,
       brandId: 1,
       storeId: 1,
+      storeCode: '1001',
       storeName: '강남점',
     };
 

@@ -18,33 +18,42 @@ describe('unwrap()', () => {
 
 // ── authApi.login() ───────────────────────────────────────────────
 describe('authApi.login()', () => {
-  it('올바른 이메일/비밀번호 → accessToken + user 반환', async () => {
+  it('올바른 점별 코드/직원 아이디/비밀번호 → accessToken + user 반환', async () => {
     const mockResponse = {
       data: {
         accessToken: 'abc123',
         user: {
           id: 1,
           email: 'test@test.com',
+          employeeCode: '1001ABCD!',
           name: '테스트',
           role: 'STORE_STAFF',
           brandId: 1,
           storeId: 1,
+          storeCode: '1001',
           storeName: '강남점',
         },
       },
     };
-    mock.onPost('/api/auth/login').reply(200, mockResponse);
+    mock.onPost('/api/auth/login').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({
+        storeCode: '1001',
+        employeeCode: '1001ABCD!',
+        password: 'password123',
+      });
+      return [200, mockResponse];
+    });
 
-    const result = await authApi.login('test@test.com', 'password123');
+    const result = await authApi.login('1001', '1001ABCD!', 'password123');
     expect(result).toEqual(mockResponse.data);
     expect(result.accessToken).toBe('abc123');
-    expect(result.user.email).toBe('test@test.com');
+    expect(result.user.employeeCode).toBe('1001ABCD!');
   });
 
   it('잘못된 비밀번호 → 에러 throw', async () => {
     mock.onPost('/api/auth/login').reply(401, { message: 'Invalid credentials' });
 
-    await expect(authApi.login('test@test.com', 'wrong')).rejects.toThrow();
+    await expect(authApi.login('1001', '1001ABCD!', 'wrong')).rejects.toThrow();
   });
 });
 
@@ -64,10 +73,12 @@ describe('authApi.me()', () => {
       data: {
         id: 1,
         email: 'test@test.com',
+        employeeCode: '1001ABCD!',
         name: '테스트',
         role: 'STORE_STAFF',
         brandId: 1,
         storeId: 1,
+        storeCode: '1001',
         storeName: '강남점',
       },
     };

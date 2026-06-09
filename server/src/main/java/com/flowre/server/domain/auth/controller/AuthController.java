@@ -37,12 +37,12 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response
     ) {
-        LoginResponse result = authService.login(request);
+        AuthService.LoginResult result = authService.login(request);
 
         // Refresh Token은 HttpOnly Cookie로 내려줌
-        addRefreshCookie(response, result.getAccessToken());
+        addRefreshCookie(response, result.refreshToken());
 
-        return ResponseEntity.ok(ApiResponse.ok(result));
+        return ResponseEntity.ok(ApiResponse.ok(result.response()));
     }
 
     /**
@@ -71,10 +71,12 @@ public class AuthController {
         LoginResponse.UserInfo info = LoginResponse.UserInfo.builder()
                 .id(user.getId())
                 .email(user.getEmail())
+                .employeeCode(user.getEmployeeCode())
                 .name(user.getName())
                 .role(user.getRole().name())
                 .brandId(user.getBrandId())
                 .storeId(user.getStoreId())
+                .storeCode(user.getStoreCode())
                 .storeName(user.getStoreName())
                 .build();
         return ResponseEntity.ok(ApiResponse.ok(info));

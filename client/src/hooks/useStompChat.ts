@@ -63,7 +63,7 @@ export function useStompChat(roomId: number) {
   }, [roomId, accessToken, onMessage, markRoomRead]);
 
   const sendMessage = useCallback(
-    (content: string, type: 'TEXT' | 'IMAGE' | 'FILE' = 'TEXT') => {
+    (content: string, type: 'TEXT' | 'IMAGE' | 'FILE' = 'TEXT', fileName?: string) => {
       if (__DEV__) {
         // DEV 모드: store에 로컬 메시지 직접 추가
         const localMsg: Message = {
@@ -73,6 +73,7 @@ export function useStompChat(roomId: number) {
           senderName: user?.name ?? '나',
           content,
           type,
+          fileName,
           sentAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
           isMe: true,
         };
@@ -85,7 +86,7 @@ export function useStompChat(roomId: number) {
       }
       clientRef.current.publish({
         destination: '/app/chat.send',
-        body: JSON.stringify({ roomId, content, type }),
+        body: JSON.stringify({ roomId, content, type, fileName }),
       });
     },
     [roomId, user, addMessage]

@@ -1,6 +1,6 @@
 import MockAdapter from 'axios-mock-adapter';
 import { apiClient } from '../client';
-import { documentApi, Document, DocumentCategory, PresignedUrlResponse } from '../documentApi';
+import { documentApi, Document, PresignedUrlResponse } from '../documentApi';
 
 const mock = new MockAdapter(apiClient);
 
@@ -27,7 +27,7 @@ const fakeDocument = (overrides?: Partial<Document>): Document => ({
 // ── getList() ─────────────────────────────────────────────────────
 describe('documentApi.getList()', () => {
   it('GET /api/documents 호출 → Document[] 반환', async () => {
-    const list = [fakeDocument(), fakeDocument({ id: 2, title: '공지사항', category: 'NOTICE' })];
+    const list = [fakeDocument(), fakeDocument({ id: 2, title: '공지사항' })];
     mock.onGet('/api/documents').reply(200, { data: list });
 
     const result = await documentApi.getList();
@@ -286,6 +286,30 @@ describe('documentApi.create()', () => {
     expect(result.brandId).toBeDefined();
     expect(typeof result.brandId).toBe('number');
     expect(result.brandId).toBe(10);
+  });
+});
+
+// ── update() ─────────────────────────────────────────────────────
+describe('documentApi.update()', () => {
+  it('PUT /api/documents/1 body 검증 + Document 반환', async () => {
+    const updated = fakeDocument({ id: 1, title: '수정된 문서', category: 'NOTICE' });
+
+    mock.onPut('/api/documents/1').reply((config) => {
+      const body = JSON.parse(config.data);
+      expect(body.title).toBe('수정된 문서');
+      expect(body.category).toBe('NOTICE');
+      expect(body.description).toBe('수정 설명');
+      return [200, { data: updated }];
+    });
+
+    const result = await documentApi.update(1, {
+      title: '수정된 문서',
+      category: 'NOTICE',
+      description: '수정 설명',
+    });
+
+    expect(result.title).toBe('수정된 문서');
+    expect(result.category).toBe('NOTICE');
   });
 });
 

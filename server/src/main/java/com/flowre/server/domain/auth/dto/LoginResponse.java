@@ -16,10 +16,12 @@ public class LoginResponse {
     public static class UserInfo {
         private Long id;
         private String email;
+        private String employeeCode;
         private String name;
         private String role;
         private Long brandId;
         private Long storeId;
+        private String storeCode;
         private String storeName;
     }
 
@@ -29,10 +31,12 @@ public class LoginResponse {
                 .user(UserInfo.builder()
                         .id(user.getId())
                         .email(user.getEmail())
+                        .employeeCode(user.getEmployeeCode())
                         .name(user.getName())
                         .role(user.getRole().name())
                         .brandId(user.getBrandId())
                         .storeId(user.getStoreId())
+                        .storeCode(user.getStoreCode())
                         .storeName(user.getStoreName())
                         .build())
                 .build();

@@ -2,6 +2,7 @@ package com.flowre.server.domain.chat.controller;
 
 import com.flowre.server.domain.chat.dto.ChatRoomResponse;
 import com.flowre.server.domain.chat.dto.CreateDirectRoomRequest;
+import com.flowre.server.domain.chat.dto.CreateRoomRequest;
 import com.flowre.server.domain.chat.dto.MessageResponse;
 import com.flowre.server.domain.chat.dto.SendMessageRequest;
 import com.flowre.server.domain.chat.service.ChatService;
@@ -49,6 +50,15 @@ public class ChatController {
             @Valid @RequestBody CreateDirectRoomRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(chatService.createDirectRoom(user, request)));
+    }
+
+    /** POST /api/chat/rooms — 1:n, N:1 다자 채팅방 생성 */
+    @PostMapping("/rooms")
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> createRoom(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody CreateRoomRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(chatService.createRoom(user, request)));
     }
 
     /** POST /api/chat/rooms/{roomId}/messages — STOMP 불가 시 REST fallback */

@@ -12,8 +12,10 @@ import {
 } from 'react-native';
 import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getLoginRequiredError } from './loginValidation';
 
 export default function LoginScreen() {
+  const [storeCode, setStoreCode] = useState('');
   const [employeeCode, setEmployeeCode] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,16 +24,17 @@ export default function LoginScreen() {
   const login = useAuthStore((s) => s.login);
 
   const handleLogin = async () => {
-    if (!employeeCode || !password) {
-      setError('직원 코드와 비밀번호를 입력해주세요.');
+    const validationError = getLoginRequiredError(storeCode, employeeCode, password);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setError('');
     setLoading(true);
     try {
-      await login(employeeCode, password);
+      await login(storeCode, employeeCode, password);
     } catch {
-      setError('직원 코드 또는 비밀번호가 올바르지 않습니다.');
+      setError('점별 코드, 직원 아이디 또는 비밀번호가 올바르지 않습니다.');
     } finally {
       setLoading(false);
     }
@@ -52,10 +55,25 @@ export default function LoginScreen() {
         {/* 입력 폼 */}
         <View style={styles.form}>
           <View style={styles.inputWrapper}>
-            <Text style={styles.label}>직원 코드</Text>
+            <Text style={styles.label}>점별 코드</Text>
             <TextInput
               style={styles.input}
-              placeholder="직원 코드를 입력하세요"
+              placeholder="예: 1001"
+              placeholderTextColor={Colors.textMuted}
+              value={storeCode}
+              onChangeText={setStoreCode}
+              keyboardType="number-pad"
+              maxLength={4}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View style={styles.inputWrapper}>
+            <Text style={styles.label}>직원 아이디</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="예: 1001ABCD!"
               placeholderTextColor={Colors.textMuted}
               value={employeeCode}
               onChangeText={setEmployeeCode}
