@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -30,7 +31,23 @@ public class DocumentService {
     // TODO: S3 연동 시 주입
     // private final S3Presigner s3Presigner;
 
-    private static final String DUMMY_BASE_URL = "http://localhost:8080/dummy-s3";
+    private static final String DUMMY_PATH = "/dummy-s3";
+
+    /**
+     * 더미 S3 base URL을 현재 요청의 호스트 기준으로 생성한다.
+     *
+     * 클라이언트가 접속한 scheme·host·port를 그대로 사용하므로,
+     * 실기기·에뮬레이터(10.0.2.2)·LAN IP 등 어떤 주소로 접속하든
+     * 업로드/다운로드 URL이 항상 도달 가능하다.
+     * (localhost 하드코딩 시 실기기에서는 기기 자신을 가리켜 업로드 실패)
+     *
+     * @return 예: {@code http://192.168.0.10:8080/dummy-s3}
+     */
+    private String dummyBaseUrl() {
+        return ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path(DUMMY_PATH)
+                .toUriString();
+    }
 
     /**
      * Presigned URL 더미 발급 — S3 연동 전 로컬 개발용
@@ -38,7 +55,7 @@ public class DocumentService {
     public PresignedUrlResponse getPresignedUrl(PresignedUrlRequest request) {
         String fileName = Path.of(request.getFileName()).getFileName().toString();
         String s3Key = "documents/" + UUID.randomUUID() + "/" + fileName;
-        String dummyUrl = DUMMY_BASE_URL + "/" + s3Key;
+        String dummyUrl = dummyBaseUrl() + "/" + s3Key;
         return new PresignedUrlResponse(dummyUrl, s3Key);
     }
 
@@ -50,7 +67,8 @@ public class DocumentService {
         List<Document> docs = category != null
                 ? documentRepository.findByBrandIdAndCategoryOrderByCreatedAtDesc(user.getBrandId(), category)
                 : documentRepository.findByBrandIdOrderByCreatedAtDesc(user.getBrandId());
-        return docs.stream().map(d -> DocumentResponse.from(d, DUMMY_BASE_URL)).toList();
+        String baseUrl = dummyBaseUrl();
+        return docs.stream().map(d -> DocumentResponse.from(d, baseUrl)).toList();
     }
 
     /**
@@ -60,7 +78,7 @@ public class DocumentService {
     public DocumentResponse getById(User user, Long id) {
         Document doc = documentRepository.findByIdAndBrandId(id, user.getBrandId())
                 .orElseThrow(() -> new CustomException(ErrorCode.DOCUMENT_NOT_FOUND));
-        return DocumentResponse.from(doc, DUMMY_BASE_URL);
+        return DocumentResponse.from(doc, dummyBaseUrl());
     }
 
     /**
@@ -83,7 +101,7 @@ public class DocumentService {
         Document saved = documentRepository.save(doc);
         log.info("[Document] created id={} brandId={} uploaderId={} s3Key={}",
                 saved.getId(), saved.getBrandId(), saved.getUploaderId(), saved.getS3Key());
-        return DocumentResponse.from(saved, DUMMY_BASE_URL);
+        return DocumentResponse.from(saved, dummyBaseUrl());
     }
 
     /**
@@ -103,7 +121,7 @@ public class DocumentService {
         );
         log.info("[Document] updated id={} brandId={} uploaderId={}",
                 doc.getId(), doc.getBrandId(), user.getId());
-        return DocumentResponse.from(doc, DUMMY_BASE_URL);
+        return DocumentResponse.from(doc, dummyBaseUrl());
     }
 
     /**
