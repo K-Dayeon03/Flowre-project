@@ -71,9 +71,19 @@ public class InventoryExcelLoader {
                 .build();
     }
 
-    /** 업로드된 점별 재고 xlsx 파일을 읽어 재고 테이블에 반영합니다. */
+    /**
+     * 업로드된 당일 점별 재고 xlsx 파일을 읽어 재고 테이블에 반영합니다(전체 교체).
+     *
+     * <p>업로드 파일은 해당 매장의 "당일 완전한 현황"으로 간주한다. 따라서 파일에 등장한
+     * 매장에 대해, 파일에 없는 기존 비보관(실시간) 항목의 수량은 0으로 초기화한다.
+     * 보관함(archived) 항목은 건드리지 않는다.</p>
+     *
+     * @param file           업로드된 xlsx 파일
+     * @param storeScopeCode null이면 파일 내 모든 매장 반영(본사·관리자),
+     *                       값이 있으면 해당 매장 행만 반영(직원·점장의 매장 격리)
+     */
     @Transactional
-    public InventoryLoadResponse loadUploadedFile(MultipartFile file) {
+    public InventoryLoadResponse loadUploadedFile(MultipartFile file, String storeScopeCode) {
         if (file == null || file.isEmpty()) {
             return emptyResponse();
         }
@@ -82,13 +92,18 @@ public class InventoryExcelLoader {
             Path temp = Files.createTempFile("flowre-inventory-", ".xlsx");
             try {
                 file.transferTo(temp);
-                LoadStats stats = loadWorkbook(temp);
+                LoadStats stats = new LoadStats();
+                Map<String, Set<String>> seenByStore = new HashMap<>();
+                loadWorkbook(temp, storeScopeCode, stats, seenByStore);
+                // 전체 교체: 파일에 없는 기존 비보관 항목 수량을 0으로 초기화
+                stats.zeroedCount = applyFullReplacement(seenByStore);
                 return InventoryLoadResponse.builder()
                         .fileCount(1)
                         .rowCount(stats.rowCount)
                         .createdCount(stats.createdCount)
                         .updatedCount(stats.updatedCount)
                         .skippedCount(stats.skippedCount)
+                        .zeroedCount(stats.zeroedCount)
                         .fileNames(List.of(fileName))
                         .build();
             } finally {
@@ -107,6 +122,43 @@ public class InventoryExcelLoader {
         }
     }
 
+    /**
+     * 전체 교체 스냅샷 적용: 파일에 등장한 각 매장에 대해, 이번 파일에서 보이지 않은
+     * 기존 비보관 항목의 수량을 0으로 만든다.
+     *
+     * @param seenByStore 매장코드 → 이번 파일에서 확인된 항목 복합키 집합
+     * @return 수량을 0으로 만든 항목 수
+     */
+    private int applyFullReplacement(Map<String, Set<String>> seenByStore) {
+        int zeroed = 0;
+        for (Map.Entry<String, Set<String>> entry : seenByStore.entrySet()) {
+            String storeCode = entry.getKey();
+            Set<String> seenKeys = entry.getValue();
+            List<InventoryItem> current = inventoryItemRepository
+                    .findByBrandIdAndStoreCodeAndArchivedFalse(DEFAULT_BRAND_ID, storeCode);
+            for (InventoryItem item : current) {
+                if (item.getQuantity() != null && item.getQuantity() == 0) {
+                    continue; // 이미 0이면 변경 불필요
+                }
+                if (!seenKeys.contains(compositeKey(item.getProductCode(), item.getColorCode(),
+                        item.getSizeName(), item.getBarcode()))) {
+                    item.clearQuantityForSnapshot();
+                    zeroed++;
+                }
+            }
+        }
+        return zeroed;
+    }
+
+    private String compositeKey(String productCode, String colorCode, String sizeName, String barcode) {
+        return nullToEmpty(productCode) + '|' + nullToEmpty(colorCode) + '|'
+                + nullToEmpty(sizeName) + '|' + nullToEmpty(barcode);
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
     private List<Path> findExcelFiles(Path directory) {
         try (var stream = Files.list(directory)) {
             return stream
@@ -123,12 +175,26 @@ public class InventoryExcelLoader {
         }
     }
 
+    /** data 폴더 적재용 — 매장 스코프 없이 전체를 upsert만 한다(전체 교체 미적용). */
     private LoadStats loadWorkbook(Path file) throws Exception {
+        LoadStats stats = new LoadStats();
+        loadWorkbook(file, null, stats, new HashMap<>());
+        return stats;
+    }
+
+    /**
+     * 워크북을 읽어 행을 upsert 한다.
+     *
+     * @param storeScopeCode null이면 모든 매장 행, 값이 있으면 해당 매장 행만 반영
+     * @param stats          누적 통계
+     * @param seenByStore    매장코드 → 이번 파일에서 확인된 항목 복합키 집합 (전체 교체 기준)
+     */
+    private void loadWorkbook(Path file, String storeScopeCode, LoadStats stats,
+                              Map<String, Set<String>> seenByStore) throws Exception {
         try (ZipFile zip = new ZipFile(file.toFile())) {
             List<String> sharedStrings = readSharedStrings(zip);
             Document sheet = readXml(zip, "xl/worksheets/sheet1.xml");
             NodeList rows = sheet.getElementsByTagName("row");
-            LoadStats stats = new LoadStats();
 
             for (int i = 0; i < rows.getLength(); i++) {
                 Element row = (Element) rows.item(i);
@@ -144,11 +210,21 @@ public class InventoryExcelLoader {
                     continue;
                 }
 
-                upsert(parsed.get(), stats);
+                InventoryRow inventoryRow = parsed.get();
+                // 매장 스코프 필터: 직원·점장 업로드 시 본인 매장 외 행은 건너뛴다
+                if (storeScopeCode != null && !storeScopeCode.equals(inventoryRow.storeCode())) {
+                    stats.skippedCount++;
+                    continue;
+                }
+
+                upsert(inventoryRow, stats);
+                seenByStore
+                        .computeIfAbsent(inventoryRow.storeCode(), k -> new HashSet<>())
+                        .add(compositeKey(inventoryRow.productCode(), inventoryRow.colorCode(),
+                                inventoryRow.sizeName(), inventoryRow.barcode()));
             }
 
             log.info("[InventoryExcelLoader] loaded {} rows from {}", stats.rowCount, file.getFileName());
-            return stats;
         }
     }
 
@@ -398,12 +474,14 @@ public class InventoryExcelLoader {
         private int createdCount;
         private int updatedCount;
         private int skippedCount;
+        private int zeroedCount;
 
         private void add(LoadStats other) {
             this.rowCount += other.rowCount;
             this.createdCount += other.createdCount;
             this.updatedCount += other.updatedCount;
             this.skippedCount += other.skippedCount;
+            this.zeroedCount += other.zeroedCount;
         }
     }
 }

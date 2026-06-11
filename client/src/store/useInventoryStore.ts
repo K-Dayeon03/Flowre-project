@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { inventoryApi, InventoryItem, InventoryLabel } from '../api/inventoryApi';
+import { inventoryApi, InventoryItem, InventoryLabel, InventoryLoadResult } from '../api/inventoryApi';
 
 interface InventoryState {
   items: InventoryItem[];
@@ -16,6 +16,7 @@ interface InventoryState {
   unarchiveItem: (id: number) => Promise<void>;
   adjustItem: (item: InventoryItem, quantityChange: number, reason?: string) => Promise<void>;
   deductItem: (item: InventoryItem, quantity: number, reason?: string) => Promise<void>;
+  uploadDailyFile: (file: { uri: string; name: string; type: string }) => Promise<InventoryLoadResult>;
   reloadFromExcel: () => Promise<void>;
 }
 
@@ -89,6 +90,26 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     set((state) => ({
       items: state.items.map((current) => (current.id === updated.id ? updated : current)),
     }));
+  },
+
+  /**
+   * 사용자가 선택한 당일 점별 재고 xlsx 파일을 서버에 업로드해 전체 교체로 반영한 뒤,
+   * 목록·라벨을 새로고침하고 반영 통계를 반환합니다. 직원·점장은 본인 매장 행만,
+   * 본사·관리자는 파일 내 전 매장이 반영됩니다(서버 스코프 처리).
+   */
+  uploadDailyFile: async (file) => {
+    set({ loading: true, error: null });
+    try {
+      const result = await inventoryApi.uploadDaily(file);
+      await get().fetchItems({ archived: false });
+      await get().fetchLabels();
+      return result;
+    } catch (e: any) {
+      set({ error: e.message ?? '재고 파일을 반영하지 못했습니다.' });
+      throw e;
+    } finally {
+      set({ loading: false });
+    }
   },
 
   /** 서버에 data 폴더 재고 재적재를 요청한 뒤 목록·라벨을 새로고침합니다. */

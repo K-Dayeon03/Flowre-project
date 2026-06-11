@@ -11,6 +11,7 @@ jest.mock('../../api/inventoryApi', () => ({
     deduct: jest.fn(),
     getTransactions: jest.fn(),
     reload: jest.fn(),
+    uploadDaily: jest.fn(),
   },
 }));
 
@@ -75,6 +76,43 @@ describe('archiveItem()', () => {
     expect(mockedApi.archive).toHaveBeenCalledWith(1, payload);
     expect(useInventoryStore.getState().items[0]).toEqual(updatedSource);
     expect(mockedApi.getLabels).toHaveBeenCalled();
+  });
+});
+
+describe('uploadDailyFile()', () => {
+  it('파일을 업로드하고 목록·라벨을 새로고침한 뒤 반영 통계를 반환한다', async () => {
+    const file = { uri: 'file:///tmp/daily.xlsx', name: 'daily.xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+    const loadResult = {
+      fileCount: 1,
+      rowCount: 10,
+      createdCount: 3,
+      updatedCount: 5,
+      skippedCount: 0,
+      zeroedCount: 2,
+      fileNames: ['daily.xlsx'],
+    };
+    const refreshed = [fakeInventory()];
+    mockedApi.uploadDaily.mockResolvedValue(loadResult);
+    mockedApi.search.mockResolvedValue(refreshed);
+    mockedApi.getLabels.mockResolvedValue([{ id: 1, name: '추후 필요 재고' }]);
+
+    const result = await useInventoryStore.getState().uploadDailyFile(file);
+
+    expect(mockedApi.uploadDaily).toHaveBeenCalledWith(file);
+    expect(mockedApi.search).toHaveBeenCalledWith({ archived: false });
+    expect(mockedApi.getLabels).toHaveBeenCalled();
+    expect(result).toEqual(loadResult);
+    expect(useInventoryStore.getState().items).toEqual(refreshed);
+    expect(useInventoryStore.getState().loading).toBe(false);
+  });
+
+  it('업로드 실패 시 에러를 저장하고 예외를 다시 던진다', async () => {
+    const file = { uri: 'file:///tmp/daily.xlsx', name: 'daily.xlsx', type: 'application/octet-stream' };
+    mockedApi.uploadDaily.mockRejectedValue(new Error('업로드 실패'));
+
+    await expect(useInventoryStore.getState().uploadDailyFile(file)).rejects.toThrow('업로드 실패');
+    expect(useInventoryStore.getState().error).toBe('업로드 실패');
+    expect(useInventoryStore.getState().loading).toBe(false);
   });
 });
 

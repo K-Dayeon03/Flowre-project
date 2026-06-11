@@ -159,6 +159,14 @@ public class InventoryItem {
         this.quantity = quantity;
     }
 
+    /**
+     * 당일 점별재고현황(전체 교체)에서 파일에 포함되지 않은 항목의 실시간 수량을 0으로 만듭니다.
+     * 보관함(archived) 항목과 메타 정보는 그대로 두고 수량만 0으로 초기화합니다.
+     */
+    public void clearQuantityForSnapshot() {
+        this.quantity = 0;
+    }
+
     /** 본사 사용분을 전산 재고에서 차감합니다. */
     public void deduct(int amount) {
         if (amount <= 0) {

@@ -21,6 +21,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             String barcode
     );
 
+    /** 특정 매장의 비보관(실시간) 재고 항목 전체 — 전체 교체 스냅샷 시 기준 목록 */
+    List<InventoryItem> findByBrandIdAndStoreCodeAndArchivedFalse(Long brandId, String storeCode);
+
     @Query("""
             select i
             from InventoryItem i

@@ -51,6 +51,8 @@ export interface InventoryLoadResult {
   createdCount: number;
   updatedCount: number;
   skippedCount: number;
+  /** 전체 교체 시 파일에 없어 수량을 0으로 만든 기존(비보관) 항목 수 */
+  zeroedCount: number;
   fileNames: string[];
 }
 

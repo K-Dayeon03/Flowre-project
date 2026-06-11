@@ -186,11 +186,16 @@ public class InventoryService {
         return inventoryExcelLoader.loadFromDataDirectory();
     }
 
-    /** 관리자가 업로드한 하루 점별 재고 현황 파일을 DB에 반영합니다. */
+    /**
+     * 직원·점장·본사가 업로드한 당일 점별 재고 현황 파일을 DB에 반영합니다(전체 교체).
+     *
+     * 직원·점장(매장 소속)은 본인 매장 행만 반영되도록 매장 코드로 스코프를 제한해
+     * 타 매장 재고를 덮어쓰지 못하게 한다. 본사·관리자는 파일 내 전 매장을 반영한다.
+     */
     @Transactional
     public InventoryLoadResponse uploadDailyInventory(User user, MultipartFile file) {
-        assertCanUploadInventory(user);
-        return inventoryExcelLoader.loadUploadedFile(file);
+        String storeScopeCode = canViewAllStores(user) ? null : user.getStoreCode();
+        return inventoryExcelLoader.loadUploadedFile(file, storeScopeCode);
     }
 
     private InventoryItem getItem(User user, Long id) {

@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { InventoryItem } from '../../api/inventoryApi';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -25,10 +26,13 @@ function formatWon(value?: number) {
   return `${value.toLocaleString('ko-KR')}원`;
 }
 
-/** 하루 점별 재고 업로드 권한 여부를 반환합니다. */
-function canUploadInventory(role?: string) {
+/** 서버 data 폴더 재적재(전 매장) 권한 여부를 반환합니다. 본사·관리자 전용입니다. */
+function canReloadDataDirectory(role?: string) {
   return role === 'HQ_STAFF' || role === 'ADMIN';
 }
+
+/** xlsx(엑셀) 파일 MIME 타입. */
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 export default function InventoryListScreen() {
   const user = useAuthStore((s) => s.user);
@@ -40,6 +44,7 @@ export default function InventoryListScreen() {
   const archiveItem = useInventoryStore((s) => s.archiveItem);
   const unarchiveItem = useInventoryStore((s) => s.unarchiveItem);
   const adjustItem = useInventoryStore((s) => s.adjustItem);
+  const uploadDailyFile = useInventoryStore((s) => s.uploadDailyFile);
   const reloadFromExcel = useInventoryStore((s) => s.reloadFromExcel);
 
   const [query, setQuery] = useState('');
@@ -124,6 +129,33 @@ export default function InventoryListScreen() {
       setSelectedItem(null);
     } catch (e: any) {
       Alert.alert('처리 실패', e.message ?? '재고 처리 중 오류가 발생했습니다.');
+    }
+  }
+
+  /**
+   * 당일 점별 재고 xlsx 파일을 선택해 서버에 업로드(전체 교체)합니다.
+   * 직원·점장은 본인 매장 행만, 본사·관리자는 파일 내 전 매장이 반영됩니다.
+   */
+  async function handleUploadDaily() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+        type: XLSX_MIME,
+      });
+      if (result.canceled || result.assets.length === 0) return;
+      const asset = result.assets[0];
+      const loaded = await uploadDailyFile({
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType ?? XLSX_MIME,
+      });
+      Alert.alert(
+        '반영 완료',
+        `신규 ${loaded.createdCount} · 갱신 ${loaded.updatedCount} · 수량0 처리 ${loaded.zeroedCount}건`
+      );
+    } catch (e: any) {
+      Alert.alert('업로드 실패', e.message ?? '재고 파일을 반영하지 못했습니다.');
     }
   }
 
@@ -232,17 +264,23 @@ export default function InventoryListScreen() {
           />
         ) : null}
 
-        {canUploadInventory(user?.role) ? (
-          <TouchableOpacity
-            style={styles.reloadButton}
-            onPress={async () => {
-              await reloadFromExcel();
-              Alert.alert('완료', '하루 점별 재고 현황을 반영했습니다.');
-            }}
-          >
-            <Text style={styles.reloadButtonText}>하루 재고 업로드</Text>
+        <View style={styles.uploadRow}>
+          {canReloadDataDirectory(user?.role) ? (
+            <TouchableOpacity
+              style={styles.reloadButton}
+              disabled={loading}
+              onPress={async () => {
+                await reloadFromExcel();
+                Alert.alert('완료', 'data 폴더 재고 현황을 다시 반영했습니다.');
+              }}
+            >
+              <Text style={styles.reloadButtonText}>data 재적재</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity style={styles.uploadButton} disabled={loading} onPress={handleUploadDaily}>
+            <Text style={styles.uploadButtonText}>하루 재고 업로드</Text>
           </TouchableOpacity>
-        ) : null}
+        </View>
       </View>
 
       <FlatList
@@ -408,8 +446,8 @@ const styles = StyleSheet.create({
   },
   labelText: { color: Colors.textSecondary, fontSize: FontSize.sm },
   labelTextActive: { color: Colors.surface, fontWeight: '700' },
+  uploadRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: Spacing.sm },
   reloadButton: {
-    alignSelf: 'flex-end',
     borderWidth: 1,
     borderColor: Colors.accent,
     borderRadius: Radius.sm,
@@ -417,6 +455,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   reloadButtonText: { color: Colors.accent, fontSize: FontSize.sm, fontWeight: '700' },
+  uploadButton: {
+    backgroundColor: Colors.accent,
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  uploadButtonText: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '700' },
   list: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 96 },
   card: {
     backgroundColor: Colors.surface,
