@@ -44,11 +44,20 @@ export default function ChatRoomScreen({ route }: Props) {
   // roomId가 messages 맵에 키로 없으면 아직 초기화 전 (로딩 중)
   const isInitialized = roomId in messagesMap;
   const fetchMessages = useChatStore((s) => s.fetchMessages);
+  const markRoomRead = useChatStore((s) => s.markRoomRead);
   const { sendMessage, connected } = useStompChat(roomId);
 
   useEffect(() => {
     fetchMessages(roomId);
   }, [roomId]);
+
+  // 방을 열어 메시지를 확인하면(또는 보는 중 새 메시지가 도착하면) 읽음 처리한다.
+  // STOMP 연결 여부와 무관하게 동작해야 하므로 화면에서 직접 호출한다.
+  useEffect(() => {
+    if (messages.length > 0) {
+      markRoomRead(roomId);
+    }
+  }, [roomId, messages.length, markRoomRead]);
 
   useEffect(() => {
     if (messages.length > 0) {

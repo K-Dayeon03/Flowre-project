@@ -91,25 +91,37 @@ describe('login()', () => {
     g.__DEV__ = originalDev;
   });
 
-  it('DEV 모드: mockUser 반환 + dev-token 저장', async () => {
+  it('DEV 모드에서도 실서버(authApi.login)를 호출한다 (mock 단락 제거됨)', async () => {
     const originalDev = g.__DEV__;
     g.__DEV__ = true;
 
-    await useAuthStore.getState().login('1001', '1001ABCD!', 'any');
+    const mockUser = {
+      id: 3,
+      email: 'manager@jaju.com',
+      employeeCode: '1001ABCD!',
+      name: '테스트 점장',
+      role: 'STORE_MANAGER' as const,
+      brandId: 1,
+      storeId: 1001,
+      storeCode: '1001',
+      storeName: '강남점',
+    };
+
+    mockedAuthApi.login.mockResolvedValue({
+      accessToken: 'real-token',
+      user: mockUser,
+    });
+
+    await useAuthStore.getState().login('1001', '1001ABCD!', 'Test1234!');
 
     const state = useAuthStore.getState();
-    expect(state.accessToken).toBe('dev-token');
-    expect(state.user).not.toBeNull();
-    expect(state.user!.name).toBe('김민지');
-    expect(state.user!.employeeCode).toBe('1001ABCD!');
-    expect(state.user!.storeCode).toBe('1001');
-    expect(state.user!.role).toBe('STORE_MANAGER');
+    // DEV 모드여도 더 이상 dev-token/mockUser 단락이 없고 실제 API 응답을 사용한다.
+    expect(mockedAuthApi.login).toHaveBeenCalledWith('1001', '1001ABCD!', 'Test1234!');
+    expect(state.accessToken).toBe('real-token');
+    expect(state.user).toEqual(mockUser);
     expect(state.isLoggedIn).toBe(true);
     expect(state.loading).toBe(false);
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith(ACCESS_TOKEN_KEY, 'dev-token');
-
-    // DEV 모드에서는 authApi.login()이 호출되지 않아야 함
-    expect(mockedAuthApi.login).not.toHaveBeenCalled();
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(ACCESS_TOKEN_KEY, 'real-token');
 
     g.__DEV__ = originalDev;
   });

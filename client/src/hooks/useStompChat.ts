@@ -17,9 +17,7 @@ export function useStompChat(roomId: number) {
   const clientRef = useRef<Client | null>(null);
   const subscriptionRef = useRef<StompSubscription | null>(null);
   const accessToken = useAuthStore((s) => s.accessToken);
-  const user = useAuthStore((s) => s.user);
   const addMessage = useChatStore((s) => s.addMessage);
-  const markRoomRead = useChatStore((s) => s.markRoomRead);
 
   const onMessage = useCallback(
     (frame: IMessage) => {
@@ -30,7 +28,7 @@ export function useStompChat(roomId: number) {
   );
 
   useEffect(() => {
-    if (!accessToken || __DEV__) return; // DEV 모드: STOMP 연결 생략
+    if (!accessToken) return;
 
     const client = new Client({
       brokerURL: WS_URL,
@@ -43,7 +41,8 @@ export function useStompChat(roomId: number) {
           `/topic/room.${roomId}`,
           onMessage
         );
-        markRoomRead(roomId);
+        // 읽음 처리는 ChatRoomScreen이 메시지 확인 시점에 담당한다
+        // (STOMP 미연결 상태에서도 읽음 처리되어야 하므로).
       },
       onDisconnect: () => {
         subscriptionRef.current = null;
@@ -61,7 +60,7 @@ export function useStompChat(roomId: number) {
       client.deactivate();
       clientRef.current = null;
     };
-  }, [roomId, accessToken, onMessage, markRoomRead]);
+  }, [roomId, accessToken, onMessage]);
 
   /**
    * 메시지 전송
@@ -77,22 +76,6 @@ export function useStompChat(roomId: number) {
    */
   const sendMessage = useCallback(
     async (content: string, type: MessageType = 'TEXT', fileName?: string) => {
-      if (__DEV__) {
-        // DEV 모드: store에 로컬 메시지 직접 추가
-        const localMsg: Message = {
-          id: Date.now(),
-          roomId,
-          senderId: user?.id ?? 1,
-          senderName: user?.name ?? '나',
-          content,
-          type,
-          fileName,
-          sentAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-          isMe: true,
-        };
-        addMessage(roomId, localMsg);
-        return;
-      }
       if (clientRef.current?.connected) {
         clientRef.current.publish({
           destination: '/app/chat.send',
@@ -109,7 +92,7 @@ export function useStompChat(roomId: number) {
         logger.error('[STOMP] REST fallback 전송 실패:', err);
       }
     },
-    [roomId, user, addMessage]
+    [roomId, addMessage]
   );
 
   return {

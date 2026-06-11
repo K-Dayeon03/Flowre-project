@@ -131,14 +131,16 @@ describe('onConnect', () => {
     );
   });
 
-  it('markRoomRead(roomId) 호출', () => {
+  it('onConnect는 markRoomRead를 호출하지 않는다 (읽음 처리는 ChatRoomScreen 책임)', () => {
     renderHook(() => useStompChat(5));
 
     act(() => {
       capturedConfig.onConnect();
     });
 
-    expect(mockMarkRoomRead).toHaveBeenCalledWith(5);
+    // 읽음 처리는 STOMP 연결과 분리되어 화면(메시지 확인 시점)에서 수행된다.
+    // STOMP 미연결 상태에서도 읽음 처리가 되어야 하기 때문이다.
+    expect(mockMarkRoomRead).not.toHaveBeenCalled();
   });
 });
 

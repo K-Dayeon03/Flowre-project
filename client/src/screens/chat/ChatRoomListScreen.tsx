@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
 import { ChatStackParamList } from '../../navigation/types';
@@ -33,9 +33,13 @@ export default function ChatRoomListScreen() {
   const loading = useChatStore((s) => s.loading);
   const fetchRooms = useChatStore((s) => s.fetchRooms);
 
-  useEffect(() => {
-    fetchRooms();
-  }, []);
+  // 화면이 포커스될 때마다(최초 진입 + 채팅방에서 목록으로 복귀 시) 목록을 재조회한다.
+  // 채팅방에서 읽음 처리한 뒤 돌아왔을 때 안읽음 뱃지 등 최신 상태를 반영하기 위함이다.
+  useFocusEffect(
+    useCallback(() => {
+      fetchRooms();
+    }, [fetchRooms])
+  );
 
   const filtered = rooms.filter((r) =>
     r.name.toLowerCase().includes(search.toLowerCase())
@@ -56,28 +60,6 @@ export default function ChatRoomListScreen() {
     }
     setCreating(true);
     try {
-      if (__DEV__) {
-        // 개발 모드: 로컬 채팅방 생성
-        const mockRoom = {
-          id: Date.now(),
-          name: chatMode === 'DIRECT' ? `직원 #${memberIds[0]}` : roomName.trim(),
-          type: chatMode,
-          lastMessage: '',
-          lastAt: '방금',
-          unread: 0,
-          members: chatMode === 'DIRECT' ? 2 : memberIds.length + 1,
-        };
-        useChatStore.setState((s) => ({ rooms: [mockRoom, ...s.rooms] }));
-        setShowNewChat(false);
-        setTargetId('');
-        setRoomName('');
-        navigation.navigate('ChatRoom', {
-          roomId: mockRoom.id,
-          roomName: mockRoom.name,
-          roomType: mockRoom.type,
-        });
-        return;
-      }
       const room = chatMode === 'DIRECT'
         ? await chatApi.createDirectRoom(memberIds[0])
         : await chatApi.createRoom({ name: roomName.trim(), memberUserIds: memberIds });
