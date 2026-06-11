@@ -1,6 +1,7 @@
 package com.flowre.server.domain.inventory.dto;
 
 import com.flowre.server.domain.inventory.entity.InventoryItem;
+import com.flowre.server.domain.inventory.entity.ProductCategory;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -20,6 +21,8 @@ public class InventoryResponse {
     private String colorName;
     private String sizeName;
     private String productName;
+    private String category;
+    private String categoryLabel;
     private String barcode;
     private String sourceCode;
     private Integer packQuantity;
@@ -37,6 +40,10 @@ public class InventoryResponse {
 
     /** 엔티티를 재고 조회 응답으로 변환합니다. */
     public static InventoryResponse from(InventoryItem item) {
+        // 분류 전(legacy) 항목은 상품명으로 즉석 분류해 응답이 항상 카테고리를 갖도록 한다.
+        ProductCategory category = item.getCategory() != null
+                ? item.getCategory()
+                : ProductCategory.classify(item.getProductName());
         return InventoryResponse.builder()
                 .id(item.getId())
                 .version(item.getVersion())
@@ -48,6 +55,8 @@ public class InventoryResponse {
                 .colorName(item.getColorName())
                 .sizeName(item.getSizeName())
                 .productName(item.getProductName())
+                .category(category.name())
+                .categoryLabel(category.getLabel())
                 .barcode(item.getBarcode())
                 .sourceCode(item.getSourceCode())
                 .packQuantity(item.getPackQuantity())

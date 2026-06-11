@@ -12,6 +12,7 @@ jest.mock('../../api/inventoryApi', () => ({
     getTransactions: jest.fn(),
     reload: jest.fn(),
     uploadDaily: jest.fn(),
+    getCategoryCounts: jest.fn(),
   },
 }));
 
@@ -39,6 +40,7 @@ beforeEach(() => {
   useInventoryStore.setState({
     items: [],
     labels: [{ id: 1, name: '추후 필요 재고' }],
+    categoryCounts: [],
     loading: false,
     error: null,
   });
@@ -53,6 +55,29 @@ describe('fetchItems()', () => {
 
     expect(mockedApi.search).toHaveBeenCalledWith({ query: '다운필', archived: false });
     expect(useInventoryStore.getState().items).toEqual(list);
+  });
+
+  it('카테고리 필터를 그대로 API에 전달한다', async () => {
+    mockedApi.search.mockResolvedValue([]);
+
+    await useInventoryStore.getState().fetchItems({ archived: false, category: 'OUTER' });
+
+    expect(mockedApi.search).toHaveBeenCalledWith({ archived: false, category: 'OUTER' });
+  });
+});
+
+describe('fetchCategoryCounts()', () => {
+  it('카테고리별 건수를 조회해 categoryCounts를 갱신한다', async () => {
+    const counts = [
+      { category: 'OUTER', label: '아우터', count: 120 },
+      { category: 'JACKET', label: '자켓', count: 34 },
+    ];
+    mockedApi.getCategoryCounts.mockResolvedValue(counts);
+
+    await useInventoryStore.getState().fetchCategoryCounts({ archived: false });
+
+    expect(mockedApi.getCategoryCounts).toHaveBeenCalledWith({ archived: false });
+    expect(useInventoryStore.getState().categoryCounts).toEqual(counts);
   });
 });
 

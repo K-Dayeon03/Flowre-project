@@ -16,6 +16,13 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+        # 대량 재고 적재 시 UPDATE/DELETE 문을 묶어 DB round-trip을 줄인다.
+        # (PK가 IDENTITY/AUTO_INCREMENT라 INSERT 배치는 Hibernate가 비활성화한다 —
+        #  진정한 대량 INSERT가 필요해지면 JDBC batch 또는 INSERT ... ON DUPLICATE KEY UPDATE 전환 검토)
+        jdbc:
+          batch_size: 500
+        order_inserts: true
+        order_updates: true
 
   data:
     redis:

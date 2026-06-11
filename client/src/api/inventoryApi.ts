@@ -11,6 +11,10 @@ export interface InventoryItem {
   colorName?: string;
   sizeName?: string;
   productName: string;
+  /** 카테고리 코드 (예: OUTER) — 서버가 상품명 키워드로 분류해 내려준다. */
+  category?: string;
+  /** 카테고리 한글 라벨 (예: 아우터). */
+  categoryLabel?: string;
   barcode?: string;
   sourceCode?: string;
   packQuantity?: number;
@@ -30,6 +34,14 @@ export interface InventoryItem {
 export interface InventoryLabel {
   id: number;
   name: string;
+}
+
+export interface CategoryCount {
+  /** 카테고리 코드 (필터 파라미터로 사용). */
+  category: string;
+  /** 화면 표시용 한글 라벨. */
+  label: string;
+  count: number;
 }
 
 export interface InventoryTransaction {
@@ -62,8 +74,14 @@ export const inventoryApi = {
     storeId?: number;
     archived?: boolean;
     labelName?: string;
+    category?: string;
   }): Promise<InventoryItem[]> => {
     const res = await apiClient.get('/api/inventories', { params });
+    return unwrap(res);
+  },
+
+  getCategoryCounts: async (params?: { storeId?: number; archived?: boolean }): Promise<CategoryCount[]> => {
+    const res = await apiClient.get('/api/inventories/category-counts', { params });
     return unwrap(res);
   },
 

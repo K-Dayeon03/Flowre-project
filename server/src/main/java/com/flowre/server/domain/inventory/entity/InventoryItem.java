@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
         name = "inventory_items",
         indexes = {
                 @Index(name = "idx_inventory_brand_store", columnList = "brand_id, store_id"),
-                @Index(name = "idx_inventory_search", columnList = "brand_id, product_code, barcode")
+                @Index(name = "idx_inventory_search", columnList = "brand_id, product_code, barcode"),
+                @Index(name = "idx_inventory_category", columnList = "brand_id, store_id, archived, category")
         }
 )
 @Getter
@@ -55,6 +56,10 @@ public class InventoryItem {
 
     @Column(nullable = false)
     private String productName;
+
+    /** 상품명 키워드로 분류한 카테고리 (조회 필터·카운트용, 적재 시 계산해 저장). */
+    @Enumerated(EnumType.STRING)
+    private ProductCategory category;
 
     private String barcode;
 
@@ -119,6 +124,7 @@ public class InventoryItem {
                 .colorName(source.colorName)
                 .sizeName(source.sizeName)
                 .productName(source.productName)
+                .category(source.category)
                 .barcode(source.barcode)
                 .sourceCode(source.sourceCode)
                 .packQuantity(source.packQuantity)
@@ -151,6 +157,7 @@ public class InventoryItem {
                                  Integer packQuantity, Integer normalPrice, Integer retailPrice, Integer quantity) {
         this.storeName = storeName;
         this.productName = productName;
+        this.category = ProductCategory.classify(productName);
         this.colorName = colorName;
         this.sourceCode = sourceCode;
         this.packQuantity = packQuantity;

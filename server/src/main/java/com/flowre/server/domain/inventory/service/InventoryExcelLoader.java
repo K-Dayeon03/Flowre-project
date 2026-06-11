@@ -2,6 +2,7 @@ package com.flowre.server.domain.inventory.service;
 
 import com.flowre.server.domain.inventory.dto.InventoryLoadResponse;
 import com.flowre.server.domain.inventory.entity.InventoryItem;
+import com.flowre.server.domain.inventory.entity.ProductCategory;
 import com.flowre.server.domain.inventory.repository.InventoryItemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -94,9 +95,11 @@ public class InventoryExcelLoader {
                 file.transferTo(temp);
                 LoadStats stats = new LoadStats();
                 Map<String, Set<String>> seenByStore = new HashMap<>();
-                loadWorkbook(temp, storeScopeCode, stats, seenByStore);
-                // 전체 교체: 파일에 없는 기존 비보관 항목 수량을 0으로 초기화
-                stats.zeroedCount = applyFullReplacement(seenByStore);
+                // 매장코드 → (복합키 → 기존 비보관 항목). 매장별 1회만 조회해 행마다 SELECT 하던 것을 제거한다.
+                Map<String, Map<String, InventoryItem>> existingByStore = new HashMap<>();
+                loadWorkbook(temp, storeScopeCode, stats, seenByStore, existingByStore);
+                // 전체 교체: 파일에 없는 기존 비보관 항목 수량을 0으로 초기화 (선조회 맵 재사용)
+                stats.zeroedCount = applyFullReplacement(seenByStore, existingByStore);
                 return InventoryLoadResponse.builder()
                         .fileCount(1)
                         .rowCount(stats.rowCount)
@@ -129,19 +132,19 @@ public class InventoryExcelLoader {
      * @param seenByStore 매장코드 → 이번 파일에서 확인된 항목 복합키 집합
      * @return 수량을 0으로 만든 항목 수
      */
-    private int applyFullReplacement(Map<String, Set<String>> seenByStore) {
+    private int applyFullReplacement(Map<String, Set<String>> seenByStore,
+                                     Map<String, Map<String, InventoryItem>> existingByStore) {
         int zeroed = 0;
         for (Map.Entry<String, Set<String>> entry : seenByStore.entrySet()) {
-            String storeCode = entry.getKey();
             Set<String> seenKeys = entry.getValue();
-            List<InventoryItem> current = inventoryItemRepository
-                    .findByBrandIdAndStoreCodeAndArchivedFalse(DEFAULT_BRAND_ID, storeCode);
-            for (InventoryItem item : current) {
+            // 선조회한 매장별 기존 항목 맵을 재사용한다(추가 SELECT 없음).
+            Map<String, InventoryItem> storeItems = existingByStore.getOrDefault(entry.getKey(), Map.of());
+            for (Map.Entry<String, InventoryItem> itemEntry : storeItems.entrySet()) {
+                InventoryItem item = itemEntry.getValue();
                 if (item.getQuantity() != null && item.getQuantity() == 0) {
                     continue; // 이미 0이면 변경 불필요
                 }
-                if (!seenKeys.contains(compositeKey(item.getProductCode(), item.getColorCode(),
-                        item.getSizeName(), item.getBarcode()))) {
+                if (!seenKeys.contains(itemEntry.getKey())) {
                     item.clearQuantityForSnapshot();
                     zeroed++;
                 }
@@ -178,19 +181,21 @@ public class InventoryExcelLoader {
     /** data 폴더 적재용 — 매장 스코프 없이 전체를 upsert만 한다(전체 교체 미적용). */
     private LoadStats loadWorkbook(Path file) throws Exception {
         LoadStats stats = new LoadStats();
-        loadWorkbook(file, null, stats, new HashMap<>());
+        loadWorkbook(file, null, stats, new HashMap<>(), new HashMap<>());
         return stats;
     }
 
     /**
      * 워크북을 읽어 행을 upsert 한다.
      *
-     * @param storeScopeCode null이면 모든 매장 행, 값이 있으면 해당 매장 행만 반영
-     * @param stats          누적 통계
-     * @param seenByStore    매장코드 → 이번 파일에서 확인된 항목 복합키 집합 (전체 교체 기준)
+     * @param storeScopeCode  null이면 모든 매장 행, 값이 있으면 해당 매장 행만 반영
+     * @param stats           누적 통계
+     * @param seenByStore     매장코드 → 이번 파일에서 확인된 항목 복합키 집합 (전체 교체 기준)
+     * @param existingByStore 매장코드 → (복합키 → 기존 비보관 항목). 매장별 1회만 조회해 캐싱한다.
      */
     private void loadWorkbook(Path file, String storeScopeCode, LoadStats stats,
-                              Map<String, Set<String>> seenByStore) throws Exception {
+                              Map<String, Set<String>> seenByStore,
+                              Map<String, Map<String, InventoryItem>> existingByStore) throws Exception {
         try (ZipFile zip = new ZipFile(file.toFile())) {
             List<String> sharedStrings = readSharedStrings(zip);
             Document sheet = readXml(zip, "xl/worksheets/sheet1.xml");
@@ -217,7 +222,7 @@ public class InventoryExcelLoader {
                     continue;
                 }
 
-                upsert(inventoryRow, stats);
+                upsert(inventoryRow, stats, existingByStore);
                 seenByStore
                         .computeIfAbsent(inventoryRow.storeCode(), k -> new HashSet<>())
                         .add(compositeKey(inventoryRow.productCode(), inventoryRow.colorCode(),
@@ -228,49 +233,64 @@ public class InventoryExcelLoader {
         }
     }
 
-    private void upsert(InventoryRow row, LoadStats stats) {
-        inventoryItemRepository
-                .findByBrandIdAndStoreCodeAndProductCodeAndColorCodeAndSizeNameAndBarcode(
-                        DEFAULT_BRAND_ID,
-                        row.storeCode(),
-                        row.productCode(),
-                        row.colorCode(),
-                        row.sizeName(),
-                        row.barcode()
-                )
-                .ifPresentOrElse(item -> {
-                    item.updateFromLoader(
-                            row.storeName(),
-                            row.productName(),
-                            row.colorName(),
-                            row.sourceCode(),
-                            row.packQuantity(),
-                            row.normalPrice(),
-                            row.retailPrice(),
-                            row.quantity()
-                    );
-                    stats.updatedCount++;
-                }, () -> {
-                    inventoryItemRepository.save(InventoryItem.builder()
-                            .brandId(DEFAULT_BRAND_ID)
-                            .storeId(row.storeId())
-                            .storeCode(row.storeCode())
-                            .storeName(row.storeName())
-                            .productCode(row.productCode())
-                            .colorCode(row.colorCode())
-                            .colorName(row.colorName())
-                            .sizeName(row.sizeName())
-                            .productName(row.productName())
-                            .barcode(row.barcode())
-                            .sourceCode(row.sourceCode())
-                            .packQuantity(row.packQuantity())
-                            .normalPrice(row.normalPrice())
-                            .retailPrice(row.retailPrice())
-                            .quantity(row.quantity())
-                            .build());
-                    stats.createdCount++;
-                });
+    /**
+     * 행 하나를 upsert 한다. 매장 항목을 매장별 1회 선조회해 캐싱한 {@code existingByStore} 맵에서
+     * 복합키로 매칭하므로, 수만 행이어도 행마다 SELECT 하지 않는다(매장 수만큼만 조회).
+     */
+    private void upsert(InventoryRow row, LoadStats stats,
+                        Map<String, Map<String, InventoryItem>> existingByStore) {
+        Map<String, InventoryItem> storeItems =
+                existingByStore.computeIfAbsent(row.storeCode(), this::loadExistingItems);
+        String key = compositeKey(row.productCode(), row.colorCode(), row.sizeName(), row.barcode());
+        InventoryItem existing = storeItems.get(key);
+
+        if (existing != null) {
+            existing.updateFromLoader(
+                    row.storeName(),
+                    row.productName(),
+                    row.colorName(),
+                    row.sourceCode(),
+                    row.packQuantity(),
+                    row.normalPrice(),
+                    row.retailPrice(),
+                    row.quantity()
+            );
+            stats.updatedCount++;
+        } else {
+            InventoryItem created = inventoryItemRepository.save(InventoryItem.builder()
+                    .brandId(DEFAULT_BRAND_ID)
+                    .storeId(row.storeId())
+                    .storeCode(row.storeCode())
+                    .storeName(row.storeName())
+                    .productCode(row.productCode())
+                    .colorCode(row.colorCode())
+                    .colorName(row.colorName())
+                    .sizeName(row.sizeName())
+                    .productName(row.productName())
+                    .category(ProductCategory.classify(row.productName()))
+                    .barcode(row.barcode())
+                    .sourceCode(row.sourceCode())
+                    .packQuantity(row.packQuantity())
+                    .normalPrice(row.normalPrice())
+                    .retailPrice(row.retailPrice())
+                    .quantity(row.quantity())
+                    .build());
+            // 같은 파일 내 중복 행이 같은 항목을 다시 갱신하도록 캐시에 등록한다.
+            storeItems.put(key, created);
+            stats.createdCount++;
+        }
         stats.rowCount++;
+    }
+
+    /** 매장의 비보관(실시간) 재고를 복합키 → 항목 맵으로 1회 조회한다. */
+    private Map<String, InventoryItem> loadExistingItems(String storeCode) {
+        Map<String, InventoryItem> map = new HashMap<>();
+        for (InventoryItem item : inventoryItemRepository
+                .findByBrandIdAndStoreCodeAndArchivedFalse(DEFAULT_BRAND_ID, storeCode)) {
+            map.put(compositeKey(item.getProductCode(), item.getColorCode(),
+                    item.getSizeName(), item.getBarcode()), item);
+        }
+        return map;
     }
 
     private List<String> readSharedStrings(ZipFile zip) throws Exception {

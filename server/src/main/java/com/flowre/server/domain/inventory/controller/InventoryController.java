@@ -20,16 +20,28 @@ public class InventoryController {
 
     private final InventoryService inventoryService;
 
-    /** GET /api/inventories?query=&storeId=&archived=&labelName= */
+    /** GET /api/inventories?query=&storeId=&archived=&labelName=&category= */
     @GetMapping
     public ResponseEntity<ApiResponse<List<InventoryResponse>>> search(
             @AuthenticationPrincipal User user,
             @RequestParam(required = false) Long storeId,
             @RequestParam(required = false) String query,
             @RequestParam(required = false) Boolean archived,
-            @RequestParam(required = false) String labelName
+            @RequestParam(required = false) String labelName,
+            @RequestParam(required = false) String category
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(inventoryService.search(user, storeId, query, archived, labelName)));
+        return ResponseEntity.ok(ApiResponse.ok(
+                inventoryService.search(user, storeId, query, archived, labelName, category)));
+    }
+
+    /** GET /api/inventories/category-counts?storeId=&archived= — 카테고리별 재고 건수 */
+    @GetMapping("/category-counts")
+    public ResponseEntity<ApiResponse<List<CategoryCountResponse>>> categoryCounts(
+            @AuthenticationPrincipal User user,
+            @RequestParam(required = false) Long storeId,
+            @RequestParam(required = false) Boolean archived
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(inventoryService.getCategoryCounts(user, storeId, archived)));
     }
 
     /** GET /api/inventories/{id} */

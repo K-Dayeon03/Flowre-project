@@ -1,13 +1,15 @@
 import { create } from 'zustand';
-import { inventoryApi, InventoryItem, InventoryLabel, InventoryLoadResult } from '../api/inventoryApi';
+import { CategoryCount, inventoryApi, InventoryItem, InventoryLabel, InventoryLoadResult } from '../api/inventoryApi';
 
 interface InventoryState {
   items: InventoryItem[];
   labels: InventoryLabel[];
+  categoryCounts: CategoryCount[];
   loading: boolean;
   error: string | null;
 
-  fetchItems: (params?: { query?: string; archived?: boolean; labelName?: string }) => Promise<void>;
+  fetchItems: (params?: { query?: string; archived?: boolean; labelName?: string; category?: string }) => Promise<void>;
+  fetchCategoryCounts: (params?: { archived?: boolean }) => Promise<void>;
   fetchLabels: () => Promise<void>;
   archiveItem: (
     id: number,
@@ -23,6 +25,7 @@ interface InventoryState {
 export const useInventoryStore = create<InventoryState>((set, get) => ({
   items: [],
   labels: [{ id: 1, name: '추후 필요 재고' }],
+  categoryCounts: [],
   loading: false,
   error: null,
 
@@ -36,6 +39,16 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       set({ error: e.message ?? '재고를 불러오지 못했습니다.' });
     } finally {
       set({ loading: false });
+    }
+  },
+
+  /** 카테고리별 재고 건수를 조회해 칩에 표시할 카운트를 갱신합니다. */
+  fetchCategoryCounts: async (params) => {
+    try {
+      const categoryCounts = await inventoryApi.getCategoryCounts(params);
+      set({ categoryCounts });
+    } catch (e: any) {
+      set({ error: e.message ?? '카테고리 건수를 불러오지 못했습니다.' });
     }
   },
 

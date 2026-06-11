@@ -4,6 +4,7 @@ import com.flowre.server.domain.inventory.dto.*;
 import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.InventoryLabel;
 import com.flowre.server.domain.inventory.entity.InventoryTransaction;
+import com.flowre.server.domain.inventory.entity.ProductCategory;
 import com.flowre.server.domain.inventory.repository.InventoryItemRepository;
 import com.flowre.server.domain.inventory.repository.InventoryLabelRepository;
 import com.flowre.server.domain.inventory.repository.InventoryTransactionRepository;
@@ -17,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -32,16 +35,54 @@ public class InventoryService {
 
     /** 재고 목록을 브랜드 단위로 격리해 검색합니다. */
     @Transactional(readOnly = true)
-    public List<InventoryResponse> search(User user, Long storeId, String query, Boolean archived, String labelName) {
+    public List<InventoryResponse> search(User user, Long storeId, String query, Boolean archived,
+                                          String labelName, String category) {
         Long effectiveStoreId = canViewAllStores(user) ? storeId : user.getStoreId();
         String normalizedQuery = normalizeNullable(query);
         String normalizedLabel = normalizeNullable(labelName);
+        ProductCategory parsedCategory = parseCategory(category);
 
         return inventoryItemRepository
-                .search(user.getBrandId(), effectiveStoreId, normalizedQuery, archived, normalizedLabel)
+                .search(user.getBrandId(), effectiveStoreId, normalizedQuery, archived, normalizedLabel, parsedCategory)
                 .stream()
                 .map(InventoryResponse::from)
                 .toList();
+    }
+
+    /**
+     * 매장 스코프 내 카테고리별 재고 건수를 모든 카테고리에 대해 반환합니다(건수 0 포함, 선언 순서 유지).
+     * 직원이 카테고리 칩에서 개수를 보고 선택할 수 있도록 한다.
+     *
+     * @param archived 아카이브 여부 (null이면 실시간 재고 기준)
+     */
+    @Transactional(readOnly = true)
+    public List<CategoryCountResponse> getCategoryCounts(User user, Long storeId, Boolean archived) {
+        Long effectiveStoreId = canViewAllStores(user) ? storeId : user.getStoreId();
+        boolean archivedFlag = Boolean.TRUE.equals(archived);
+
+        Map<ProductCategory, Long> counts = new EnumMap<>(ProductCategory.class);
+        for (InventoryItemRepository.CategoryCount row :
+                inventoryItemRepository.countByCategory(user.getBrandId(), effectiveStoreId, archivedFlag)) {
+            // category가 null인(분류 전) 항목은 ETC로 합산한다.
+            ProductCategory category = row.getCategory() != null ? row.getCategory() : ProductCategory.ETC;
+            counts.merge(category, row.getCnt(), Long::sum);
+        }
+
+        return java.util.Arrays.stream(ProductCategory.values())
+                .map(category -> CategoryCountResponse.of(category, counts.getOrDefault(category, 0L)))
+                .toList();
+    }
+
+    /** 문자열 카테고리 코드를 enum으로 변환합니다. 비거나 알 수 없는 값이면 null(전체)로 처리합니다. */
+    private ProductCategory parseCategory(String category) {
+        if (!StringUtils.hasText(category)) {
+            return null;
+        }
+        try {
+            return ProductCategory.valueOf(category.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** 재고 단건을 브랜드 단위로 격리해 조회합니다. */

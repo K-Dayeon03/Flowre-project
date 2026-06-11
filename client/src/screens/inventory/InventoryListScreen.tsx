@@ -46,10 +46,13 @@ export default function InventoryListScreen() {
   const adjustItem = useInventoryStore((s) => s.adjustItem);
   const uploadDailyFile = useInventoryStore((s) => s.uploadDailyFile);
   const reloadFromExcel = useInventoryStore((s) => s.reloadFromExcel);
+  const categoryCounts = useInventoryStore((s) => s.categoryCounts);
+  const fetchCategoryCounts = useInventoryStore((s) => s.fetchCategoryCounts);
 
   const [query, setQuery] = useState('');
   const [archived, setArchived] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState<string | undefined>();
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [labelName, setLabelName] = useState(DEFAULT_LABEL);
@@ -62,16 +65,30 @@ export default function InventoryListScreen() {
 
   const labelOptions = useMemo(() => labels.map((label) => label.name), [labels]);
 
+  // 카테고리 칩: 맨 앞에 "전체"(필터 해제, 합계), 이어서 카테고리별 건수.
+  const categoryChips = useMemo(() => {
+    const total = categoryCounts.reduce((sum, c) => sum + c.count, 0);
+    return [
+      { category: undefined as string | undefined, label: '전체', count: total },
+      ...categoryCounts,
+    ];
+  }, [categoryCounts]);
+
   useEffect(() => {
     fetchLabels();
   }, []);
 
+  // 카테고리 칩 카운트는 검색어와 무관하므로 아카이브 전환 시에만 다시 집계한다.
+  useEffect(() => {
+    fetchCategoryCounts({ archived });
+  }, [archived]);
+
   useEffect(() => {
     const handle = setTimeout(() => {
-      fetchItems({ query, archived, labelName: selectedLabel });
+      fetchItems({ query, archived, labelName: selectedLabel, category: selectedCategory });
     }, 250);
     return () => clearTimeout(handle);
-  }, [query, archived, selectedLabel]);
+  }, [query, archived, selectedLabel, selectedCategory]);
 
   /** 라벨 입력 모달을 엽니다. */
   function openArchiveModal(item: InventoryItem) {
@@ -150,6 +167,7 @@ export default function InventoryListScreen() {
         name: asset.name,
         type: asset.mimeType ?? XLSX_MIME,
       });
+      await fetchCategoryCounts({ archived });
       Alert.alert(
         '반영 완료',
         `신규 ${loaded.createdCount} · 갱신 ${loaded.updatedCount} · 수량0 처리 ${loaded.zeroedCount}건`
@@ -176,6 +194,7 @@ export default function InventoryListScreen() {
         </View>
 
         <View style={styles.metaGrid}>
+          {item.categoryLabel ? <Text style={styles.meta}>분류 {item.categoryLabel}</Text> : null}
           <Text style={styles.meta}>점포 {item.storeName} ({item.storeCode})</Text>
           <Text style={styles.meta}>색상 {item.colorName ?? '-'} / 사이즈 {item.sizeName ?? '-'}</Text>
           <Text style={styles.meta}>바코드 {item.barcode ?? '-'}</Text>
@@ -237,11 +256,37 @@ export default function InventoryListScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.segment, archived && styles.segmentActive]}
-            onPress={() => setArchived(true)}
+            onPress={() => {
+              setArchived(true);
+              setSelectedCategory(undefined);
+            }}
           >
             <Text style={[styles.segmentText, archived && styles.segmentTextActive]}>아카이브</Text>
           </TouchableOpacity>
         </View>
+
+        {!archived ? (
+          <FlatList
+            horizontal
+            data={categoryChips}
+            keyExtractor={(item) => item.category ?? '전체'}
+            contentContainerStyle={styles.labelList}
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item }) => {
+              const active = selectedCategory === item.category;
+              return (
+                <TouchableOpacity
+                  style={[styles.labelChip, active && styles.labelChipActive]}
+                  onPress={() => setSelectedCategory(item.category)}
+                >
+                  <Text style={[styles.labelText, active && styles.labelTextActive]}>
+                    {item.label} {item.count}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        ) : null}
 
         {archived ? (
           <FlatList
@@ -271,6 +316,7 @@ export default function InventoryListScreen() {
               disabled={loading}
               onPress={async () => {
                 await reloadFromExcel();
+                await fetchCategoryCounts({ archived });
                 Alert.alert('완료', 'data 폴더 재고 현황을 다시 반영했습니다.');
               }}
             >
@@ -289,7 +335,7 @@ export default function InventoryListScreen() {
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         refreshing={loading}
-        onRefresh={() => fetchItems({ query, archived, labelName: selectedLabel })}
+        onRefresh={() => fetchItems({ query, archived, labelName: selectedLabel, category: selectedCategory })}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>{archived ? '아카이브 재고가 없습니다.' : '조회된 재고가 없습니다.'}</Text>
