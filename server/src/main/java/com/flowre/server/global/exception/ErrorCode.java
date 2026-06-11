@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode {
 
     // Auth
-    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "AUTH_001", "이메일 또는 비밀번호가 올바르지 않습니다."),
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "AUTH_001", "점별 코드, 직원 아이디 또는 비밀번호가 올바르지 않습니다."),
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_002", "유효하지 않은 토큰입니다."),
     EXPIRED_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_003", "만료된 토큰입니다."),
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "AUTH_004", "Refresh Token이 존재하지 않습니다."),
@@ -16,6 +16,9 @@ public enum ErrorCode {
 
     // User
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_001", "사용자를 찾을 수 없습니다."),
+    EMPLOYEE_CODE_ALREADY_EXISTS(HttpStatus.CONFLICT, "USER_002", "이미 등록된 직원 아이디입니다."),
+    EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "USER_003", "이미 등록된 이메일입니다."),
+    INVALID_EMPLOYEE_CODE(HttpStatus.BAD_REQUEST, "USER_004", "직원 아이디 형식이 올바르지 않거나 점별 코드와 일치하지 않습니다."),
 
     // Store
     STORE_NOT_FOUND(HttpStatus.NOT_FOUND, "STORE_001", "매장을 찾을 수 없습니다."),

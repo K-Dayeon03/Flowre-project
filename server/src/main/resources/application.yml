@@ -57,6 +57,17 @@ flowre:
   inventory:
     data-dir: ../data
     auto-load: true
+  # 부트스트랩 관리자 계정 — 본사 최초 로그인용 단일 ADMIN 계정.
+  # 직원 계정은 본사가 앱에서 직접 발급한다. 운영 환경에서는 아래 값을 환경변수로 반드시 덮어쓸 것.
+  admin:
+    enabled: ${FLOWRE_ADMIN_ENABLED:true}
+    brand-id: ${FLOWRE_ADMIN_BRAND_ID:1}
+    store-code: ${FLOWRE_ADMIN_STORE_CODE:0000}
+    store-name: ${FLOWRE_ADMIN_STORE_NAME:JAJU 본사}
+    employee-code: ${FLOWRE_ADMIN_EMPLOYEE_CODE:0000ADMN!}
+    email: ${FLOWRE_ADMIN_EMAIL:admin@jaju.com}
+    name: ${FLOWRE_ADMIN_NAME:시스템 관리자}
+    password: ${FLOWRE_ADMIN_PASSWORD:flowre-admin-1234!}
 
 logging:
   level:
