@@ -1,6 +1,7 @@
 package com.flowre.server.domain.user.controller;
 
 import com.flowre.server.domain.user.dto.EmployeeCreateRequest;
+import com.flowre.server.domain.user.dto.EmployeeRejectRequest;
 import com.flowre.server.domain.user.dto.UserResponse;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.domain.user.service.UserService;
@@ -33,5 +34,30 @@ public class UserController {
             @Valid @RequestBody EmployeeCreateRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(userService.createEmployee(user, request)));
+    }
+
+    /** GET /api/employees/pending - 승인 대기 직원 목록을 조회합니다. (점장·관리자 전용) */
+    @GetMapping("/pending")
+    public ResponseEntity<ApiResponse<List<UserResponse>>> getPendingEmployees(@AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(ApiResponse.ok(userService.getPendingEmployees(user)));
+    }
+
+    /** POST /api/employees/{employeeId}/approve - 승인 대기 직원을 승인합니다. (점장·관리자 전용) */
+    @PostMapping("/{employeeId}/approve")
+    public ResponseEntity<ApiResponse<UserResponse>> approveEmployee(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long employeeId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(userService.approveEmployee(user, employeeId)));
+    }
+
+    /** POST /api/employees/{employeeId}/reject - 승인 대기 직원을 거절합니다. (점장·관리자 전용) */
+    @PostMapping("/{employeeId}/reject")
+    public ResponseEntity<ApiResponse<UserResponse>> rejectEmployee(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long employeeId,
+            @Valid @RequestBody EmployeeRejectRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(userService.rejectEmployee(user, employeeId, request.getReason())));
     }
 }

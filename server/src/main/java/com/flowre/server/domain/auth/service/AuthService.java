@@ -84,6 +84,13 @@ public class AuthService {
         storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(user.getBrandId(), request.getStoreCode())
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_CREDENTIALS));
 
+        // 점장 승인 상태 검증 — PENDING(승인 대기)·REJECTED(거절) 계정은 로그인 불가
+        switch (user.getStatus()) {
+            case PENDING -> throw new CustomException(ErrorCode.ACCOUNT_PENDING_APPROVAL);
+            case REJECTED -> throw new CustomException(ErrorCode.ACCOUNT_REJECTED);
+            default -> { /* ACTIVE: 로그인 진행 */ }
+        }
+
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getEmail(), user.getRole().name());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 

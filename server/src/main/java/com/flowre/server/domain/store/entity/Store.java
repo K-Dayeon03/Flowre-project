@@ -38,6 +38,19 @@ public class Store {
     @Column(nullable = false)
     private String storeName;
 
+    /** 우편번호 (다음 우편번호 서비스에서 받아온 5자리) */
+    @Column(length = 5)
+    private String postalCode;
+
+    /** 도로명 주소 */
+    private String roadAddress;
+
+    /** 지번 주소 */
+    private String jibunAddress;
+
+    /** 상세 주소 (직접 입력) */
+    private String detailAddress;
+
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
@@ -47,4 +60,12 @@ public class Store {
 
     @LastModifiedDate
     private LocalDateTime updatedAt;
+
+    /** 매장 주소 정보를 갱신합니다. */
+    public void updateAddress(String postalCode, String roadAddress, String jibunAddress, String detailAddress) {
+        this.postalCode = postalCode;
+        this.roadAddress = roadAddress;
+        this.jibunAddress = jibunAddress;
+        this.detailAddress = detailAddress;
+    }
 }

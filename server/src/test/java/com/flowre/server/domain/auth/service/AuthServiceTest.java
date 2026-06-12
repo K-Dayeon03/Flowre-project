@@ -102,6 +102,36 @@ class AuthServiceTest {
                 .isEqualTo(ErrorCode.INVALID_CREDENTIALS);
     }
 
+    @Test
+    void loginFailsWhenAccountIsPendingApproval() {
+        User user = user("1001", "1001ABCD!");
+        ReflectionTestUtils.setField(user, "status", com.flowre.server.domain.user.entity.UserStatus.PENDING);
+        when(userRepository.findByEmployeeCode("1001ABCD!")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Test1234!", user.getPassword())).thenReturn(true);
+        when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
+                .thenReturn(Optional.of(store("1001")));
+
+        assertThatThrownBy(() -> authService.login(loginRequest("1001", "1001ABCD!", "Test1234!")))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ACCOUNT_PENDING_APPROVAL);
+    }
+
+    @Test
+    void loginFailsWhenAccountIsRejected() {
+        User user = user("1001", "1001ABCD!");
+        ReflectionTestUtils.setField(user, "status", com.flowre.server.domain.user.entity.UserStatus.REJECTED);
+        when(userRepository.findByEmployeeCode("1001ABCD!")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Test1234!", user.getPassword())).thenReturn(true);
+        when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
+                .thenReturn(Optional.of(store("1001")));
+
+        assertThatThrownBy(() -> authService.login(loginRequest("1001", "1001ABCD!", "Test1234!")))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ACCOUNT_REJECTED);
+    }
+
     private LoginRequest loginRequest(String storeCode, String employeeCode, String password) {
         LoginRequest request = new LoginRequest();
         ReflectionTestUtils.setField(request, "storeCode", storeCode);

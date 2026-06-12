@@ -89,3 +89,48 @@ describe('employeeApi.create()', () => {
     ).rejects.toThrow();
   });
 });
+
+// ── employeeApi 승인 플로우 ───────────────────────────────────────
+describe('employeeApi 승인 플로우', () => {
+  it('GET /api/employees/pending → 승인 대기 목록 반환', async () => {
+    mock.onGet('/api/employees/pending').reply(200, {
+      data: [
+        {
+          id: 3,
+          name: '이대기',
+          email: 'pending@jaju.com',
+          employeeCode: '1001PEND!',
+          role: 'STORE_STAFF',
+          status: 'PENDING',
+          brandId: 1,
+          storeId: 10,
+          storeCode: '1001',
+          storeName: '강남점',
+        },
+      ],
+    });
+
+    const result = await employeeApi.getPending();
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe('PENDING');
+  });
+
+  it('POST /api/employees/{id}/approve → 승인된 직원 반환', async () => {
+    mock.onPost('/api/employees/3/approve').reply(200, {
+      data: { id: 3, employeeCode: '1001PEND!', status: 'ACTIVE' },
+    });
+
+    const result = await employeeApi.approve(3);
+    expect(result.status).toBe('ACTIVE');
+  });
+
+  it('POST /api/employees/{id}/reject → 사유와 함께 거절', async () => {
+    mock.onPost('/api/employees/3/reject').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({ reason: '매장 소속이 아님' });
+      return [200, { data: { id: 3, status: 'REJECTED', rejectReason: '매장 소속이 아님' } }];
+    });
+
+    const result = await employeeApi.reject(3, '매장 소속이 아님');
+    expect(result.status).toBe('REJECTED');
+  });
+});

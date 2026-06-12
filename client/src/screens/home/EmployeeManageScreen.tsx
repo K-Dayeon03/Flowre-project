@@ -27,6 +27,18 @@ const ROLE_LABEL: Record<string, string> = {
   ADMIN: '관리자',
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: '승인 대기',
+  ACTIVE: '활성',
+  REJECTED: '거절됨',
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  PENDING: Colors.warning,
+  ACTIVE: Colors.success,
+  REJECTED: Colors.error,
+};
+
 /**
  * 본사(HQ/ADMIN) 전용 직원 계정 발급 화면.
  *
@@ -197,6 +209,11 @@ export default function EmployeeManageScreen() {
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+      <Text style={styles.hintText}>
+        직원을 등록하려면 해당 매장에 점장이 먼저 등록되어 있어야 합니다. 점장 등록 후 직원을 등록하면,
+        그 점장에게 승인 요청이 전달되고 승인 전까지 직원은 로그인할 수 없습니다.
+      </Text>
+
       <Text style={styles.listHeading}>등록된 직원</Text>
     </View>
   );
@@ -210,7 +227,8 @@ export default function EmployeeManageScreen() {
           data={employees}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.container}
-          ListHeaderComponent={renderForm}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={renderForm()}
           ListEmptyComponent={<Text style={styles.emptyText}>등록된 직원이 없습니다.</Text>}
           renderItem={({ item }) => (
             <View style={styles.employeeRow}>
@@ -221,6 +239,11 @@ export default function EmployeeManageScreen() {
                 <Text style={styles.employeeName}>{item.name}</Text>
                 <Text style={styles.employeeMeta}>
                   {ROLE_LABEL[item.role] ?? item.role} · {item.storeName}
+                </Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: (STATUS_COLOR[item.status] ?? Colors.textMuted) + '20' }]}>
+                <Text style={[styles.statusText, { color: STATUS_COLOR[item.status] ?? Colors.textSecondary }]}>
+                  {STATUS_LABEL[item.status] ?? item.status}
                 </Text>
               </View>
             </View>
@@ -292,12 +315,25 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     textAlign: 'center',
   },
+  hintText: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+    lineHeight: 16,
+  },
   listHeading: {
     fontSize: FontSize.md,
     fontWeight: '700',
     color: Colors.textPrimary,
     marginTop: Spacing.md,
   },
+  statusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    marginLeft: Spacing.sm,
+  },
+  statusText: { fontSize: FontSize.xs, fontWeight: '600' },
   loader: { marginTop: Spacing.xl },
   emptyText: {
     color: Colors.textMuted,

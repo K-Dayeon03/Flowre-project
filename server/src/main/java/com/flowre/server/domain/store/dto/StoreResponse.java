@@ -11,6 +11,10 @@ public class StoreResponse {
     private Long brandId;
     private String storeCode;
     private String storeName;
+    private String postalCode;
+    private String roadAddress;
+    private String jibunAddress;
+    private String detailAddress;
     private boolean active;
 
     /** 매장 엔티티를 API 응답 DTO로 변환합니다. */
@@ -20,6 +24,10 @@ public class StoreResponse {
                 .brandId(store.getBrandId())
                 .storeCode(store.getStoreCode())
                 .storeName(store.getStoreName())
+                .postalCode(store.getPostalCode())
+                .roadAddress(store.getRoadAddress())
+                .jibunAddress(store.getJibunAddress())
+                .detailAddress(store.getDetailAddress())
                 .active(store.isActive())
                 .build();
     }

@@ -1,5 +1,6 @@
 package com.flowre.server.domain.store.service;
 
+import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.entity.Store;
@@ -42,9 +43,39 @@ public class StoreService {
                 .brandId(user.getBrandId())
                 .storeCode(request.getStoreCode())
                 .storeName(request.getStoreName().trim())
+                .postalCode(request.getPostalCode())
+                .roadAddress(request.getRoadAddress().trim())
+                .jibunAddress(trimToNull(request.getJibunAddress()))
+                .detailAddress(trimToNull(request.getDetailAddress()))
                 .active(true)
                 .build();
         return StoreResponse.from(storeRepository.save(store));
+    }
+
+    /** 기존 매장의 주소 정보를 수정합니다. */
+    @Transactional
+    public StoreResponse updateStoreAddress(User user, Long storeId, StoreAddressUpdateRequest request) {
+        assertCanManageStores(user);
+        Store store = storeRepository.findById(storeId)
+                .filter(s -> s.getBrandId().equals(user.getBrandId()))
+                .orElseThrow(() -> new CustomException(ErrorCode.STORE_NOT_FOUND));
+
+        store.updateAddress(
+                request.getPostalCode(),
+                request.getRoadAddress().trim(),
+                trimToNull(request.getJibunAddress()),
+                trimToNull(request.getDetailAddress())
+        );
+        return StoreResponse.from(store);
+    }
+
+    /** 공백을 제거하고, 빈 문자열이면 null을 반환합니다. */
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private void assertCanManageStores(User user) {

@@ -20,6 +20,7 @@ export type HomeStackParamList = {
   Profile: undefined;
   StoreManage: undefined;
   EmployeeManage: undefined;
+  EmployeeApproval: undefined;
 };
 
 export type ScheduleStackParamList = {

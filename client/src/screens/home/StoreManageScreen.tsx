@@ -11,11 +11,17 @@ import {
 } from 'react-native';
 import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { Store, storeApi } from '../../api/storeApi';
+import PostcodeSearch, { PostcodeResult } from '../../components/PostcodeSearch';
 
 export default function StoreManageScreen() {
   const [stores, setStores] = useState<Store[]>([]);
   const [storeCode, setStoreCode] = useState('');
   const [storeName, setStoreName] = useState('');
+  const [postalCode, setPostalCode] = useState('');
+  const [roadAddress, setRoadAddress] = useState('');
+  const [jibunAddress, setJibunAddress] = useState('');
+  const [detailAddress, setDetailAddress] = useState('');
+  const [postcodeVisible, setPostcodeVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -38,22 +44,45 @@ export default function StoreManageScreen() {
     }
   };
 
-  /** 입력한 점별 코드와 매장명으로 신규 매장을 등록합니다. */
+  /** 다음 우편번호 서비스에서 선택한 주소를 폼에 반영합니다. */
+  const handleAddressSelected = (result: PostcodeResult) => {
+    setPostalCode(result.postalCode);
+    setRoadAddress(result.roadAddress);
+    setJibunAddress(result.jibunAddress);
+  };
+
+  /** 입력한 점별 코드·매장명·주소로 신규 매장을 등록합니다. */
   const handleCreate = async () => {
     if (!/^\d{4}$/.test(storeCode) || !storeName.trim()) {
       setError('점별 코드 4자리와 매장명을 입력해주세요.');
+      return;
+    }
+    if (!postalCode || !roadAddress) {
+      setError('주소 검색으로 매장 주소를 선택해주세요.');
       return;
     }
 
     setSaving(true);
     setError('');
     try {
-      const created = await storeApi.create({ storeCode, storeName: storeName.trim() });
+      const created = await storeApi.create({
+        storeCode,
+        storeName: storeName.trim(),
+        postalCode,
+        roadAddress,
+        jibunAddress: jibunAddress || undefined,
+        detailAddress: detailAddress.trim() || undefined,
+      });
       setStores((prev) => [...prev, created].sort((a, b) => a.storeCode.localeCompare(b.storeCode)));
       setStoreCode('');
       setStoreName('');
-    } catch {
-      setError('매장을 등록하지 못했습니다.');
+      setPostalCode('');
+      setRoadAddress('');
+      setJibunAddress('');
+      setDetailAddress('');
+    } catch (e: any) {
+      const message = e?.response?.data?.error?.message;
+      setError(message ?? '매장을 등록하지 못했습니다.');
     } finally {
       setSaving(false);
     }
@@ -79,6 +108,28 @@ export default function StoreManageScreen() {
             value={storeName}
             onChangeText={setStoreName}
           />
+
+          {/* 주소 검색 */}
+          <TouchableOpacity
+            style={styles.addressButton}
+            onPress={() => setPostcodeVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.addressButtonText}>
+              {postalCode ? `(${postalCode}) ${roadAddress}` : '주소 검색'}
+            </Text>
+            <Text style={styles.addressSearchIcon}>🔍</Text>
+          </TouchableOpacity>
+          {roadAddress ? (
+            <TextInput
+              style={styles.input}
+              placeholder="상세 주소 (동·층·호 등)"
+              placeholderTextColor={Colors.textMuted}
+              value={detailAddress}
+              onChangeText={setDetailAddress}
+            />
+          ) : null}
+
           <TouchableOpacity
             style={[styles.createButton, saving && styles.disabledButton]}
             onPress={handleCreate}
@@ -110,6 +161,12 @@ export default function StoreManageScreen() {
                 </View>
                 <View style={styles.storeInfo}>
                   <Text style={styles.storeName}>{item.storeName}</Text>
+                  {item.roadAddress ? (
+                    <Text style={styles.storeAddress} numberOfLines={2}>
+                      {item.roadAddress}
+                      {item.detailAddress ? ` ${item.detailAddress}` : ''}
+                    </Text>
+                  ) : null}
                   <Text style={styles.storeMeta}>{item.active ? '운영 중' : '비활성'}</Text>
                 </View>
               </View>
@@ -117,6 +174,12 @@ export default function StoreManageScreen() {
           />
         )}
       </View>
+
+      <PostcodeSearch
+        visible={postcodeVisible}
+        onClose={() => setPostcodeVisible(false)}
+        onSelected={handleAddressSelected}
+      />
     </SafeAreaView>
   );
 }
@@ -142,6 +205,19 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.textPrimary,
   },
+  addressButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+  },
+  addressButtonText: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary },
+  addressSearchIcon: { fontSize: FontSize.md, marginLeft: Spacing.sm },
   createButton: {
     backgroundColor: Colors.primary,
     borderRadius: Radius.sm,
@@ -170,7 +246,7 @@ const styles = StyleSheet.create({
   emptyText: { color: Colors.textMuted, fontSize: FontSize.sm },
   storeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: Colors.surface,
     borderRadius: Radius.sm,
     padding: Spacing.md,
@@ -196,6 +272,11 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: FontSize.md,
     fontWeight: '600',
+  },
+  storeAddress: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    marginTop: 2,
   },
   storeMeta: {
     color: Colors.textSecondary,

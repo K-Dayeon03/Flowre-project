@@ -33,8 +33,10 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(storeCode, employeeCode, password);
-    } catch {
-      setError('점별 코드, 직원 아이디 또는 비밀번호가 올바르지 않습니다.');
+    } catch (e: any) {
+      // 서버가 내려준 실제 사유(승인 대기·거절 등)를 우선 노출하고, 없으면 일반 메시지로 폴백한다.
+      const message = e?.response?.data?.error?.message;
+      setError(message ?? '점별 코드, 직원 아이디 또는 비밀번호가 올바르지 않습니다.');
     } finally {
       setLoading(false);
     }

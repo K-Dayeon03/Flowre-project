@@ -15,6 +15,8 @@ public class UserResponse {
     private String email;
     private String employeeCode;
     private String role;
+    private String status;
+    private String rejectReason;
     private Long brandId;
     private Long storeId;
     private String storeCode;
@@ -28,6 +30,8 @@ public class UserResponse {
                 .email(user.getEmail())
                 .employeeCode(user.getEmployeeCode())
                 .role(user.getRole().name())
+                .status(user.getStatus().name())
+                .rejectReason(user.getRejectReason())
                 .brandId(user.getBrandId())
                 .storeId(user.getStoreId())
                 .storeCode(user.getStoreCode())

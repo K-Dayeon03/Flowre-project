@@ -22,6 +22,7 @@ import HomeScreen from '../screens/home/HomeScreen';
 import ProfileScreen from '../screens/home/ProfileScreen';
 import StoreManageScreen from '../screens/home/StoreManageScreen';
 import EmployeeManageScreen from '../screens/home/EmployeeManageScreen';
+import EmployeeApprovalScreen from '../screens/home/EmployeeApprovalScreen';
 import ScheduleListScreen from '../screens/schedule/ScheduleListScreen';
 import ScheduleDetailScreen from '../screens/schedule/ScheduleDetailScreen';
 import ScheduleCreateScreen from '../screens/schedule/ScheduleCreateScreen';
@@ -81,6 +82,7 @@ function HomeNavigator() {
       <HomeStack.Screen name="Profile" component={ProfileScreen} options={{ title: '내 프로필' }} />
       <HomeStack.Screen name="StoreManage" component={StoreManageScreen} options={{ title: '매장 등록' }} />
       <HomeStack.Screen name="EmployeeManage" component={EmployeeManageScreen} options={{ title: '직원 등록' }} />
+      <HomeStack.Screen name="EmployeeApproval" component={EmployeeApprovalScreen} options={{ title: '직원 승인' }} />
     </HomeStack.Navigator>
   );
 }

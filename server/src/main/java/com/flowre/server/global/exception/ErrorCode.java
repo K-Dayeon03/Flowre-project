@@ -19,6 +19,11 @@ public enum ErrorCode {
     EMPLOYEE_CODE_ALREADY_EXISTS(HttpStatus.CONFLICT, "USER_002", "이미 등록된 직원 아이디입니다."),
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "USER_003", "이미 등록된 이메일입니다."),
     INVALID_EMPLOYEE_CODE(HttpStatus.BAD_REQUEST, "USER_004", "직원 아이디 형식이 올바르지 않거나 점별 코드와 일치하지 않습니다."),
+    ACCOUNT_PENDING_APPROVAL(HttpStatus.FORBIDDEN, "USER_005", "점장 승인 대기 중인 계정입니다. 승인 후 로그인할 수 있습니다."),
+    ACCOUNT_REJECTED(HttpStatus.FORBIDDEN, "USER_006", "승인이 거절된 계정입니다. 본사에 문의해주세요."),
+    APPROVAL_NOT_ALLOWED(HttpStatus.FORBIDDEN, "USER_007", "해당 직원 계정을 승인할 권한이 없습니다."),
+    EMPLOYEE_NOT_PENDING(HttpStatus.BAD_REQUEST, "USER_008", "승인 대기 상태의 직원이 아닙니다."),
+    STORE_MANAGER_REQUIRED(HttpStatus.BAD_REQUEST, "USER_009", "해당 매장에 점장이 먼저 등록되어 있어야 직원을 등록할 수 있습니다."),
 
     // Store
     STORE_NOT_FOUND(HttpStatus.NOT_FOUND, "STORE_001", "매장을 찾을 수 없습니다."),

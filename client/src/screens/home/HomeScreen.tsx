@@ -12,7 +12,7 @@ import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { useChatStore } from '../../store/useChatStore';
-import { canManageStores, canRegisterEmployees } from './homePermissions';
+import { canApproveEmployees, canManageStores, canRegisterEmployees } from './homePermissions';
 
 /** 오늘 날짜 포맷 */
 function getTodayLabel() {
@@ -56,6 +56,7 @@ export default function HomeScreen() {
   const initial = user?.name[0] ?? '?';
   const canShowStoreManage = canManageStores(user?.role);
   const canShowEmployeeManage = canRegisterEmployees(user?.role);
+  const canShowEmployeeApproval = canApproveEmployees(user?.role);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -110,6 +111,20 @@ export default function HomeScreen() {
             <View>
               <Text style={styles.storeManageTitle}>직원 등록</Text>
               <Text style={styles.storeManageSub}>직원 아이디·초기 비밀번호 발급</Text>
+            </View>
+            <Text style={styles.storeManageArrow}>›</Text>
+          </TouchableOpacity>
+        )}
+
+        {canShowEmployeeApproval && (
+          <TouchableOpacity
+            style={styles.storeManageButton}
+            onPress={() => navigation.navigate('EmployeeApproval')}
+            activeOpacity={0.8}
+          >
+            <View>
+              <Text style={styles.storeManageTitle}>직원 승인</Text>
+              <Text style={styles.storeManageSub}>승인 대기 직원 확인·승인</Text>
             </View>
             <Text style={styles.storeManageArrow}>›</Text>
           </TouchableOpacity>

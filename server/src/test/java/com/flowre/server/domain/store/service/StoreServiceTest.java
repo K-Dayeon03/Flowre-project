@@ -1,5 +1,6 @@
 package com.flowre.server.domain.store.service;
 
+import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.entity.Store;
@@ -33,14 +34,49 @@ class StoreServiceTest {
     void adminCanCreateStore() {
         User admin = user(UserRole.ADMIN);
         StoreCreateRequest request = createRequest("1001", "강남점");
-        Store saved = store(1L, "1001", "강남점");
         when(storeRepository.existsByBrandIdAndStoreCode(1L, "1001")).thenReturn(false);
-        when(storeRepository.save(any(Store.class))).thenReturn(saved);
+        when(storeRepository.save(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         StoreResponse response = storeService.createStore(admin, request);
 
         assertThat(response.getStoreCode()).isEqualTo("1001");
         assertThat(response.getStoreName()).isEqualTo("강남점");
+        assertThat(response.getPostalCode()).isEqualTo("06035");
+        assertThat(response.getRoadAddress()).isEqualTo("서울 강남구 가로수길 5");
+    }
+
+    @Test
+    void updateStoreAddressReplacesAddressFields() {
+        User hq = user(UserRole.HQ_STAFF);
+        Store existing = store(7L, "1001", "강남점");
+        when(storeRepository.findById(7L)).thenReturn(java.util.Optional.of(existing));
+
+        StoreAddressUpdateRequest request = new StoreAddressUpdateRequest();
+        ReflectionTestUtils.setField(request, "postalCode", "06035");
+        ReflectionTestUtils.setField(request, "roadAddress", "서울 강남구 가로수길 5");
+        ReflectionTestUtils.setField(request, "detailAddress", "2층");
+
+        StoreResponse response = storeService.updateStoreAddress(hq, 7L, request);
+
+        assertThat(response.getPostalCode()).isEqualTo("06035");
+        assertThat(response.getRoadAddress()).isEqualTo("서울 강남구 가로수길 5");
+        assertThat(response.getDetailAddress()).isEqualTo("2층");
+    }
+
+    @Test
+    void updateStoreAddressFailsForOtherBrandStore() {
+        User hq = user(UserRole.HQ_STAFF);
+        Store otherBrand = Store.builder().id(8L).brandId(2L).storeCode("2001").storeName("부산점").active(true).build();
+        when(storeRepository.findById(8L)).thenReturn(java.util.Optional.of(otherBrand));
+
+        StoreAddressUpdateRequest request = new StoreAddressUpdateRequest();
+        ReflectionTestUtils.setField(request, "postalCode", "06035");
+        ReflectionTestUtils.setField(request, "roadAddress", "서울 강남구 가로수길 5");
+
+        assertThatThrownBy(() -> storeService.updateStoreAddress(hq, 8L, request))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.STORE_NOT_FOUND);
     }
 
     @Test
@@ -76,6 +112,10 @@ class StoreServiceTest {
         StoreCreateRequest request = new StoreCreateRequest();
         ReflectionTestUtils.setField(request, "storeCode", storeCode);
         ReflectionTestUtils.setField(request, "storeName", storeName);
+        ReflectionTestUtils.setField(request, "postalCode", "06035");
+        ReflectionTestUtils.setField(request, "roadAddress", "서울 강남구 가로수길 5");
+        ReflectionTestUtils.setField(request, "jibunAddress", "서울 강남구 신사동 533");
+        ReflectionTestUtils.setField(request, "detailAddress", "1층");
         return request;
     }
 
