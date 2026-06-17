@@ -16,6 +16,8 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     Optional<ChatRoom> findByStoreIdAndType(Long storeId, RoomType type);
 
+    Optional<ChatRoom> findByTypeAndDirectRoomKey(RoomType type, String directRoomKey);
+
     /**
      * 두 사용자 간 기존 DIRECT 채팅방 조회 (중복 생성 방지)
      */

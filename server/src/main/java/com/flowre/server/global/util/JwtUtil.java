@@ -31,6 +31,7 @@ public class JwtUtil {
     public String generateAccessToken(Long userId, String email, String role) {
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .claim("type", "access")
                 .claim("email", email)
                 .claim("role", role)
                 .issuedAt(new Date())
@@ -42,6 +43,7 @@ public class JwtUtil {
     public String generateRefreshToken(Long userId) {
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .claim("type", "refresh")
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
                 .signWith(secretKey)
@@ -64,6 +66,32 @@ public class JwtUtil {
         try {
             parseClaims(token);
             return true;
+        } catch (ExpiredJwtException e) {
+            log.warn("[JWT] 만료된 토큰");
+        } catch (JwtException | IllegalArgumentException e) {
+            log.warn("[JWT] 유효하지 않은 토큰: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * 인증에 사용할 수 있는 Access Token인지 검증합니다.
+     */
+    public boolean isAccessToken(String token) {
+        return hasTokenType(token, "access");
+    }
+
+    /**
+     * 토큰 갱신에 사용할 수 있는 Refresh Token인지 검증합니다.
+     */
+    public boolean isRefreshToken(String token) {
+        return hasTokenType(token, "refresh");
+    }
+
+    private boolean hasTokenType(String token, String expectedType) {
+        try {
+            Claims claims = parseClaims(token);
+            return expectedType.equals(claims.get("type", String.class));
         } catch (ExpiredJwtException e) {
             log.warn("[JWT] 만료된 토큰");
         } catch (JwtException | IllegalArgumentException e) {

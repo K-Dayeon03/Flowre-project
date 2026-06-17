@@ -36,6 +36,7 @@ web-build/
 .env.local
 .env.production
 application-prod.yml
+!server/src/main/resources/application-prod.yml
 
 # ===== Coverage =====
 client/coverage/

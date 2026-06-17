@@ -125,7 +125,7 @@ public class AuthService {
      */
     @Transactional(readOnly = true)
     public String refresh(String refreshToken) {
-        if (!jwtUtil.isValid(refreshToken)) {
+        if (!jwtUtil.isRefreshToken(refreshToken)) {
             throw new CustomException(ErrorCode.INVALID_TOKEN);
         }
 

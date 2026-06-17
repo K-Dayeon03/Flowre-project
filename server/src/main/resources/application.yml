@@ -3,10 +3,10 @@ spring:
     name: server
 
   datasource:
-    url: jdbc:mysql://localhost:3306/flowre?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: root
-    password: 1234
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:mysql://localhost:3306/flowre?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:1234}
+    driver-class-name: ${DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
 
   jpa:
     hibernate:
@@ -38,16 +38,16 @@ server:
   port: 8080
 
 jwt:
-  secret: flowre-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm
+  secret: ${JWT_SECRET:flowre-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm}
   access-expiration: 1800000    # 30분 (ms)
   refresh-expiration: 604800000 # 7일 (ms)
 
 aws:
   s3:
-    access-key: your-access-key
-    secret-key: your-secret-key
-    region: ap-northeast-2
-    bucket: flowre-bucket
+    access-key: ${AWS_ACCESS_KEY_ID:your-access-key}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:your-secret-key}
+    region: ${AWS_REGION:ap-northeast-2}
+    bucket: ${AWS_S3_BUCKET:flowre-bucket}
   presigned-url-expiration: 600 # 10분 (초)
 
 cors:

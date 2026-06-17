@@ -20,8 +20,11 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -41,18 +44,12 @@ public class ChatService {
     public List<ChatRoomResponse> getRooms(User user) {
         List<ChatRoom> rooms = chatRoomRepository.findAllByMemberUserId(user.getId());
         return rooms.stream().map(room -> {
-            List<Message> msgs = messageRepository.findByRoomIdOrderBySentAtAsc(room.getId());
-            Message last = msgs.isEmpty() ? null : msgs.get(msgs.size() - 1);
+            Message last = messageRepository.findTopByRoomIdOrderBySentAtDesc(room.getId()).orElse(null);
 
             int unread = chatRoomMemberRepository
                     .findByChatRoomIdAndUserId(room.getId(), user.getId())
-                    .map(m -> {
-                        if (m.getLastReadAt() == null) return msgs.size();
-                        return (int) msgs.stream()
-                                .filter(msg -> msg.getSentAt() != null
-                                        && msg.getSentAt().isAfter(m.getLastReadAt()))
-                                .count();
-                    }).orElse(0);
+                    .map(m -> countUnread(room.getId(), m.getLastReadAt()))
+                    .orElse(0);
 
             return ChatRoomResponse.of(room, last, unread);
         }).toList();
@@ -64,13 +61,17 @@ public class ChatService {
     @Transactional(readOnly = true)
     public List<MessageResponse> getMessages(User user, Long roomId, Long before, int limit) {
         validateMember(roomId, user.getId());
+        int pageSize = Math.max(1, limit);
 
         List<Message> messages = before != null
                 ? messageRepository.findByRoomIdAndIdLessThanOrderBySentAtDesc(
-                        roomId, before, PageRequest.of(0, limit))
-                : messageRepository.findByRoomIdOrderBySentAtAsc(roomId);
+                        roomId, before, PageRequest.of(0, pageSize))
+                : messageRepository.findByRoomIdOrderBySentAtDesc(roomId, PageRequest.of(0, pageSize));
 
         return messages.stream()
+                .sorted(Comparator
+                        .comparing(Message::getSentAt, Comparator.nullsFirst(LocalDateTime::compareTo))
+                        .thenComparing(Message::getId, Comparator.nullsFirst(Long::compareTo)))
                 .map(m -> MessageResponse.of(m, user.getId()))
                 .toList();
     }
@@ -86,16 +87,19 @@ public class ChatService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         validateDirectRoomPermission(me, target);
+        String directRoomKey = directRoomKey(me.getId(), target.getId());
 
         // 이미 있는 1:1 방이면 반환
-        return chatRoomRepository.findDirectRoom(me.getId(), target.getId())
+        return chatRoomRepository.findByTypeAndDirectRoomKey(RoomType.DIRECT, directRoomKey)
+                .or(() -> chatRoomRepository.findDirectRoom(me.getId(), target.getId()))
                 .map(room -> ChatRoomResponse.of(room, null, 0))
                 .orElseGet(() -> {
                     ChatRoom room = ChatRoom.builder()
                             .type(RoomType.DIRECT)
                             .name(target.getName())
+                            .directRoomKey(directRoomKey)
                             .build();
-                    ChatRoom saved = chatRoomRepository.save(room);
+                    ChatRoom saved = chatRoomRepository.saveAndFlush(room);
 
                     addMember(saved, me);
                     addMember(saved, target);
@@ -113,6 +117,12 @@ public class ChatService {
         Set<Long> memberIds = new LinkedHashSet<>(request.getMemberUserIds());
         memberIds.add(me.getId());
 
+        List<User> members = memberIds.stream()
+                .map(memberId -> userRepository.findById(memberId)
+                        .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND)))
+                .peek(member -> validateGroupRoomMember(me, member))
+                .toList();
+
         ChatRoom room = ChatRoom.builder()
                 .type(RoomType.GROUP)
                 .name(request.getName().trim())
@@ -120,9 +130,7 @@ public class ChatService {
                 .build();
         ChatRoom saved = chatRoomRepository.save(room);
 
-        for (Long memberId : memberIds) {
-            User member = userRepository.findById(memberId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        for (User member : members) {
             addMember(saved, member);
         }
 
@@ -181,6 +189,13 @@ public class ChatService {
         }
     }
 
+    private int countUnread(Long roomId, LocalDateTime lastReadAt) {
+        long count = lastReadAt == null
+                ? messageRepository.countByRoomId(roomId)
+                : messageRepository.countByRoomIdAndSentAtAfter(roomId, lastReadAt);
+        return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
+    }
+
     private void addMember(ChatRoom room, User user) {
         ChatRoomMember member = ChatRoomMember.builder()
                 .chatRoom(room)
@@ -191,19 +206,35 @@ public class ChatService {
     }
 
     private void validateDirectRoomPermission(User me, User target) {
+        if (!Objects.equals(me.getBrandId(), target.getBrandId())) {
+            throw new CustomException(ErrorCode.DIRECT_ROOM_NOT_ALLOWED);
+        }
         if (me.getRole() == UserRole.STORE_STAFF) {
             // 일반 직원: 같은 매장 직원끼리만
-            if (!me.getStoreId().equals(target.getStoreId())) {
+            if (!Objects.equals(me.getStoreId(), target.getStoreId())) {
                 throw new CustomException(ErrorCode.DIRECT_ROOM_NOT_ALLOWED);
             }
         } else if (me.getRole() == UserRole.STORE_MANAGER) {
             // 점장: 같은 매장 직원 or 본사 직원
-            boolean sameStore = me.getStoreId().equals(target.getStoreId());
+            boolean sameStore = Objects.equals(me.getStoreId(), target.getStoreId());
             boolean isHq = target.getRole() == UserRole.HQ_STAFF;
             if (!sameStore && !isHq) {
                 throw new CustomException(ErrorCode.DIRECT_ROOM_NOT_ALLOWED);
             }
         }
         // HQ_STAFF, ADMIN은 제한 없음
+    }
+
+    private void validateGroupRoomMember(User me, User member) {
+        if (!Objects.equals(me.getBrandId(), member.getBrandId())
+                || !Objects.equals(me.getStoreId(), member.getStoreId())) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private String directRoomKey(Long userId1, Long userId2) {
+        long first = Math.min(userId1, userId2);
+        long second = Math.max(userId1, userId2);
+        return first + ":" + second;
     }
 }

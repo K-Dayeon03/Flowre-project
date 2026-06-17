@@ -10,7 +10,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "chat_rooms")
+@Table(
+        name = "chat_rooms",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_chat_rooms_direct_room_key",
+                columnNames = "direct_room_key"
+        )
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -30,6 +36,9 @@ public class ChatRoom {
 
     @Column(nullable = false)
     private String name;    // GROUP: 매장명, DIRECT: 상대방 이름
+
+    @Column(name = "direct_room_key")
+    private String directRoomKey;
 
     @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

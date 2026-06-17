@@ -132,6 +132,18 @@ class AuthServiceTest {
                 .isEqualTo(ErrorCode.ACCOUNT_REJECTED);
     }
 
+    @Test
+    void refreshRejectsNonRefreshToken() {
+        when(jwtUtil.isRefreshToken("access-token")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.refresh("access-token"))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_TOKEN);
+
+        verify(jwtUtil, never()).getUserId(anyString());
+    }
+
     private LoginRequest loginRequest(String storeCode, String employeeCode, String password) {
         LoginRequest request = new LoginRequest();
         ReflectionTestUtils.setField(request, "storeCode", storeCode);
