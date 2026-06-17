@@ -21,6 +21,9 @@ export type HomeStackParamList = {
   StoreManage: undefined;
   EmployeeManage: undefined;
   EmployeeApproval: undefined;
+  NoticeList: undefined;
+  NoticeDetail: { noticeId: number };
+  NoticeCreate: undefined;
 };
 
 export type ScheduleStackParamList = {

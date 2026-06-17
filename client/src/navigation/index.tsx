@@ -23,6 +23,9 @@ import ProfileScreen from '../screens/home/ProfileScreen';
 import StoreManageScreen from '../screens/home/StoreManageScreen';
 import EmployeeManageScreen from '../screens/home/EmployeeManageScreen';
 import EmployeeApprovalScreen from '../screens/home/EmployeeApprovalScreen';
+import NoticeListScreen from '../screens/notice/NoticeListScreen';
+import NoticeDetailScreen from '../screens/notice/NoticeDetailScreen';
+import NoticeCreateScreen from '../screens/notice/NoticeCreateScreen';
 import ScheduleListScreen from '../screens/schedule/ScheduleListScreen';
 import ScheduleDetailScreen from '../screens/schedule/ScheduleDetailScreen';
 import ScheduleCreateScreen from '../screens/schedule/ScheduleCreateScreen';
@@ -83,6 +86,9 @@ function HomeNavigator() {
       <HomeStack.Screen name="StoreManage" component={StoreManageScreen} options={{ title: '매장 등록' }} />
       <HomeStack.Screen name="EmployeeManage" component={EmployeeManageScreen} options={{ title: '직원 등록' }} />
       <HomeStack.Screen name="EmployeeApproval" component={EmployeeApprovalScreen} options={{ title: '직원 승인' }} />
+      <HomeStack.Screen name="NoticeList" component={NoticeListScreen} options={{ title: '공지' }} />
+      <HomeStack.Screen name="NoticeDetail" component={NoticeDetailScreen} options={{ title: '공지 상세' }} />
+      <HomeStack.Screen name="NoticeCreate" component={NoticeCreateScreen} options={{ title: '공지 작성' }} />
     </HomeStack.Navigator>
   );
 }

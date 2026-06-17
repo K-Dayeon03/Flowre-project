@@ -16,7 +16,7 @@ describe('employeeApi.getList()', () => {
         {
           id: 1,
           name: '김직원',
-          email: 'staff@jaju.com',
+          email: 'staff@flowre.local',
           employeeCode: '1001WXYZ!',
           role: 'STORE_STAFF',
           brandId: 1,
@@ -40,7 +40,7 @@ describe('employeeApi.create()', () => {
     const created = {
       id: 2,
       name: '박직원',
-      email: 'new@jaju.com',
+      email: 'new@flowre.local',
       employeeCode: '1001ABCD!',
       role: 'STORE_MANAGER',
       brandId: 1,
@@ -51,7 +51,7 @@ describe('employeeApi.create()', () => {
     mock.onPost('/api/employees').reply((config) => {
       expect(JSON.parse(config.data)).toEqual({
         name: '박직원',
-        email: 'new@jaju.com',
+        email: 'new@flowre.local',
         storeCode: '1001',
         employeeCode: '1001ABCD!',
         password: 'Password1!',
@@ -62,7 +62,7 @@ describe('employeeApi.create()', () => {
 
     const result = await employeeApi.create({
       name: '박직원',
-      email: 'new@jaju.com',
+      email: 'new@flowre.local',
       storeCode: '1001',
       employeeCode: '1001ABCD!',
       password: 'Password1!',
@@ -80,7 +80,7 @@ describe('employeeApi.create()', () => {
     await expect(
       employeeApi.create({
         name: '박직원',
-        email: 'new@jaju.com',
+        email: 'new@flowre.local',
         storeCode: '1001',
         employeeCode: '1001ABCD!',
         password: 'Password1!',
@@ -98,7 +98,7 @@ describe('employeeApi 승인 플로우', () => {
         {
           id: 3,
           name: '이대기',
-          email: 'pending@jaju.com',
+          email: 'pending@flowre.local',
           employeeCode: '1001PEND!',
           role: 'STORE_STAFF',
           status: 'PENDING',

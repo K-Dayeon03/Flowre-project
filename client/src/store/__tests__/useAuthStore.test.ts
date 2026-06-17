@@ -97,7 +97,7 @@ describe('login()', () => {
 
     const mockUser = {
       id: 3,
-      email: 'manager@jaju.com',
+      email: 'manager@flowre.local',
       employeeCode: '1001ABCD!',
       name: '테스트 점장',
       role: 'STORE_MANAGER' as const,

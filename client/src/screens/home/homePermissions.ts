@@ -17,3 +17,8 @@ export function canRegisterEmployees(role?: UserRole) {
 export function canApproveEmployees(role?: UserRole) {
   return role === 'STORE_MANAGER' || role === 'ADMIN';
 }
+
+/** 공지 작성 권한이 있는 역할인지 확인합니다. */
+export function canCreateNotices(role?: UserRole) {
+  return role === 'ADMIN' || role === 'HQ_STAFF' || role === 'STORE_MANAGER';
+}

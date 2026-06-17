@@ -1,6 +1,6 @@
 import MockAdapter from 'axios-mock-adapter';
 import { apiClient } from '../client';
-import { Store, storeApi } from '../storeApi';
+import { NearbyStore, Store, storeApi } from '../storeApi';
 
 const mock = new MockAdapter(apiClient);
 
@@ -25,6 +25,17 @@ describe('storeApi.getList()', () => {
     const result = await storeApi.getList();
 
     expect(result).toEqual(stores);
+  });
+});
+
+describe('storeApi.getNearbyStores()', () => {
+  it('GET /api/stores/nearby 에 lat/lng/limit을 전달한다', async () => {
+    const nearby: NearbyStore[] = [{ storeCode: '1001', storeName: '강남점', distanceMeters: 120 }];
+    mock.onGet('/api/stores/nearby', { params: { lat: 37.5, lng: 127.0, limit: 5 } }).reply(200, { data: nearby });
+
+    const result = await storeApi.getNearbyStores(37.5, 127.0);
+
+    expect(result).toEqual(nearby);
   });
 });
 

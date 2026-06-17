@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
 import { ScheduleStackParamList } from '../../navigation/types';
+import FavoriteToggle from '../../components/FavoriteToggle';
 
 type Props = NativeStackScreenProps<ScheduleStackParamList, 'ScheduleDetail'>;
 
@@ -35,7 +36,16 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export default function ScheduleDetailScreen({ route, navigation }: Props) {
+  const { scheduleId } = route.params;
   const [status, setStatus] = useState(MOCK_DETAIL.status);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FavoriteToggle targetType="SCHEDULE" targetId={scheduleId} label={MOCK_DETAIL.title} />
+      ),
+    });
+  }, [navigation, scheduleId]);
 
   const handleComplete = () => {
     Alert.alert('완료 처리', '이 스케줄을 완료 처리할까요?', [

@@ -1,27 +1,52 @@
 export const Colors = {
-  primary: '#2D2D2D',
-  accent: '#C8A97E',
-  background: '#FAFAFA',
+  primary: '#4F46E5',
+  primaryDark: '#4338CA',
+  accent: '#06B6D4',
+  background: '#F7F8FC',
   surface: '#FFFFFF',
-  border: '#E8E8E8',
-  textPrimary: '#1A1A1A',
-  textSecondary: '#888888',
-  textMuted: '#BBBBBB',
-  success: '#4CAF50',
-  warning: '#FF9800',
-  error: '#F44336',
-  info: '#2196F3',
+  border: '#E6E8F0',
+  textPrimary: '#1E1B2E',
+  textSecondary: '#6B7280',
+  textMuted: '#A5AAB8',
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  info: '#06B6D4',
   tabBar: '#FFFFFF',
   scheduleType: {
-    MANNEQUIN: '#C8A97E',
-    HQ_VISIT: '#2196F3',
-    VM_CHECK: '#9C27B0',
-    OTHER: '#888888',
+    MANNEQUIN: '#4F46E5',
+    HQ_VISIT: '#06B6D4',
+    VM_CHECK: '#10B981',
+    OTHER: '#F59E0B',
   },
   statusBadge: {
-    PENDING: '#FF9800',
-    IN_PROGRESS: '#2196F3',
-    DONE: '#4CAF50',
+    PENDING: '#F59E0B',
+    IN_PROGRESS: '#06B6D4',
+    DONE: '#10B981',
+  },
+};
+
+export const Gradients = {
+  brand: ['#4F46E5', '#06B6D4'] as const,
+  brandDark: ['#4338CA', '#0891B2'] as const,
+  soft: ['#EEF2FF', '#ECFEFF'] as const,
+  success: ['#10B981', '#06B6D4'] as const,
+};
+
+export const Shadow = {
+  card: {
+    shadowColor: '#1E1B2E',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  raised: {
+    shadowColor: '#1E1B2E',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 6,
   },
 };
 
@@ -31,6 +56,7 @@ export const Spacing = {
   md: 16,
   lg: 24,
   xl: 32,
+  xxl: 40,
 };
 
 export const FontSize = {
@@ -40,6 +66,7 @@ export const FontSize = {
   lg: 17,
   xl: 20,
   xxl: 24,
+  hero: 40,
 };
 
 export const Radius = {

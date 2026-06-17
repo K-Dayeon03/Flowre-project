@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   Alert,
   View,
@@ -19,6 +19,7 @@ import { useStompChat } from '../../hooks/useStompChat';
 import { useChatStore } from '../../store/useChatStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Message } from '../../api/chatApi';
+import FavoriteToggle from '../../components/FavoriteToggle';
 
 type Props = NativeStackScreenProps<ChatStackParamList, 'ChatRoom'>;
 
@@ -33,8 +34,8 @@ function DateSeparator({ date }: { date: string }) {
   );
 }
 
-export default function ChatRoomScreen({ route }: Props) {
-  const { roomId, roomType } = route.params;
+export default function ChatRoomScreen({ route, navigation }: Props) {
+  const { roomId, roomName, roomType } = route.params;
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
 
@@ -46,6 +47,14 @@ export default function ChatRoomScreen({ route }: Props) {
   const fetchMessages = useChatStore((s) => s.fetchMessages);
   const markRoomRead = useChatStore((s) => s.markRoomRead);
   const { sendMessage, connected } = useStompChat(roomId);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FavoriteToggle targetType="CHAT_ROOM" targetId={roomId} label={roomName} />
+      ),
+    });
+  }, [navigation, roomId, roomName]);
 
   useEffect(() => {
     fetchMessages(roomId);

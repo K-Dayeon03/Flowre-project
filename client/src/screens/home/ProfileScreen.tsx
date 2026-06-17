@@ -7,9 +7,9 @@ import {
   SafeAreaView,
   ScrollView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
 import { useAuthStore, UserRole } from '../../store/useAuthStore';
+import Avatar from '../../components/Avatar';
 
 const ROLE_LABEL: Record<UserRole, string> = {
   STORE_STAFF: '매장 직원',
@@ -19,21 +19,18 @@ const ROLE_LABEL: Record<UserRole, string> = {
 };
 
 export default function ProfileScreen() {
-  const navigation = useNavigation();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
   if (!user) return null;
-
-  const initial = user.name[0] ?? '?';
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         {/* 아바타 */}
         <View style={styles.avatarWrap}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
+          <View style={styles.avatarSpacer}>
+            <Avatar name={user.name} size={88} />
           </View>
           <Text style={styles.name}>{user.name}</Text>
           <Text style={styles.role}>{ROLE_LABEL[user.role]}</Text>
@@ -43,7 +40,7 @@ export default function ProfileScreen() {
         <View style={styles.card}>
           <InfoRow label="직원 코드" value={user.employeeCode ?? user.email ?? '-'} />
           <Divider />
-          <InfoRow label="소속 매장" value={`${user.storeName} · JAJU`} />
+          <InfoRow label="소속 매장" value={user.storeName} />
           <Divider />
           <InfoRow label="직급" value={ROLE_LABEL[user.role]} />
         </View>
@@ -80,16 +77,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   container: { padding: Spacing.lg, alignItems: 'center' },
   avatarWrap: { alignItems: 'center', marginBottom: Spacing.xl },
-  avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  avatarText: { color: Colors.surface, fontSize: 36, fontWeight: '700' },
+  avatarSpacer: { marginBottom: Spacing.md },
   name: { fontSize: FontSize.xxl, fontWeight: '700', color: Colors.textPrimary },
   role: { fontSize: FontSize.md, color: Colors.textSecondary, marginTop: Spacing.xs },
   card: {

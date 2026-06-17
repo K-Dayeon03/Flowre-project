@@ -14,6 +14,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { DocumentStackParamList } from '../../navigation/types';
 import { Document, documentApi } from '../../api/documentApi';
+import FavoriteToggle from '../../components/FavoriteToggle';
 
 type Props = NativeStackScreenProps<DocumentStackParamList, 'DocumentDetail'>;
 
@@ -34,6 +35,14 @@ export default function DocumentDetailScreen({ navigation, route }: Props) {
       .catch(() => Alert.alert('오류', '문서를 불러오지 못했습니다.'))
       .finally(() => setLoading(false));
   }, [documentId]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FavoriteToggle targetType="DOCUMENT" targetId={documentId} label={document?.title ?? route.params.title} />
+      ),
+    });
+  }, [document?.title, documentId, navigation, route.params.title]);
 
   const openFile = async () => {
     if (!document?.s3Url) return;
