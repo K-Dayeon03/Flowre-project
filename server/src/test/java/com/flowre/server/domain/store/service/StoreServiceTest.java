@@ -2,6 +2,7 @@ package com.flowre.server.domain.store.service;
 
 import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
+import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -108,6 +110,54 @@ class StoreServiceTest {
         assertThat(stores.get(0).getStoreCode()).isEqualTo("1001");
     }
 
+    @Test
+    void nearbyStoresSortsByHaversineDistanceAndLimitsResult() {
+        Store gangnam = storeWithCoordinates(1L, "1001", "강남점", 37.4979, 127.0276);
+        Store busan = storeWithCoordinates(2L, "2001", "부산점", 35.1150, 129.0415);
+        when(storeRepository.findByActiveTrueAndLatitudeIsNotNullAndLongitudeIsNotNull())
+                .thenReturn(List.of(busan, gangnam));
+
+        List<NearbyStoreResponse> responses = storeService.getNearbyStores(37.4980, 127.0275, 1);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getStoreCode()).isEqualTo("1001");
+        assertThat(responses.get(0).getDistanceMeters()).isLessThan(100);
+    }
+
+    @Test
+    void hqCanAccessOnlySameBrandStore() {
+        User hq = user(UserRole.HQ_STAFF);
+        when(storeRepository.findById(7L)).thenReturn(Optional.of(store(7L, "1001", "강남점")));
+
+        storeService.assertCanAccessStore(hq, 7L);
+
+        verify(storeRepository).findById(7L);
+    }
+
+    @Test
+    void hqCannotAccessOtherBrandStore() {
+        User hq = user(UserRole.HQ_STAFF);
+        Store otherBrand = Store.builder().id(8L).brandId(2L).storeCode("2001").storeName("부산점").active(true).build();
+        when(storeRepository.findById(8L)).thenReturn(Optional.of(otherBrand));
+
+        assertThatThrownBy(() -> storeService.assertCanAccessStore(hq, 8L))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void storeStaffCanAccessOnlyOwnStore() {
+        User staff = user(UserRole.STORE_STAFF);
+
+        storeService.assertCanAccessStore(staff, 1001L);
+
+        assertThatThrownBy(() -> storeService.assertCanAccessStore(staff, 2001L))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
     private StoreCreateRequest createRequest(String storeCode, String storeName) {
         StoreCreateRequest request = new StoreCreateRequest();
         ReflectionTestUtils.setField(request, "storeCode", storeCode);
@@ -140,6 +190,18 @@ class StoreServiceTest {
                 .brandId(1L)
                 .storeCode(storeCode)
                 .storeName(storeName)
+                .active(true)
+                .build();
+    }
+
+    private Store storeWithCoordinates(Long id, String storeCode, String storeName, Double latitude, Double longitude) {
+        return Store.builder()
+                .id(id)
+                .brandId(1L)
+                .storeCode(storeCode)
+                .storeName(storeName)
+                .latitude(latitude)
+                .longitude(longitude)
                 .active(true)
                 .build();
     }

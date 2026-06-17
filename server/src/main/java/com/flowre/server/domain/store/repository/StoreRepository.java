@@ -9,5 +9,6 @@ import java.util.Optional;
 public interface StoreRepository extends JpaRepository<Store, Long> {
     List<Store> findByBrandIdOrderByStoreCodeAsc(Long brandId);
     Optional<Store> findByBrandIdAndStoreCodeAndActiveTrue(Long brandId, String storeCode);
+    List<Store> findByActiveTrueAndLatitudeIsNotNullAndLongitudeIsNotNull();
     boolean existsByBrandIdAndStoreCode(Long brandId, String storeCode);
 }

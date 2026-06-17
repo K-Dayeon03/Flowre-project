@@ -12,6 +12,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Slf4j
 @Component
 @Profile("!prod")
@@ -31,10 +33,24 @@ public class DataInitializer implements CommandLineRunner {
                     .brandId(1L)
                     .storeCode("1001")
                     .storeName("강남점")
+                    .latitude(37.4979)
+                    .longitude(127.0276)
                     .active(true)
                     .build());
             log.info("[DataInitializer] 개발용 매장 생성 완료 — 1001 강남점");
+        } else {
+            storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001")
+                    .ifPresent(store -> {
+                        store.updateCoordinates(37.4979, 127.0276);
+                        storeRepository.save(store);
+                    });
         }
+
+        Optional<Store> headquartersStore = storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "0000");
+        headquartersStore.ifPresent(store -> {
+            store.updateCoordinates(37.5007, 127.0365);
+            storeRepository.save(store);
+        });
 
         if (inventoryLabelRepository.count() == 0) {
             inventoryLabelRepository.save(InventoryLabel.builder()

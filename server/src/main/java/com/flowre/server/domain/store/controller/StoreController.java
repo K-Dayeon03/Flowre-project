@@ -2,14 +2,17 @@ package com.flowre.server.domain.store.controller;
 
 import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
+import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.service.StoreService;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,9 +20,20 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/stores")
 @RequiredArgsConstructor
+@Validated
 public class StoreController {
 
     private final StoreService storeService;
+
+    /** GET /api/stores/nearby - 현재 위치 기준 가까운 매장을 공개 조회합니다. */
+    @GetMapping("/nearby")
+    public ResponseEntity<ApiResponse<List<NearbyStoreResponse>>> getNearbyStores(
+            @RequestParam @NotNull(message = "위도를 입력해주세요.") Double lat,
+            @RequestParam @NotNull(message = "경도를 입력해주세요.") Double lng,
+            @RequestParam(required = false) Integer limit
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(storeService.getNearbyStores(lat, lng, limit)));
+    }
 
     /** GET /api/stores - 브랜드 내 점별 매장 목록을 조회합니다. */
     @GetMapping

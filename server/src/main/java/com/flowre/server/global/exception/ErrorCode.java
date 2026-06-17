@@ -29,6 +29,12 @@ public enum ErrorCode {
     STORE_NOT_FOUND(HttpStatus.NOT_FOUND, "STORE_001", "매장을 찾을 수 없습니다."),
     STORE_ALREADY_EXISTS(HttpStatus.CONFLICT, "STORE_002", "이미 등록된 점별 코드입니다."),
 
+    // Notice
+    NOTICE_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTICE_001", "공지를 찾을 수 없습니다."),
+
+    // Favorite
+    FAVORITE_NOT_FOUND(HttpStatus.NOT_FOUND, "FAVORITE_001", "즐겨찾기를 찾을 수 없습니다."),
+
     // Schedule
     SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE_001", "스케줄을 찾을 수 없습니다."),
     SCHEDULE_ALREADY_DONE(HttpStatus.BAD_REQUEST, "SCHEDULE_002", "이미 완료된 스케줄입니다."),

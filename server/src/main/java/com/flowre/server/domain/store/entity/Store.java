@@ -51,6 +51,10 @@ public class Store {
     /** 상세 주소 (직접 입력) */
     private String detailAddress;
 
+    private Double latitude;
+
+    private Double longitude;
+
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
@@ -67,5 +71,11 @@ public class Store {
         this.roadAddress = roadAddress;
         this.jibunAddress = jibunAddress;
         this.detailAddress = detailAddress;
+    }
+
+    /** 매장의 위도·경도 좌표를 갱신합니다. */
+    public void updateCoordinates(Double latitude, Double longitude) {
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 }

@@ -2,6 +2,7 @@ package com.flowre.server.domain.store.service;
 
 import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
+import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
@@ -20,6 +21,9 @@ import java.util.List;
 public class StoreService {
 
     private final StoreRepository storeRepository;
+    private static final int DEFAULT_NEARBY_LIMIT = 5;
+    private static final int MAX_NEARBY_LIMIT = 20;
+    private static final double EARTH_RADIUS_METERS = 6_371_000;
 
     /** 브랜드 내 점별 매장 목록을 조회합니다. */
     @Transactional(readOnly = true)
@@ -69,6 +73,47 @@ public class StoreService {
         return StoreResponse.from(store);
     }
 
+    /** 좌표가 등록된 활성 매장 중 현재 위치와 가까운 매장을 조회합니다. */
+    @Transactional(readOnly = true)
+    public List<NearbyStoreResponse> getNearbyStores(Double latitude, Double longitude, Integer limit) {
+        int size = normalizeLimit(limit);
+        return storeRepository.findByActiveTrueAndLatitudeIsNotNullAndLongitudeIsNotNull()
+                .stream()
+                .map(store -> NearbyCandidate.from(store, distanceMeters(
+                        latitude,
+                        longitude,
+                        store.getLatitude(),
+                        store.getLongitude()
+                )))
+                .sorted()
+                .limit(size)
+                .map(candidate -> NearbyStoreResponse.from(candidate.store(), Math.round(candidate.distanceMeters())))
+                .toList();
+    }
+
+    /**
+     * 사용자 역할에 따라 특정 매장 컨텍스트 접근 가능 여부를 검증합니다.
+     *
+     * ADMIN/HQ_STAFF는 같은 브랜드 매장만, STORE_MANAGER/STORE_STAFF는 본인 매장만 허용합니다.
+     */
+    @Transactional(readOnly = true)
+    public void assertCanAccessStore(User user, Long storeId) {
+        if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.HQ_STAFF) {
+            boolean sameBrandStore = storeRepository.findById(storeId)
+                    .map(store -> store.getBrandId().equals(user.getBrandId()))
+                    .orElse(false);
+            if (sameBrandStore) {
+                return;
+            }
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+
+        if (user.getStoreId().equals(storeId)) {
+            return;
+        }
+        throw new CustomException(ErrorCode.FORBIDDEN);
+    }
+
     /** 공백을 제거하고, 빈 문자열이면 null을 반환합니다. */
     private String trimToNull(String value) {
         if (value == null) {
@@ -81,6 +126,38 @@ public class StoreService {
     private void assertCanManageStores(User user) {
         if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.HQ_STAFF) {
             throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private int normalizeLimit(Integer limit) {
+        if (limit == null) {
+            return DEFAULT_NEARBY_LIMIT;
+        }
+        if (limit < 1) {
+            return DEFAULT_NEARBY_LIMIT;
+        }
+        return Math.min(limit, MAX_NEARBY_LIMIT);
+    }
+
+    private double distanceMeters(double lat1, double lng1, double lat2, double lng2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return EARTH_RADIUS_METERS * c;
+    }
+
+    private record NearbyCandidate(Store store, double distanceMeters) implements Comparable<NearbyCandidate> {
+
+        private static NearbyCandidate from(Store store, double distanceMeters) {
+            return new NearbyCandidate(store, distanceMeters);
+        }
+
+        @Override
+        public int compareTo(NearbyCandidate other) {
+            return Double.compare(this.distanceMeters, other.distanceMeters);
         }
     }
 }
