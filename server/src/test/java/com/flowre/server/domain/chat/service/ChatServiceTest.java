@@ -69,7 +69,7 @@ class ChatServiceTest {
 
         when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(room(10L, 1L)));
         when(chatRoomMemberRepository.existsByChatRoomIdAndUserId(10L, 1L)).thenReturn(true);
-        when(messageRepository.findByRoomIdOrderBySentAtDesc(eq(10L), any(Pageable.class)))
+        when(messageRepository.findByRoomIdOrderByIdDesc(eq(10L), any(Pageable.class)))
                 .thenReturn(List.of(newer, older));
 
         List<MessageResponse> responses = chatService.getMessages(user, 10L, null, 20);

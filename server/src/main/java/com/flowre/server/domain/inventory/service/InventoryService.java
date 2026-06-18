@@ -211,11 +211,20 @@ public class InventoryService {
         return InventoryResponse.from(item);
     }
 
-    /** 본사 재고 사용 이력을 브랜드 단위로 조회합니다. */
+    /**
+     * 재고 사용 이력을 조회합니다.
+     *
+     * 본사·관리자는 브랜드 전체 매장의 이력을, 매장 직원·점장은 자기 매장 이력만 볼 수 있도록
+     * 매장 스코프를 적용한다(단건 이력 조회 getItemTransactions와 동일한 격리 정책).
+     */
     @Transactional(readOnly = true)
     public List<InventoryTransactionResponse> getTransactions(User user) {
-        return inventoryTransactionRepository.findByBrandIdOrderByCreatedAtDesc(user.getBrandId())
-                .stream()
+        List<InventoryTransaction> transactions = canViewAllStores(user)
+                ? inventoryTransactionRepository.findByBrandIdOrderByCreatedAtDesc(user.getBrandId())
+                : inventoryTransactionRepository.findByBrandIdAndStoreIdOrderByCreatedAtDesc(
+                        user.getBrandId(), user.getStoreId());
+
+        return transactions.stream()
                 .map(InventoryTransactionResponse::from)
                 .toList();
     }

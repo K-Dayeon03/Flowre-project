@@ -105,6 +105,33 @@ class InventoryServiceTest {
         verify(inventoryTransactionRepository).findByBrandIdAndInventoryItemIdOrderByCreatedAtDesc(1L, 5L);
     }
 
+    @Test
+    void getTransactionsScopesStoreStaffToOwnStore() {
+        User user = storeStaff(10L, 1L, 1001L);
+        when(inventoryTransactionRepository.findByBrandIdAndStoreIdOrderByCreatedAtDesc(1L, 1001L))
+                .thenReturn(List.of(transaction(100L, 1L, 1001L, 5L)));
+
+        List<InventoryTransactionResponse> result = inventoryService.getTransactions(user);
+
+        assertThat(result).hasSize(1);
+        verify(inventoryTransactionRepository).findByBrandIdAndStoreIdOrderByCreatedAtDesc(1L, 1001L);
+        verify(inventoryTransactionRepository, never()).findByBrandIdOrderByCreatedAtDesc(anyLong());
+    }
+
+    @Test
+    void getTransactionsReturnsAllStoresForHqStaff() {
+        User user = hqStaff(20L, 1L);
+        when(inventoryTransactionRepository.findByBrandIdOrderByCreatedAtDesc(1L))
+                .thenReturn(List.of(transaction(100L, 1L, 1001L, 5L), transaction(99L, 1L, 2002L, 6L)));
+
+        List<InventoryTransactionResponse> result = inventoryService.getTransactions(user);
+
+        assertThat(result).hasSize(2);
+        verify(inventoryTransactionRepository).findByBrandIdOrderByCreatedAtDesc(1L);
+        verify(inventoryTransactionRepository, never())
+                .findByBrandIdAndStoreIdOrderByCreatedAtDesc(anyLong(), anyLong());
+    }
+
     private InventoryItem item(Long id, Long brandId, Long storeId) {
         return InventoryItem.builder()
                 .id(id)

@@ -77,6 +77,20 @@ class UserServiceTest {
     }
 
     @Test
+    void createEmployeeFailsWhenHqStaffCreatesAdmin() {
+        // 권한 상승 차단: HQ_STAFF는 ADMIN 계정을 생성할 수 없다.
+        User requester = hqUser();
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "admin@jaju.com", UserRole.ADMIN);
+
+        assertThatThrownBy(() -> userService.createEmployee(requester, request))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     void createEmployeeFailsWhenEmployeeCodeDoesNotStartWithStoreCode() {
         User requester = hqUser();
         EmployeeCreateRequest request = request("1002", "1001WXYZ!", "newuser@jaju.com", UserRole.STORE_STAFF);

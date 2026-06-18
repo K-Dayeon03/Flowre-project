@@ -74,6 +74,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         Long userId = jwtUtil.getUserId(token);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BadCredentialsException("사용자를 찾을 수 없습니다."));
+        if (!user.isActive()) {
+            throw new BadCredentialsException("비활성 상태의 계정입니다.");
+        }
         var authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
         var authentication = new UsernamePasswordAuthenticationToken(user, null, List.of(authority));
         accessor.setUser(authentication);

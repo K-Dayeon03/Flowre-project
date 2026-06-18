@@ -16,9 +16,9 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     long countByRoomIdAndSentAtAfter(Long roomId, LocalDateTime sentAt);
 
-    // 커서 기반 첫 페이지 — 최신 메시지를 limit개 조회
-    List<Message> findByRoomIdOrderBySentAtDesc(Long roomId, Pageable pageable);
+    // 커서 기반 첫 페이지 — 최신 메시지를 limit개 조회 (커서 키 id와 정렬 키를 일치시켜 누락 방지)
+    List<Message> findByRoomIdOrderByIdDesc(Long roomId, Pageable pageable);
 
-    // 커서 기반 페이징 — before 이전 메시지를 최신순으로 limit개 조회
-    List<Message> findByRoomIdAndIdLessThanOrderBySentAtDesc(Long roomId, Long before, Pageable pageable);
+    // 커서 기반 페이징 — before(id) 이전 메시지를 id 내림차순으로 limit개 조회
+    List<Message> findByRoomIdAndIdLessThanOrderByIdDesc(Long roomId, Long before, Pageable pageable);
 }

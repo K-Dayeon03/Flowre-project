@@ -58,6 +58,7 @@ public class UserService {
     @Transactional
     public UserResponse createEmployee(User requester, EmployeeCreateRequest request) {
         assertCanManageEmployees(requester);
+        assertCanAssignRole(requester, request.getRole());
 
         if (!request.getEmployeeCode().startsWith(request.getStoreCode())) {
             throw new CustomException(ErrorCode.INVALID_EMPLOYEE_CODE);
@@ -186,6 +187,16 @@ public class UserService {
 
     private void assertCanManageEmployees(User user) {
         if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.HQ_STAFF) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    /**
+     * 요청자가 부여하려는 권한을 발급할 수 있는지 검증합니다.
+     * ADMIN 계정은 오직 ADMIN만 생성할 수 있어, HQ_STAFF가 ADMIN을 만들어 권한을 상승시키는 것을 막는다.
+     */
+    private void assertCanAssignRole(User requester, UserRole targetRole) {
+        if (targetRole == UserRole.ADMIN && requester.getRole() != UserRole.ADMIN) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

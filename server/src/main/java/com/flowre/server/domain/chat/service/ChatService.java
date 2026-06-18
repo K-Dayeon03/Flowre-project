@@ -65,14 +65,13 @@ public class ChatService {
         int pageSize = Math.max(1, limit);
 
         List<Message> messages = before != null
-                ? messageRepository.findByRoomIdAndIdLessThanOrderBySentAtDesc(
+                ? messageRepository.findByRoomIdAndIdLessThanOrderByIdDesc(
                         roomId, before, PageRequest.of(0, pageSize))
-                : messageRepository.findByRoomIdOrderBySentAtDesc(roomId, PageRequest.of(0, pageSize));
+                : messageRepository.findByRoomIdOrderByIdDesc(roomId, PageRequest.of(0, pageSize));
 
+        // 화면 표시는 오래된→최신(id 오름차순). 커서·정렬 모두 id 기준이라 누락/중복이 없다.
         return messages.stream()
-                .sorted(Comparator
-                        .comparing(Message::getSentAt, Comparator.nullsFirst(LocalDateTime::compareTo))
-                        .thenComparing(Message::getId, Comparator.nullsFirst(Long::compareTo)))
+                .sorted(Comparator.comparing(Message::getId, Comparator.nullsFirst(Long::compareTo)))
                 .map(m -> MessageResponse.of(m, user.getId()))
                 .toList();
     }

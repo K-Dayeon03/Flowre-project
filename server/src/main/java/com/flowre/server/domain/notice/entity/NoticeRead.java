@@ -12,6 +12,9 @@ import java.time.LocalDateTime;
         name = "notice_reads",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_notice_read_notice_user", columnNames = {"notice_id", "user_id"})
+        },
+        indexes = {
+                @Index(name = "idx_notice_reads_user", columnList = "user_id, notice_id")
         }
 )
 @Getter
