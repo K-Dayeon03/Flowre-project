@@ -1,6 +1,6 @@
 import MockAdapter from 'axios-mock-adapter';
 import { apiClient } from '../client';
-import { inventoryApi, InventoryItem } from '../inventoryApi';
+import { inventoryApi, InventoryItem, InventoryTransaction } from '../inventoryApi';
 
 const mock = new MockAdapter(apiClient);
 
@@ -80,6 +80,30 @@ describe('inventoryApi.deduct()', () => {
 
     expect(result.quantity).toBe(10);
     expect(result.version).toBe(1);
+  });
+});
+
+describe('inventoryApi.getItemTransactions()', () => {
+  it('GET /api/inventories/{id}/transactions 호출 결과를 반환한다', async () => {
+    const history: InventoryTransaction[] = [
+      {
+        id: 100,
+        inventoryItemId: 1,
+        storeId: 1,
+        productCode: 'J1-0-4-4-01-101',
+        productName: '남녀공용 라이트 다운필 베스트',
+        quantity: 2,
+        remainingQuantity: 10,
+        reason: '본사 사용',
+        usedByName: '홍길동',
+        createdAt: '2026-06-18T09:00:00',
+      },
+    ];
+    mock.onGet('/api/inventories/1/transactions').reply(200, { data: history });
+
+    const result = await inventoryApi.getItemTransactions(1);
+
+    expect(result).toEqual(history);
   });
 });
 

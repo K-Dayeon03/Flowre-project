@@ -113,6 +113,15 @@ public class InventoryController {
         return ResponseEntity.ok(ApiResponse.ok(inventoryService.getTransactions(user)));
     }
 
+    /** GET /api/inventories/{id}/transactions — 특정 재고 아이템의 입출고 이력 */
+    @GetMapping("/{id}/transactions")
+    public ResponseEntity<ApiResponse<List<InventoryTransactionResponse>>> getItemTransactions(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(inventoryService.getItemTransactions(user, id)));
+    }
+
     /** POST /api/inventories/reload */
     @PostMapping("/reload")
     public ResponseEntity<ApiResponse<InventoryLoadResponse>> reload(@AuthenticationPrincipal User user) {

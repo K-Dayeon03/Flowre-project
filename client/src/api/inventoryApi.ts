@@ -129,6 +129,15 @@ export const inventoryApi = {
     return unwrap(res);
   },
 
+  /**
+   * 특정 재고 아이템 한 건의 입출고 이력을 최신순으로 조회한다.
+   * @param id 재고 아이템 ID
+   */
+  getItemTransactions: async (id: number): Promise<InventoryTransaction[]> => {
+    const res = await apiClient.get(`/api/inventories/${id}/transactions`);
+    return unwrap(res);
+  },
+
   reload: async (): Promise<InventoryLoadResult> => {
     const res = await apiClient.post('/api/inventories/reload');
     return unwrap(res);

@@ -220,6 +220,26 @@ public class InventoryService {
                 .toList();
     }
 
+    /**
+     * 특정 재고 아이템 한 건의 입출고 이력을 최신순으로 조회합니다.
+     *
+     * 브랜드 단위로 격리하며, 매장 직원은 자기 매장 아이템만 조회할 수 있도록 매장 스코프를 적용합니다.
+     * 존재하지 않거나 다른 브랜드의 아이템이면 INVENTORY_NOT_FOUND, 타 매장 아이템이면 FORBIDDEN을 던집니다.
+     *
+     * @param id 입출고 이력을 조회할 재고 아이템 ID
+     */
+    @Transactional(readOnly = true)
+    public List<InventoryTransactionResponse> getItemTransactions(User user, Long id) {
+        InventoryItem item = getItem(user, id);
+        assertStoreVisible(user, item);
+
+        return inventoryTransactionRepository
+                .findByBrandIdAndInventoryItemIdOrderByCreatedAtDesc(user.getBrandId(), item.getId())
+                .stream()
+                .map(InventoryTransactionResponse::from)
+                .toList();
+    }
+
     /** data 폴더의 xlsx 재고 파일을 다시 읽어 DB에 반영합니다. */
     @Transactional
     public InventoryLoadResponse reloadFromDataDirectory(User user) {
