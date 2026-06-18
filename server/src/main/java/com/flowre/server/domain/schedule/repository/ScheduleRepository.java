@@ -15,5 +15,9 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 
     List<Schedule> findByStoreIdOrderByCreatedAtDesc(Long storeId);
 
+    List<Schedule> findByBrandIdAndStoreIdOrderByCreatedAtDesc(Long brandId, Long storeId);
+
+    List<Schedule> findByBrandIdAndStoreIdAndStatusOrderByCreatedAtDesc(Long brandId, Long storeId, ScheduleStatus status);
+
     Optional<Schedule> findByIdAndBrandId(Long id, Long brandId);
 }

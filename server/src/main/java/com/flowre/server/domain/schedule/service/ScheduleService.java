@@ -22,13 +22,23 @@ public class ScheduleService {
     private final ScheduleRepository scheduleRepository;
 
     /**
-     * 스케줄 목록 조회 — brandId로 격리, status 필터 선택
+     * 스케줄 목록 조회 — brandId로 격리하고, 매장 직원·점장은 자기 매장 스케줄만 조회한다
+     * (본사·관리자는 브랜드 전 매장). status 필터 선택.
      */
     @Transactional(readOnly = true)
     public List<ScheduleResponse> getList(User user, ScheduleStatus status) {
-        List<Schedule> schedules = status != null
-                ? scheduleRepository.findByBrandIdAndStatusOrderByCreatedAtDesc(user.getBrandId(), status)
-                : scheduleRepository.findByBrandIdOrderByCreatedAtDesc(user.getBrandId());
+        List<Schedule> schedules;
+        if (user.getRole().canViewAllStores()) {
+            schedules = status != null
+                    ? scheduleRepository.findByBrandIdAndStatusOrderByCreatedAtDesc(user.getBrandId(), status)
+                    : scheduleRepository.findByBrandIdOrderByCreatedAtDesc(user.getBrandId());
+        } else {
+            schedules = status != null
+                    ? scheduleRepository.findByBrandIdAndStoreIdAndStatusOrderByCreatedAtDesc(
+                            user.getBrandId(), user.getStoreId(), status)
+                    : scheduleRepository.findByBrandIdAndStoreIdOrderByCreatedAtDesc(
+                            user.getBrandId(), user.getStoreId());
+        }
 
         return schedules.stream().map(ScheduleResponse::from).toList();
     }
@@ -40,6 +50,7 @@ public class ScheduleService {
     public ScheduleResponse getById(User user, Long id) {
         Schedule schedule = scheduleRepository.findByIdAndBrandId(id, user.getBrandId())
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        assertStoreVisible(user, schedule);
         return ScheduleResponse.from(schedule);
     }
 
@@ -69,6 +80,7 @@ public class ScheduleService {
     public ScheduleResponse update(User user, Long id, ScheduleUpdateRequest request) {
         Schedule schedule = scheduleRepository.findByIdAndBrandId(id, user.getBrandId())
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        assertStoreVisible(user, schedule);
 
         schedule.update(request.getTitle(), request.getType(),
                 request.getDueDate(), request.getAssignee(), request.getDescription());
@@ -83,6 +95,7 @@ public class ScheduleService {
     public void complete(User user, Long id) {
         Schedule schedule = scheduleRepository.findByIdAndBrandId(id, user.getBrandId())
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        assertStoreVisible(user, schedule);
 
         if (schedule.getStatus() == ScheduleStatus.DONE) {
             throw new CustomException(ErrorCode.SCHEDULE_ALREADY_DONE);
@@ -98,6 +111,18 @@ public class ScheduleService {
     public void delete(User user, Long id) {
         Schedule schedule = scheduleRepository.findByIdAndBrandId(id, user.getBrandId())
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        assertStoreVisible(user, schedule);
         scheduleRepository.delete(schedule);
+    }
+
+    /**
+     * 매장 직원·점장이 자기 매장 스케줄에만 접근하도록 검증한다.
+     * 본사·관리자는 브랜드 전 매장을 다룰 수 있어 통과한다.
+     */
+    private void assertStoreVisible(User user, Schedule schedule) {
+        if (!user.getRole().canViewAllStores()
+                && !java.util.Objects.equals(schedule.getStoreId(), user.getStoreId())) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
     }
 }
