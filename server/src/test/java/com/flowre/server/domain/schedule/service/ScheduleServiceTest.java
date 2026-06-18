@@ -1,5 +1,6 @@
 package com.flowre.server.domain.schedule.service;
 
+import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.schedule.entity.Schedule;
 import com.flowre.server.domain.schedule.entity.ScheduleType;
 import com.flowre.server.domain.schedule.repository.ScheduleRepository;
@@ -26,7 +27,7 @@ class ScheduleServiceTest {
     @BeforeEach
     void setUp() {
         scheduleRepository = mock(ScheduleRepository.class);
-        scheduleService = new ScheduleService(scheduleRepository);
+        scheduleService = new ScheduleService(scheduleRepository, mock(AuditLogService.class));
     }
 
     @Test

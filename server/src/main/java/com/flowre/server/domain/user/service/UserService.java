@@ -1,5 +1,7 @@
 package com.flowre.server.domain.user.service;
 
+import com.flowre.server.domain.audit.entity.AuditAction;
+import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
 import com.flowre.server.domain.user.dto.EmployeeCreateRequest;
@@ -37,6 +39,7 @@ public class UserService {
     private final StoreRepository storeRepository;
     private final PasswordEncoder passwordEncoder;
     private final ApprovalNotificationService approvalNotificationService;
+    private final AuditLogService auditLogService;
 
     /** 본사 권한자가 같은 브랜드 내 직원 계정 목록을 조회합니다. */
     @Transactional(readOnly = true)
@@ -130,6 +133,8 @@ public class UserService {
         employee.approve(requester.getId(), LocalDateTime.now());
         log.info("[User] 직원 계정 승인 — approvedBy={}, employeeCode={}",
                 requester.getEmployeeCode(), employee.getEmployeeCode());
+        auditLogService.record(requester, AuditAction.EMPLOYEE_APPROVED, "EMPLOYEE", employee.getId(),
+                "직원 승인: " + employee.getEmployeeCode());
         return UserResponse.from(employee);
     }
 
@@ -140,6 +145,8 @@ public class UserService {
         employee.reject(requester.getId(), reason.trim(), LocalDateTime.now());
         log.info("[User] 직원 계정 거절 — rejectedBy={}, employeeCode={}, reason={}",
                 requester.getEmployeeCode(), employee.getEmployeeCode(), reason.trim());
+        auditLogService.record(requester, AuditAction.EMPLOYEE_REJECTED, "EMPLOYEE", employee.getId(),
+                "직원 거절: " + employee.getEmployeeCode() + " - " + reason.trim());
         return UserResponse.from(employee);
     }
 

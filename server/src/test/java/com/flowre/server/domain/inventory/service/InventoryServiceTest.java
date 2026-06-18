@@ -1,5 +1,6 @@
 package com.flowre.server.domain.inventory.service;
 
+import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.inventory.dto.InventoryTransactionResponse;
 import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.InventoryTransaction;
@@ -38,7 +39,8 @@ class InventoryServiceTest {
                 inventoryItemRepository,
                 inventoryLabelRepository,
                 inventoryTransactionRepository,
-                inventoryExcelLoader
+                inventoryExcelLoader,
+                mock(AuditLogService.class)
         );
     }
 

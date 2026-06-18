@@ -1,5 +1,6 @@
 package com.flowre.server.domain.user.service;
 
+import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
 import com.flowre.server.domain.user.dto.EmployeeCreateRequest;
@@ -38,7 +39,8 @@ class UserServiceTest {
         storeRepository = mock(StoreRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
         approvalNotificationService = mock(ApprovalNotificationService.class);
-        userService = new UserService(userRepository, storeRepository, passwordEncoder, approvalNotificationService);
+        userService = new UserService(userRepository, storeRepository, passwordEncoder,
+                approvalNotificationService, mock(AuditLogService.class));
     }
 
     @Test

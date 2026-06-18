@@ -3,6 +3,8 @@ package com.flowre.server.domain.schedule.service;
 import com.flowre.server.domain.schedule.dto.ScheduleRequest;
 import com.flowre.server.domain.schedule.dto.ScheduleResponse;
 import com.flowre.server.domain.schedule.dto.ScheduleUpdateRequest;
+import com.flowre.server.domain.audit.entity.AuditAction;
+import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.schedule.entity.Schedule;
 import com.flowre.server.domain.schedule.entity.ScheduleStatus;
 import com.flowre.server.domain.schedule.repository.ScheduleRepository;
@@ -20,6 +22,7 @@ import java.util.List;
 public class ScheduleService {
 
     private final ScheduleRepository scheduleRepository;
+    private final AuditLogService auditLogService;
 
     /**
      * 스케줄 목록 조회 — brandId로 격리하고, 매장 직원·점장은 자기 매장 스케줄만 조회한다
@@ -102,6 +105,8 @@ public class ScheduleService {
         }
 
         schedule.complete();
+        auditLogService.record(user, AuditAction.SCHEDULE_COMPLETED, "SCHEDULE", schedule.getId(),
+                "스케줄 완료: " + schedule.getTitle());
     }
 
     /**

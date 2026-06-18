@@ -1,5 +1,7 @@
 package com.flowre.server.domain.inventory.service;
 
+import com.flowre.server.domain.audit.entity.AuditAction;
+import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.inventory.dto.*;
 import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.InventoryLabel;
@@ -32,6 +34,7 @@ public class InventoryService {
     private final InventoryLabelRepository inventoryLabelRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final InventoryExcelLoader inventoryExcelLoader;
+    private final AuditLogService auditLogService;
 
     /** 재고 목록을 브랜드 단위로 격리해 검색합니다. */
     @Transactional(readOnly = true)
@@ -182,6 +185,8 @@ public class InventoryService {
                 .usedByName(user.getName())
                 .build());
 
+        auditLogService.record(user, AuditAction.INVENTORY_DEDUCTED, "INVENTORY_ITEM", item.getId(),
+                item.getProductName() + " " + request.getQuantity() + "개 차감 - " + request.getReason());
         return InventoryResponse.from(item);
     }
 
@@ -208,6 +213,8 @@ public class InventoryService {
                 .usedByName(user.getName())
                 .build());
 
+        auditLogService.record(user, AuditAction.INVENTORY_ADJUSTED, "INVENTORY_ITEM", item.getId(),
+                item.getProductName() + " 수량 변경 " + request.getQuantityChange() + " - " + request.getReason());
         return InventoryResponse.from(item);
     }
 
