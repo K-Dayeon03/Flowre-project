@@ -98,7 +98,7 @@ public class StoreService {
      */
     @Transactional(readOnly = true)
     public void assertCanAccessStore(User user, Long storeId) {
-        if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.HQ_STAFF) {
+        if (user.getRole().canViewAllStores()) {
             boolean sameBrandStore = storeRepository.findById(storeId)
                     .map(store -> store.getBrandId().equals(user.getBrandId()))
                     .orElse(false);
@@ -124,7 +124,7 @@ public class StoreService {
     }
 
     private void assertCanManageStores(User user) {
-        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.HQ_STAFF) {
+        if (!user.getRole().canManage()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

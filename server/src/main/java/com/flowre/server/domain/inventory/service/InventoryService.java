@@ -289,17 +289,17 @@ public class InventoryService {
     }
 
     private boolean canViewAllStores(User user) {
-        return user.getRole() == UserRole.HQ_STAFF || user.getRole() == UserRole.ADMIN;
+        return user.getRole().canViewAllStores();
     }
 
     private void assertCanDeduct(User user) {
-        if (user.getRole() != UserRole.HQ_STAFF && user.getRole() != UserRole.ADMIN) {
+        if (!user.getRole().canManage()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }
 
     private void assertCanUploadInventory(User user) {
-        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.HQ_STAFF) {
+        if (!user.getRole().canManage()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

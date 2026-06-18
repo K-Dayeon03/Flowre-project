@@ -186,7 +186,7 @@ public class UserService {
     }
 
     private void assertCanManageEmployees(User user) {
-        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.HQ_STAFF) {
+        if (!user.getRole().canManage()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }
