@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { DocumentStackParamList } from '../../navigation/types';
 import { Document, documentApi } from '../../api/documentApi';
@@ -29,12 +30,17 @@ export default function DocumentDetailScreen({ navigation, route }: Props) {
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    documentApi.getById(documentId)
-      .then(setDocument)
-      .catch(() => Alert.alert('오류', '문서를 불러오지 못했습니다.'))
-      .finally(() => setLoading(false));
-  }, [documentId]);
+  // 수정 화면에서 돌아왔을 때도 최신 내용이 반영되도록 포커스 시마다 재조회한다.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      documentApi.getById(documentId)
+        .then((doc) => { if (active) setDocument(doc); })
+        .catch(() => { if (active) Alert.alert('오류', '문서를 불러오지 못했습니다.'); })
+        .finally(() => { if (active) setLoading(false); });
+      return () => { active = false; };
+    }, [documentId])
+  );
 
   useEffect(() => {
     navigation.setOptions({
