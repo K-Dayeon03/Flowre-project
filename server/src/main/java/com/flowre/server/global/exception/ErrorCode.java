@@ -48,6 +48,9 @@ public enum ErrorCode {
     DIRECT_ROOM_NOT_ALLOWED(HttpStatus.FORBIDDEN, "CHAT_002", "1:1 채팅방 생성 권한이 없습니다."),
     DIRECT_ROOM_ALREADY_EXISTS(HttpStatus.CONFLICT, "CHAT_003", "이미 존재하는 1:1 채팅방입니다."),
 
+    // Notification
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_001", "알림을 찾을 수 없습니다."),
+
     // Inventory
     INVENTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "INVENTORY_001", "재고를 찾을 수 없습니다."),
     INVENTORY_NOT_ENOUGH(HttpStatus.BAD_REQUEST, "INVENTORY_002", "차감할 재고 수량이 부족합니다."),
