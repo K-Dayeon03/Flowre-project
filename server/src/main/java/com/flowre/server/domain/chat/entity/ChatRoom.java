@@ -32,6 +32,9 @@ public class ChatRoom {
     @Column(nullable = false)
     private RoomType type;
 
+    @Column(nullable = false)
+    private Long brandId;   // 브랜드 격리 기준 — 타 브랜드 채팅방 접근 차단
+
     private Long storeId;   // GROUP 타입일 때 매장 ID
 
     @Column(nullable = false)

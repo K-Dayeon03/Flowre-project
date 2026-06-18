@@ -67,6 +67,7 @@ class ChatServiceTest {
         Message newer = message(3L, base.plusMinutes(2));
         Message older = message(2L, base.plusMinutes(1));
 
+        when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(room(10L, 1L)));
         when(chatRoomMemberRepository.existsByChatRoomIdAndUserId(10L, 1L)).thenReturn(true);
         when(messageRepository.findByRoomIdOrderBySentAtDesc(eq(10L), any(Pageable.class)))
                 .thenReturn(List.of(newer, older));
@@ -74,6 +75,46 @@ class ChatServiceTest {
         List<MessageResponse> responses = chatService.getMessages(user, 10L, null, 20);
 
         assertThat(responses).extracting(MessageResponse::getId).containsExactly(2L, 3L);
+    }
+
+    @Test
+    void getMessagesRejectsRoomFromDifferentBrand() {
+        User user = user(1L, 1L, 1001L, UserRole.STORE_STAFF);
+        // 다른 브랜드(2L) 소속 채팅방 — 멤버십과 무관하게 brand 불일치로 차단되어야 함
+        when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(room(10L, 2L)));
+
+        assertThatThrownBy(() -> chatService.getMessages(user, 10L, null, 20))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(chatRoomMemberRepository, never()).existsByChatRoomIdAndUserId(any(), any());
+    }
+
+    @Test
+    void getRoomsFiltersByRequesterBrand() {
+        User user = user(1L, 1L, 1001L, UserRole.STORE_STAFF);
+        when(chatRoomRepository.findAllByMemberUserIdAndBrandId(1L, 1L)).thenReturn(List.of());
+
+        chatService.getRooms(user);
+
+        verify(chatRoomRepository).findAllByMemberUserIdAndBrandId(1L, 1L);
+    }
+
+    @Test
+    void createRoomStoresRequesterBrandId() {
+        User me = user(1L, 1L, 1001L, UserRole.STORE_MANAGER);
+        User member = user(2L, 1L, 1001L, UserRole.STORE_STAFF);
+        CreateRoomRequest request = createRoomRequest("강남점 업무방", List.of(2L));
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(me));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(member));
+        when(chatRoomRepository.save(any(ChatRoom.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        chatService.createRoom(me, request);
+
+        verify(chatRoomRepository).save(argThat(room -> room.getBrandId().equals(1L)));
     }
 
     @Test
@@ -137,6 +178,16 @@ class ChatServiceTest {
                 .content("메시지")
                 .type(MessageType.TEXT)
                 .sentAt(sentAt)
+                .build();
+    }
+
+    private ChatRoom room(Long id, Long brandId) {
+        return ChatRoom.builder()
+                .id(id)
+                .type(RoomType.GROUP)
+                .brandId(brandId)
+                .name("테스트 채팅방")
+                .storeId(1001L)
                 .build();
     }
 

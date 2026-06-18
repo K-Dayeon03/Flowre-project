@@ -42,7 +42,8 @@ public class ChatService {
      */
     @Transactional(readOnly = true)
     public List<ChatRoomResponse> getRooms(User user) {
-        List<ChatRoom> rooms = chatRoomRepository.findAllByMemberUserId(user.getId());
+        List<ChatRoom> rooms = chatRoomRepository
+                .findAllByMemberUserIdAndBrandId(user.getId(), user.getBrandId());
         return rooms.stream().map(room -> {
             Message last = messageRepository.findTopByRoomIdOrderBySentAtDesc(room.getId()).orElse(null);
 
@@ -60,7 +61,7 @@ public class ChatService {
      */
     @Transactional(readOnly = true)
     public List<MessageResponse> getMessages(User user, Long roomId, Long before, int limit) {
-        validateMember(roomId, user.getId());
+        getMemberRoom(roomId, user);
         int pageSize = Math.max(1, limit);
 
         List<Message> messages = before != null
@@ -96,6 +97,7 @@ public class ChatService {
                 .orElseGet(() -> {
                     ChatRoom room = ChatRoom.builder()
                             .type(RoomType.DIRECT)
+                            .brandId(me.getBrandId())
                             .name(target.getName())
                             .directRoomKey(directRoomKey)
                             .build();
@@ -125,6 +127,7 @@ public class ChatService {
 
         ChatRoom room = ChatRoom.builder()
                 .type(RoomType.GROUP)
+                .brandId(me.getBrandId())
                 .name(request.getName().trim())
                 .storeId(me.getStoreId())
                 .build();
@@ -142,7 +145,7 @@ public class ChatService {
      */
     @Transactional
     public MessageResponse sendMessage(User user, SendMessageRequest request) {
-        validateMember(request.getRoomId(), user.getId());
+        getMemberRoom(request.getRoomId(), user);
 
         Message message = Message.builder()
                 .roomId(request.getRoomId())
@@ -177,16 +180,26 @@ public class ChatService {
      */
     @Transactional
     public void markRead(User user, Long roomId) {
+        getMemberRoom(roomId, user);
         chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, user.getId())
                 .ifPresent(ChatRoomMember::updateLastReadAt);
     }
 
     // ── private helpers ──────────────────────────────────────────
 
-    private void validateMember(Long roomId, Long userId) {
-        if (!chatRoomMemberRepository.existsByChatRoomIdAndUserId(roomId, userId)) {
+    /**
+     * 채팅방 접근 권한 검증 — 브랜드 격리(타 브랜드 방 차단) + 멤버십 확인을 함께 수행한다.
+     *
+     * @return 검증을 통과한 채팅방
+     */
+    private ChatRoom getMemberRoom(Long roomId, User user) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        if (!Objects.equals(room.getBrandId(), user.getBrandId())
+                || !chatRoomMemberRepository.existsByChatRoomIdAndUserId(roomId, user.getId())) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
+        return room;
     }
 
     private int countUnread(Long roomId, LocalDateTime lastReadAt) {
