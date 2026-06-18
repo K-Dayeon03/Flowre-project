@@ -3,7 +3,9 @@ import {
   Alert,
   FlatList,
   Modal,
+  RefreshControl,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,14 +13,24 @@ import {
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
 import { InventoryItem } from '../../api/inventoryApi';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useInventoryStore } from '../../store/useInventoryStore';
+import FilterBar from '../../components/FilterBar';
+import SearchBar from '../../components/SearchBar';
+import DataTable, { TableColumn } from '../../components/DataTable';
+import StatusBadge from '../../components/StatusBadge';
 
 type ModalMode = 'archive' | 'adjust' | null;
 
 const DEFAULT_LABEL = '추후 필요 재고';
+
+/** 실시간 재고 / 아카이브 필터 옵션 */
+const ARCHIVE_FILTER_OPTIONS: Array<{ label: string; value: boolean }> = [
+  { label: '실시간 재고', value: false },
+  { label: '아카이브', value: true },
+];
 
 /** 금액을 원화 표기로 변환합니다. */
 function formatWon(value?: number) {
@@ -33,6 +45,38 @@ function canReloadDataDirectory(role?: string) {
 
 /** xlsx(엑셀) 파일 MIME 타입. */
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** 재고 목록 DataTable 컬럼 정의 */
+const INVENTORY_TABLE_COLUMNS: TableColumn<InventoryItem>[] = [
+  { key: 'productName', label: '상품명', flex: 3 },
+  { key: 'productCode', label: 'SKU', flex: 2 },
+  {
+    key: 'quantity',
+    label: '수량',
+    flex: 1,
+    align: 'center',
+    render: (row) => (
+      <Text
+        style={{
+          fontSize: FontSize.sm,
+          fontWeight: '700',
+          color: row.quantity <= 0 ? Colors.error : Colors.success,
+        }}
+      >
+        {row.quantity}
+      </Text>
+    ),
+  },
+  {
+    key: 'archived',
+    label: '상태',
+    flex: 1,
+    align: 'center',
+    render: (row) => (
+      <StatusBadge status={row.archived ? 'INACTIVE' : 'ACTIVE'} size="sm" />
+    ),
+  },
+];
 
 export default function InventoryListScreen() {
   const user = useAuthStore((s) => s.user);
@@ -236,34 +280,28 @@ export default function InventoryListScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.searchBand}>
-        <TextInput
-          style={styles.searchInput}
+        <View style={styles.screenHead}>
+          <View>
+            <Text style={styles.screenKicker}>INVENTORY</Text>
+            <Text style={styles.screenTitle}>재고 조회</Text>
+          </View>
+          <Text style={styles.screenCount}>{items.length}개</Text>
+        </View>
+        <SearchBar
           value={query}
           onChangeText={setQuery}
           placeholder="상품명, 코드, 바코드, 점포 검색"
-          placeholderTextColor={Colors.textMuted}
-          returnKeyType="search"
         />
-        <View style={styles.segmentRow}>
-          <TouchableOpacity
-            style={[styles.segment, !archived && styles.segmentActive]}
-            onPress={() => {
-              setArchived(false);
-              setSelectedLabel(undefined);
-            }}
-          >
-            <Text style={[styles.segmentText, !archived && styles.segmentTextActive]}>실시간 재고</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.segment, archived && styles.segmentActive]}
-            onPress={() => {
-              setArchived(true);
-              setSelectedCategory(undefined);
-            }}
-          >
-            <Text style={[styles.segmentText, archived && styles.segmentTextActive]}>아카이브</Text>
-          </TouchableOpacity>
-        </View>
+        <FilterBar<boolean>
+          options={ARCHIVE_FILTER_OPTIONS}
+          value={archived}
+          onChange={(val) => {
+            const next = val as boolean;
+            setArchived(next);
+            if (!next) setSelectedLabel(undefined);
+            else setSelectedCategory(undefined);
+          }}
+        />
 
         {!archived ? (
           <FlatList
@@ -329,20 +367,23 @@ export default function InventoryListScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={items}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderItem}
+      <ScrollView
         contentContainerStyle={styles.list}
-        refreshing={loading}
-        onRefresh={() => fetchItems({ query, archived, labelName: selectedLabel, category: selectedCategory })}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{archived ? '아카이브 재고가 없습니다.' : '조회된 재고가 없습니다.'}</Text>
-            <Text style={styles.emptyText}>검색어 또는 라벨 조건을 바꿔보세요.</Text>
-          </View>
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={() => fetchItems({ query, archived, labelName: selectedLabel, category: selectedCategory })}
+            tintColor={Colors.primary}
+          />
         }
-      />
+      >
+        <DataTable<InventoryItem>
+          columns={INVENTORY_TABLE_COLUMNS}
+          data={items}
+          onRowPress={(item) => openAdjustModal(item)}
+          emptyText={archived ? '아카이브 재고가 없습니다.' : '조회된 재고가 없습니다.'}
+        />
+      </ScrollView>
 
       <Modal transparent visible={modalMode != null} animationType="fade" onRequestClose={() => setModalMode(null)}>
         <View style={styles.modalBackdrop}>
@@ -446,77 +487,89 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   searchBand: {
     backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    margin: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.lg,
     padding: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.md,
+    ...Shadow.card,
   },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    fontSize: FontSize.md,
-    color: Colors.textPrimary,
-  },
-  segmentRow: {
+  screenHead: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  segment: {
-    flex: 1,
+  screenKicker: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  screenTitle: {
+    marginTop: 2,
+    fontSize: FontSize.xl,
+    color: Colors.textPrimary,
+    fontWeight: '900',
+  },
+  screenCount: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    backgroundColor: Colors.surfaceMuted,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.sm,
-    alignItems: 'center',
   },
-  segmentActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  segmentText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
-  segmentTextActive: { color: Colors.surface },
   labelList: { gap: Spacing.sm, paddingTop: Spacing.xs },
   labelChip: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.full,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
+    backgroundColor: Colors.surface,
   },
   labelChipActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   labelText: { color: Colors.textSecondary, fontSize: FontSize.sm },
   labelTextActive: { color: Colors.surface, fontWeight: '700' },
-  uploadRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: Spacing.sm },
+  uploadRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   reloadButton: {
     borderWidth: 1,
-    borderColor: Colors.accent,
-    borderRadius: Radius.sm,
+    borderColor: `${Colors.primary}55`,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+    backgroundColor: `${Colors.primary}0D`,
   },
-  reloadButtonText: { color: Colors.accent, fontSize: FontSize.sm, fontWeight: '700' },
+  reloadButtonText: { color: Colors.primaryDark, fontSize: FontSize.sm, fontWeight: '700' },
   uploadButton: {
-    backgroundColor: Colors.accent,
-    borderRadius: Radius.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
   uploadButtonText: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '700' },
-  list: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 96 },
+  list: { padding: Spacing.md, paddingTop: 0, gap: Spacing.sm, paddingBottom: 96 },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
     padding: Spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.card,
     gap: Spacing.sm,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.md },
@@ -534,7 +587,7 @@ const styles = StyleSheet.create({
   qtyBadgeEmpty: { backgroundColor: Colors.error + '18' },
   qtyText: { color: Colors.success, fontSize: FontSize.sm, fontWeight: '800' },
   qtyTextEmpty: { color: Colors.error },
-  metaGrid: { gap: 3 },
+  metaGrid: { gap: 4 },
   meta: { color: Colors.textSecondary, fontSize: FontSize.sm },
   archiveChip: {
     alignSelf: 'flex-start',
@@ -550,14 +603,14 @@ const styles = StyleSheet.create({
   secondaryButton: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
   secondaryButtonText: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '600' },
   primaryButton: {
     backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
@@ -567,22 +620,23 @@ const styles = StyleSheet.create({
   emptyText: { color: Colors.textMuted, fontSize: FontSize.sm },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(31,36,40,0.35)',
     justifyContent: 'center',
     padding: Spacing.lg,
   },
   modalPanel: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
     padding: Spacing.lg,
     gap: Spacing.sm,
+    ...Shadow.raised,
   },
   modalTitle: { color: Colors.textPrimary, fontSize: FontSize.lg, fontWeight: '800' },
   modalSubtitle: { color: Colors.textSecondary, fontSize: FontSize.sm },
   modalInput: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     color: Colors.textPrimary,
@@ -595,7 +649,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingVertical: Spacing.sm,
     alignItems: 'center',
   },
@@ -607,7 +661,7 @@ const styles = StyleSheet.create({
   modalCancelText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
   modalSubmit: {
     backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },

@@ -11,14 +11,15 @@ import {
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
-import { DocumentStackParamList } from '../../navigation/types';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
+import { MainStackParamList } from '../../navigation/types';
 import { Document, DocumentCategory, documentApi } from '../../api/documentApi';
+import FilterBar from '../../components/FilterBar';
 
-type Nav = NativeStackNavigationProp<DocumentStackParamList, 'DocumentList'>;
+type Nav = NativeStackNavigationProp<MainStackParamList, 'DocumentList'>;
 
-const CATEGORIES: Array<{ label: string; value?: DocumentCategory }> = [
-  { label: '전체' },
+const CATEGORIES: Array<{ label: string; value: DocumentCategory | undefined }> = [
+  { label: '전체', value: undefined },
   { label: '매뉴얼', value: 'MANUAL' },
   { label: '공지', value: 'NOTICE' },
   { label: '리포트', value: 'REPORT' },
@@ -50,7 +51,7 @@ export default function DocumentListScreen() {
   const [activeCategory, setActiveCategory] = useState<DocumentCategory | undefined>();
   const [loading, setLoading] = useState(false);
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     setLoading(true);
     try {
       setDocuments(await documentApi.getList(activeCategory ? { category: activeCategory } : undefined));
@@ -59,12 +60,12 @@ export default function DocumentListScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCategory]);
 
   useFocusEffect(
     useCallback(() => {
       fetchDocuments();
-    }, [activeCategory])
+    }, [fetchDocuments])
   );
 
   return (
@@ -75,19 +76,19 @@ export default function DocumentListScreen() {
         </View>
       ) : (
         <>
-        <View style={styles.tabRow}>
-          {CATEGORIES.map((category) => {
-            const active = activeCategory === category.value;
-            return (
-              <TouchableOpacity
-                key={category.label}
-                style={[styles.tab, active && styles.tabActive]}
-                onPress={() => setActiveCategory(category.value)}
-              >
-                <Text style={[styles.tabText, active && styles.tabTextActive]}>{category.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.controlPanel}>
+          <View style={styles.screenHead}>
+            <View>
+              <Text style={styles.screenKicker}>DOCUMENTS</Text>
+              <Text style={styles.screenTitle}>문서 보관함</Text>
+            </View>
+            <Text style={styles.screenCount}>{documents.length}건</Text>
+          </View>
+          <FilterBar
+            options={CATEGORIES}
+            value={activeCategory}
+            onChange={setActiveCategory}
+          />
         </View>
         <FlatList
           data={documents}
@@ -142,37 +143,61 @@ export default function DocumentListScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tabRow: {
-    flexDirection: 'row',
+  controlPanel: {
+    margin: Spacing.md,
+    padding: Spacing.md,
     backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.md,
+    ...Shadow.card,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: Spacing.md,
+  screenHead: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    justifyContent: 'space-between',
   },
-  tabActive: { borderBottomColor: Colors.primary },
-  tabText: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  tabTextActive: { color: Colors.primary, fontWeight: '700' },
-  list: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 88 },
+  screenKicker: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  screenTitle: {
+    marginTop: 2,
+    fontSize: FontSize.xl,
+    color: Colors.textPrimary,
+    fontWeight: '900',
+  },
+  screenCount: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    backgroundColor: Colors.surfaceMuted,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  list: { padding: Spacing.md, paddingTop: 0, gap: Spacing.sm, paddingBottom: 88 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     padding: Spacing.md,
     gap: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
+    ...Shadow.card,
   },
   fileBadge: {
     width: 48,
     height: 48,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -182,15 +207,15 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   categoryChip: {
-    backgroundColor: Colors.accent + '20',
+    backgroundColor: Colors.primary + '14',
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: Radius.full,
   },
-  categoryText: { fontSize: FontSize.xs, color: Colors.accent, fontWeight: '700' },
+  categoryText: { fontSize: FontSize.xs, color: Colors.primaryDark, fontWeight: '700' },
   metaText: { fontSize: FontSize.xs, color: Colors.textSecondary },
   uploader: { fontSize: FontSize.xs, color: Colors.textMuted },
-  arrow: { fontSize: 20, color: Colors.textMuted },
+  arrow: { fontSize: 22, color: Colors.textMuted, lineHeight: 24 },
   empty: { paddingVertical: 60, alignItems: 'center' },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   fab: {
@@ -203,10 +228,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    ...Shadow.raised,
   },
   fabText: { color: Colors.surface, fontSize: 28, lineHeight: 32 },
 });

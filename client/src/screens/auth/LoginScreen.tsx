@@ -11,15 +11,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { Colors, FontSize, Gradients, Radius, Shadow, Spacing } from '../../constants/theme';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../store/useAuthStore';
 import { getLoginRequiredError } from './loginValidation';
-import BrandWordmark from '../../components/BrandWordmark';
 import GradientButton from '../../components/GradientButton';
 import AppFooter from '../../components/AppFooter';
-import Card from '../../components/Card';
 import { NearbyStore, storeApi } from '../../api/storeApi';
 
 interface Coordinates {
@@ -115,12 +112,12 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <LinearGradient colors={Gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-            <BrandWordmark size="hero" light />
+          <View style={styles.hero}>
+            <Text style={styles.heroLogo}>flowre</Text>
             <Text style={styles.tagline}>일의 흐름을 하나로</Text>
-          </LinearGradient>
+          </View>
 
-          <Card style={styles.formCard}>
+          <View style={styles.formCard}>
             <Text style={styles.formTitle}>직원 로그인</Text>
             <Text style={styles.formSub}>점별 코드와 직원 계정으로 접속하세요.</Text>
 
@@ -171,7 +168,7 @@ export default function LoginScreen() {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <GradientButton title="로그인" onPress={handleLogin} loading={loading} disabled={loading} style={styles.loginButton} />
-          </Card>
+          </View>
 
           <AppFooter />
         </ScrollView>
@@ -208,23 +205,34 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
   hero: {
-    minHeight: 250,
     paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xxl,
-    paddingBottom: 58,
-    justifyContent: 'flex-end',
+    paddingTop: Spacing.xxl + Spacing.xl,
+    paddingBottom: Spacing.xl,
+    alignItems: 'center',
+  },
+  heroLogo: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: Colors.textPrimary,
+    letterSpacing: -1,
   },
   tagline: {
-    marginTop: Spacing.sm,
-    color: `${Colors.surface}E6`,
-    fontSize: FontSize.lg,
-    fontWeight: '700',
+    marginTop: Spacing.xs,
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    fontWeight: '500',
   },
   formCard: {
-    marginHorizontal: Spacing.md,
-    marginTop: -42,
+    margin: Spacing.md,
     gap: Spacing.md,
-    borderRadius: Radius.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    maxWidth: 520,
+    alignSelf: 'center',
+    width: '92%',
     ...Shadow.raised,
   },
   formTitle: {
@@ -239,17 +247,17 @@ const styles = StyleSheet.create({
   },
   inputWrapper: { gap: Spacing.xs },
   label: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.textSecondary,
     fontWeight: '700',
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 4,
+    paddingVertical: Spacing.md,
     fontSize: FontSize.md,
     color: Colors.textPrimary,
   },
@@ -257,16 +265,18 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
-    borderRadius: Radius.full,
-    backgroundColor: `${Colors.accent}12`,
+    borderRadius: Radius.md,
+    backgroundColor: `${Colors.primary}12`,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}22`,
   },
   locationButtonText: {
-    color: Colors.primary,
+    color: Colors.primaryDark,
     fontSize: FontSize.sm,
     fontWeight: '800',
   },
   errorText: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.error,
     textAlign: 'center',
   },

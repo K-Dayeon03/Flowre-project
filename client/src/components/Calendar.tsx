@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors, FontSize, Spacing, Radius } from '../constants/theme';
+import { Colors, FontSize, Spacing, Radius, Shadow } from '../constants/theme';
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -141,10 +141,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
     padding: Spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.card,
   },
   header: {
     flexDirection: 'row',

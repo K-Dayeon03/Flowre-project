@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
 import { Store, storeApi } from '../../api/storeApi';
 import PostcodeSearch, { PostcodeResult } from '../../components/PostcodeSearch';
 
@@ -189,19 +189,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: Spacing.md },
   form: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    marginBottom: Spacing.md,
+    ...Shadow.card,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical: Spacing.md,
     fontSize: FontSize.md,
     color: Colors.textPrimary,
   },
@@ -209,35 +211,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical: Spacing.md,
   },
   addressButtonText: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary },
   addressSearchIcon: { fontSize: FontSize.md, marginLeft: Spacing.sm },
   createButton: {
     backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   disabledButton: { opacity: 0.6 },
   createButtonText: {
     color: Colors.surface,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontWeight: '900',
   },
   errorText: {
     color: Colors.error,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     marginTop: Spacing.sm,
     textAlign: 'center',
   },
   loader: { marginTop: Spacing.xl },
-  list: { paddingTop: Spacing.md, paddingBottom: Spacing.xl },
+  list: { paddingTop: 0, paddingBottom: Spacing.xl, gap: Spacing.sm },
   emptyList: {
     flexGrow: 1,
     alignItems: 'center',
@@ -248,11 +251,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    ...Shadow.card,
   },
   codeBadge: {
     minWidth: 58,
@@ -271,7 +274,7 @@ const styles = StyleSheet.create({
   storeName: {
     color: Colors.textPrimary,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   storeAddress: {
     color: Colors.textSecondary,
@@ -279,7 +282,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   storeMeta: {
-    color: Colors.textSecondary,
+    color: Colors.textMuted,
     fontSize: FontSize.xs,
     marginTop: 2,
   },

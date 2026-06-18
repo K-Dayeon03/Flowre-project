@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
-import { HomeStackParamList } from '../../navigation/types';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
+import { MainStackParamList } from '../../navigation/types';
 import { useNoticeStore } from '../../store/useNoticeStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { canCreateNotices } from '../home/homePermissions';
 import Card from '../../components/Card';
 import GradientButton from '../../components/GradientButton';
 
-type Props = NativeStackScreenProps<HomeStackParamList, 'NoticeCreate'>;
+type Props = NativeStackScreenProps<MainStackParamList, 'NoticeCreate'>;
 
 export default function NoticeCreateScreen({ navigation }: Props) {
   const user = useAuthStore((s) => s.user);
@@ -88,16 +88,22 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1 },
   content: { padding: Spacing.md },
-  card: { gap: Spacing.md, borderRadius: Radius.lg },
+  card: {
+    gap: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.card,
+  },
   inputGroup: { gap: Spacing.xs },
-  label: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '800' },
+  label: { color: Colors.textSecondary, fontSize: FontSize.xs, fontWeight: '700' },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 4,
+    paddingVertical: Spacing.md,
     color: Colors.textPrimary,
     fontSize: FontSize.md,
   },

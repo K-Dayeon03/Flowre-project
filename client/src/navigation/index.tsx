@@ -1,20 +1,10 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet } from 'react-native';
 import { useAuthStore } from '../store/useAuthStore';
 import { Colors, FontSize } from '../constants/theme';
-import {
-  RootStackParamList,
-  AuthStackParamList,
-  MainTabParamList,
-  HomeStackParamList,
-  ScheduleStackParamList,
-  InventoryStackParamList,
-  DocumentStackParamList,
-  ChatStackParamList,
-} from './types';
+import { RootStackParamList, AuthStackParamList, MainStackParamList } from './types';
+import AppHeader from '../components/AppHeader';
 
 // Screens
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -38,31 +28,7 @@ import ChatRoomScreen from '../screens/chat/ChatRoomScreen';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-const Tab = createBottomTabNavigator<MainTabParamList>();
-const HomeStack = createNativeStackNavigator<HomeStackParamList>();
-const ScheduleStack = createNativeStackNavigator<ScheduleStackParamList>();
-const InventoryStack = createNativeStackNavigator<InventoryStackParamList>();
-const DocumentStack = createNativeStackNavigator<DocumentStackParamList>();
-const ChatStack = createNativeStackNavigator<ChatStackParamList>();
-
-/** 탭 아이콘 컴포넌트 */
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = {
-    홈: '🏠',
-    스케줄: '📅',
-    재고: '🔎',
-    문서: '📁',
-    채팅: '💬',
-  };
-  return (
-    <View style={styles.tabIcon}>
-      <Text style={styles.tabEmoji}>{icons[label]}</Text>
-      <Text style={[styles.tabLabel, focused && styles.tabLabelFocused]}>
-        {label}
-      </Text>
-    </View>
-  );
-}
+const MainStack = createNativeStackNavigator<MainStackParamList>();
 
 function AuthNavigator() {
   return (
@@ -72,159 +38,43 @@ function AuthNavigator() {
   );
 }
 
-function HomeNavigator() {
+function MainNavigator() {
   return (
-    <HomeStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTitleStyle: { fontSize: FontSize.lg, color: Colors.textPrimary },
-        headerTintColor: Colors.primary,
-      }}
+    <MainStack.Navigator
+      screenOptions={({ route }) => ({
+        header: () => <AppHeader currentRoute={route.name} />,
+      })}
     >
-      <HomeStack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-      <HomeStack.Screen name="Profile" component={ProfileScreen} options={{ title: '내 프로필' }} />
-      <HomeStack.Screen name="StoreManage" component={StoreManageScreen} options={{ title: '매장 등록' }} />
-      <HomeStack.Screen name="EmployeeManage" component={EmployeeManageScreen} options={{ title: '직원 등록' }} />
-      <HomeStack.Screen name="EmployeeApproval" component={EmployeeApprovalScreen} options={{ title: '직원 승인' }} />
-      <HomeStack.Screen name="NoticeList" component={NoticeListScreen} options={{ title: '공지' }} />
-      <HomeStack.Screen name="NoticeDetail" component={NoticeDetailScreen} options={{ title: '공지 상세' }} />
-      <HomeStack.Screen name="NoticeCreate" component={NoticeCreateScreen} options={{ title: '공지 작성' }} />
-    </HomeStack.Navigator>
-  );
-}
-
-function ScheduleNavigator() {
-  return (
-    <ScheduleStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTitleStyle: { fontSize: FontSize.lg, color: Colors.textPrimary },
-        headerTintColor: Colors.primary,
-      }}
-    >
-      <ScheduleStack.Screen
-        name="ScheduleList"
-        component={ScheduleListScreen}
-        options={{ title: '스케줄' }}
-      />
-      <ScheduleStack.Screen
-        name="ScheduleDetail"
-        component={ScheduleDetailScreen}
-        options={{ title: '스케줄 상세' }}
-      />
-      <ScheduleStack.Screen
-        name="ScheduleCreate"
-        component={ScheduleCreateScreen}
-        options={{ title: '스케줄 등록' }}
-      />
-    </ScheduleStack.Navigator>
-  );
-}
-
-function InventoryNavigator() {
-  return (
-    <InventoryStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTitleStyle: { fontSize: FontSize.lg, color: Colors.textPrimary },
-        headerTintColor: Colors.primary,
-      }}
-    >
-      <InventoryStack.Screen
-        name="InventoryList"
-        component={InventoryListScreen}
-        options={{ title: '재고' }}
-      />
-    </InventoryStack.Navigator>
-  );
-}
-
-function DocumentNavigator() {
-  return (
-    <DocumentStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTitleStyle: { fontSize: FontSize.lg, color: Colors.textPrimary },
-        headerTintColor: Colors.primary,
-      }}
-    >
-      <DocumentStack.Screen
-        name="DocumentList"
-        component={DocumentListScreen}
-        options={{ title: '문서' }}
-      />
-      <DocumentStack.Screen
+      <MainStack.Screen name="Home" component={HomeScreen} />
+      <MainStack.Screen name="Profile" component={ProfileScreen} options={{ title: '내 프로필' }} />
+      <MainStack.Screen name="StoreManage" component={StoreManageScreen} options={{ title: '매장 등록' }} />
+      <MainStack.Screen name="EmployeeManage" component={EmployeeManageScreen} options={{ title: '직원 등록' }} />
+      <MainStack.Screen name="EmployeeApproval" component={EmployeeApprovalScreen} options={{ title: '직원 승인' }} />
+      <MainStack.Screen name="NoticeList" component={NoticeListScreen} options={{ title: '공지' }} />
+      <MainStack.Screen name="NoticeDetail" component={NoticeDetailScreen} options={{ title: '공지 상세' }} />
+      <MainStack.Screen name="NoticeCreate" component={NoticeCreateScreen} options={{ title: '공지 작성' }} />
+      <MainStack.Screen name="ScheduleList" component={ScheduleListScreen} options={{ title: '스케줄' }} />
+      <MainStack.Screen name="ScheduleDetail" component={ScheduleDetailScreen} options={{ title: '스케줄 상세' }} />
+      <MainStack.Screen name="ScheduleCreate" component={ScheduleCreateScreen} options={{ title: '스케줄 등록' }} />
+      <MainStack.Screen name="InventoryList" component={InventoryListScreen} options={{ title: '재고' }} />
+      <MainStack.Screen name="DocumentList" component={DocumentListScreen} options={{ title: '문서' }} />
+      <MainStack.Screen
         name="DocumentDetail"
         component={DocumentDetailScreen}
         options={({ route }) => ({ title: route.params.title })}
       />
-      <DocumentStack.Screen
+      <MainStack.Screen
         name="DocumentUpload"
         component={DocumentUploadScreen}
         options={({ route }) => ({ title: route.params?.documentId ? '문서 수정' : '문서 업로드' })}
       />
-    </DocumentStack.Navigator>
-  );
-}
-
-function ChatNavigator() {
-  return (
-    <ChatStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTitleStyle: { fontSize: FontSize.lg, color: Colors.textPrimary },
-        headerTintColor: Colors.primary,
-      }}
-    >
-      <ChatStack.Screen
-        name="ChatRoomList"
-        component={ChatRoomListScreen}
-        options={{ title: '채팅' }}
-      />
-      <ChatStack.Screen
+      <MainStack.Screen name="ChatRoomList" component={ChatRoomListScreen} options={{ title: '채팅' }} />
+      <MainStack.Screen
         name="ChatRoom"
         component={ChatRoomScreen}
         options={({ route }) => ({ title: route.params.roomName })}
       />
-    </ChatStack.Navigator>
-  );
-}
-
-function MainNavigator() {
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarShowLabel: false,
-      }}
-    >
-      <Tab.Screen
-        name="HomeTab"
-        component={HomeNavigator}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="홈" focused={focused} /> }}
-      />
-      <Tab.Screen
-        name="ScheduleTab"
-        component={ScheduleNavigator}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="스케줄" focused={focused} /> }}
-      />
-      <Tab.Screen
-        name="InventoryTab"
-        component={InventoryNavigator}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="재고" focused={focused} /> }}
-      />
-      <Tab.Screen
-        name="DocumentTab"
-        component={DocumentNavigator}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="문서" focused={focused} /> }}
-      />
-      <Tab.Screen
-        name="ChatTab"
-        component={ChatNavigator}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon label="채팅" focused={focused} /> }}
-      />
-    </Tab.Navigator>
+    </MainStack.Navigator>
   );
 }
 
@@ -243,30 +93,3 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: Colors.tabBar,
-    borderTopColor: Colors.border,
-    borderTopWidth: 1,
-    height: 60,
-    paddingBottom: 4,
-  },
-  tabIcon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 6,
-  },
-  tabEmoji: {
-    fontSize: 20,
-  },
-  tabLabel: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  tabLabelFocused: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-});

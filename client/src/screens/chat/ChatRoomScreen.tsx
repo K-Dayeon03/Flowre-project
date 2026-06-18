@@ -14,14 +14,14 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
-import { ChatStackParamList } from '../../navigation/types';
+import { MainStackParamList } from '../../navigation/types';
 import { useStompChat } from '../../hooks/useStompChat';
 import { useChatStore } from '../../store/useChatStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Message } from '../../api/chatApi';
 import FavoriteToggle from '../../components/FavoriteToggle';
 
-type Props = NativeStackScreenProps<ChatStackParamList, 'ChatRoom'>;
+type Props = NativeStackScreenProps<MainStackParamList, 'ChatRoom'>;
 
 /** 날짜 구분선 */
 function DateSeparator({ date }: { date: string }) {
@@ -224,14 +224,14 @@ const styles = StyleSheet.create({
   },
   bubbleThem: {
     backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
     borderBottomLeftRadius: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   bubbleMe: {
     backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
     borderBottomRightRadius: 4,
   },
   bubbleText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 20 },
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: Spacing.sm,
+    padding: Spacing.md,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
@@ -259,15 +259,13 @@ const styles = StyleSheet.create({
   attachIcon: { fontSize: 22 },
   textInput: {
     flex: 1,
-    backgroundColor: Colors.background,
-    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceMuted,
+    borderRadius: Radius.full,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     fontSize: FontSize.md,
     color: Colors.textPrimary,
     maxHeight: 100,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   sendBtn: {
     width: 40,

@@ -9,11 +9,11 @@ import {
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
-import { ScheduleStackParamList } from '../../navigation/types';
+import { Colors, FontSize, Spacing, Radius, Shadow } from '../../constants/theme';
+import { MainStackParamList } from '../../navigation/types';
 import FavoriteToggle from '../../components/FavoriteToggle';
 
-type Props = NativeStackScreenProps<ScheduleStackParamList, 'ScheduleDetail'>;
+type Props = NativeStackScreenProps<MainStackParamList, 'ScheduleDetail'>;
 
 const MOCK_DETAIL = {
   id: 1,
@@ -65,22 +65,26 @@ export default function ScheduleDetailScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* 상태 배너 */}
-        <View style={[styles.statusBanner, { backgroundColor: Colors.statusBadge[status as keyof typeof Colors.statusBadge] + '15' }]}>
-          <View style={[styles.statusDot, { backgroundColor: Colors.statusBadge[status as keyof typeof Colors.statusBadge] }]} />
-          <Text style={[styles.statusText, { color: Colors.statusBadge[status as keyof typeof Colors.statusBadge] }]}>
-            {status === 'PENDING' ? '대기' : status === 'IN_PROGRESS' ? '진행 중' : '완료'}
-          </Text>
-        </View>
-
-        {/* 제목 */}
-        <View style={styles.titleArea}>
-          <View style={[styles.typeChip, { backgroundColor: Colors.scheduleType[MOCK_DETAIL.type as keyof typeof Colors.scheduleType] + '20' }]}>
-            <Text style={[styles.typeText, { color: Colors.scheduleType[MOCK_DETAIL.type as keyof typeof Colors.scheduleType] }]}>
-              {TYPE_LABEL[MOCK_DETAIL.type]}
-            </Text>
+        {/* 상단 상태 배너 카드 */}
+        <View style={styles.bannerCard}>
+          <View style={[styles.typeBar, { backgroundColor: Colors.scheduleType[MOCK_DETAIL.type as keyof typeof Colors.scheduleType] }]} />
+          <View style={styles.bannerContent}>
+            <View style={styles.bannerTop}>
+              <View style={[styles.typeChip, { backgroundColor: Colors.scheduleType[MOCK_DETAIL.type as keyof typeof Colors.scheduleType] + '20' }]}>
+                <Text style={[styles.typeText, { color: Colors.scheduleType[MOCK_DETAIL.type as keyof typeof Colors.scheduleType] }]}>
+                  {TYPE_LABEL[MOCK_DETAIL.type]}
+                </Text>
+              </View>
+              <View style={[styles.statusChip, { backgroundColor: Colors.statusBadge[status as keyof typeof Colors.statusBadge] + '18' }]}>
+                <View style={[styles.statusDot, { backgroundColor: Colors.statusBadge[status as keyof typeof Colors.statusBadge] }]} />
+                <Text style={[styles.statusText, { color: Colors.statusBadge[status as keyof typeof Colors.statusBadge] }]}>
+                  {status === 'PENDING' ? '대기' : status === 'IN_PROGRESS' ? '진행 중' : '완료'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.title}>{MOCK_DETAIL.title}</Text>
+            <Text style={styles.dueText}>마감 {MOCK_DETAIL.dueDate}</Text>
           </View>
-          <Text style={styles.title}>{MOCK_DETAIL.title}</Text>
         </View>
 
         {/* 메타 정보 */}
@@ -132,35 +136,44 @@ function MetaRow({ icon, label, value, last }: { icon: string; label: string; va
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1, padding: Spacing.md },
-  statusBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.sm + 2,
-    borderRadius: Radius.sm,
+  bannerCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     marginBottom: Spacing.md,
-    gap: Spacing.sm,
+    overflow: 'hidden',
+    ...Shadow.card,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontSize: FontSize.sm, fontWeight: '600' },
-  titleArea: { marginBottom: Spacing.md },
+  typeBar: { height: 4, width: '100%' },
+  bannerContent: { padding: Spacing.md, gap: Spacing.sm },
+  bannerTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   typeChip: {
-    alignSelf: 'flex-start',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: Radius.full,
-    marginBottom: Spacing.sm,
   },
   typeText: { fontSize: FontSize.xs, fontWeight: '600' },
-  title: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.textPrimary, lineHeight: 30 },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    gap: 5,
+  },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: FontSize.xs, fontWeight: '700' },
+  title: { fontSize: FontSize.xl, fontWeight: '900', color: Colors.textPrimary, lineHeight: 28 },
+  dueText: { fontSize: FontSize.xs, color: Colors.textSecondary },
   metaCard: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
     marginBottom: Spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    ...Shadow.card,
   },
   metaRow: {
     flexDirection: 'row',
@@ -174,16 +187,15 @@ const styles = StyleSheet.create({
   metaValue: { flex: 1, fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: '500' },
   descCard: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: Spacing.md,
     marginBottom: Spacing.xl * 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    ...Shadow.card,
   },
   descLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.sm },
-  descText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 22 },
+  descText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 24 },
   footer: {
     padding: Spacing.md,
     backgroundColor: Colors.surface,
@@ -191,17 +203,19 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
   },
   completeBtn: {
-    backgroundColor: Colors.success,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  completeBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '700' },
+  completeBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '900' },
   doneLabel: {
     backgroundColor: Colors.success + '15',
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  doneLabelText: { color: Colors.success, fontSize: FontSize.md, fontWeight: '600' },
+  doneLabelText: { color: Colors.success, fontSize: FontSize.md, fontWeight: '700' },
 });

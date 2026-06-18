@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
-import { HomeStackParamList } from '../../navigation/types';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
+import { MainStackParamList } from '../../navigation/types';
 import { Notice, noticeApi } from '../../api/noticeApi';
 import { useNoticeStore } from '../../store/useNoticeStore';
 import Badge from '../../components/Badge';
 import Card from '../../components/Card';
 
-type Props = NativeStackScreenProps<HomeStackParamList, 'NoticeDetail'>;
+type Props = NativeStackScreenProps<MainStackParamList, 'NoticeDetail'>;
 
 /** ISO 날짜를 상세 표시용으로 변환합니다. */
 function formatDateTime(value?: string) {
@@ -74,7 +74,12 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: { flex: 1 },
   content: { padding: Spacing.md },
-  card: { borderRadius: Radius.lg },
+  card: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.card,
+  },
   badgeRow: { flexDirection: 'row', marginBottom: Spacing.sm },
   title: {
     fontSize: FontSize.xxl,

@@ -7,7 +7,7 @@ import {
   SafeAreaView,
   ScrollView,
 } from 'react-native';
-import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
+import { Colors, FontSize, Spacing, Radius, Shadow } from '../../constants/theme';
 import { useAuthStore, UserRole } from '../../store/useAuthStore';
 import Avatar from '../../components/Avatar';
 
@@ -83,13 +83,12 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: Spacing.md,
     marginBottom: Spacing.xl,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    ...Shadow.card,
   },
   infoRow: {
     flexDirection: 'row',
@@ -102,11 +101,12 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: Colors.border },
   logoutBtn: {
     width: '100%',
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.sm,
-    borderWidth: 1.5,
+    height: 52,
+    borderRadius: Radius.md,
+    borderWidth: 1,
     borderColor: Colors.error,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  logoutText: { color: Colors.error, fontSize: FontSize.md, fontWeight: '600' },
+  logoutText: { color: Colors.error, fontSize: FontSize.md, fontWeight: '700' },
 });
