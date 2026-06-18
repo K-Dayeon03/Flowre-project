@@ -253,7 +253,7 @@ public class InventoryService {
     @Transactional
     public InventoryLoadResponse reloadFromDataDirectory(User user) {
         assertCanUploadInventory(user);
-        return inventoryExcelLoader.loadFromDataDirectory();
+        return inventoryExcelLoader.loadFromDataDirectory(user.getBrandId());
     }
 
     /**
@@ -265,7 +265,7 @@ public class InventoryService {
     @Transactional
     public InventoryLoadResponse uploadDailyInventory(User user, MultipartFile file) {
         String storeScopeCode = canViewAllStores(user) ? null : user.getStoreCode();
-        return inventoryExcelLoader.loadUploadedFile(file, storeScopeCode);
+        return inventoryExcelLoader.loadUploadedFile(file, storeScopeCode, user.getBrandId());
     }
 
     private InventoryItem getItem(User user, Long id) {

@@ -18,6 +18,10 @@ public class InventoryDataLoaderRunner implements CommandLineRunner {
     @Value("${flowre.inventory.auto-load:true}")
     private boolean autoLoad;
 
+    /** 시작 시 data 폴더 재고를 적재할 기본 브랜드 ID (시드 브랜드 JAJU=1). */
+    @Value("${flowre.inventory.default-brand-id:1}")
+    private long defaultBrandId;
+
     /** 서버 시작 시 data 폴더의 xlsx 재고 파일을 DB에 반영합니다. */
     @Override
     public void run(String... args) {
@@ -26,7 +30,7 @@ public class InventoryDataLoaderRunner implements CommandLineRunner {
             return;
         }
 
-        InventoryLoadResponse response = inventoryExcelLoader.loadFromDataDirectory();
+        InventoryLoadResponse response = inventoryExcelLoader.loadFromDataDirectory(defaultBrandId);
         log.info(
                 "[InventoryDataLoaderRunner] files={}, rows={}, created={}, updated={}, skipped={}",
                 response.getFileCount(),
