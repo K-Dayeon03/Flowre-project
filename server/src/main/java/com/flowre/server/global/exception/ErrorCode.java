@@ -55,7 +55,8 @@ public enum ErrorCode {
 
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON_001", "입력값이 올바르지 않습니다."),
-    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_002", "서버 내부 오류가 발생했습니다.");
+    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_002", "서버 내부 오류가 발생했습니다."),
+    CONFLICT(HttpStatus.CONFLICT, "COMMON_003", "다른 사용자에 의해 변경되었습니다. 새로고침 후 다시 시도해주세요.");
 
     private final HttpStatus status;
     private final String code;
