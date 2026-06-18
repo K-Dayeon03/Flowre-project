@@ -1,5 +1,6 @@
 package com.flowre.server.domain.chat.service;
 
+import com.flowre.server.domain.chat.dto.ChatRoomResponse;
 import com.flowre.server.domain.chat.dto.CreateDirectRoomRequest;
 import com.flowre.server.domain.chat.dto.CreateRoomRequest;
 import com.flowre.server.domain.chat.dto.MessageResponse;
@@ -102,6 +103,24 @@ class ChatServiceTest {
     }
 
     @Test
+    void getRoomsAggregatesLastMessageAndUnreadInBatch() {
+        User user = user(1L, 1L, 1001L, UserRole.STORE_STAFF);
+        ChatRoom room = room(10L, 1L);
+        when(chatRoomRepository.findAllByMemberUserIdAndBrandId(1L, 1L)).thenReturn(List.of(room));
+        Message last = message(5L, LocalDateTime.of(2026, 6, 18, 10, 0));
+        when(messageRepository.findLatestPerRoom(List.of(10L))).thenReturn(List.of(last));
+        when(messageRepository.countUnreadPerRoom(1L, List.of(10L))).thenReturn(List.of(unread(10L, 3)));
+
+        List<ChatRoomResponse> rooms = chatService.getRooms(user);
+
+        assertThat(rooms).hasSize(1);
+        assertThat(rooms.get(0).getUnread()).isEqualTo(3);
+        assertThat(rooms.get(0).getLastMessage()).isEqualTo("메시지");
+        // 방마다 개별 쿼리하지 않고 일괄 조회만 사용한다 (N+1 제거).
+        verify(messageRepository, never()).findTopByRoomIdOrderBySentAtDesc(any());
+    }
+
+    @Test
     void createRoomStoresRequesterBrandId() {
         User me = user(1L, 1L, 1001L, UserRole.STORE_MANAGER);
         User member = user(2L, 1L, 1001L, UserRole.STORE_STAFF);
@@ -179,6 +198,20 @@ class ChatServiceTest {
                 .type(MessageType.TEXT)
                 .sentAt(sentAt)
                 .build();
+    }
+
+    private com.flowre.server.domain.chat.repository.MessageRepository.UnreadCount unread(Long roomId, long cnt) {
+        return new com.flowre.server.domain.chat.repository.MessageRepository.UnreadCount() {
+            @Override
+            public Long getRoomId() {
+                return roomId;
+            }
+
+            @Override
+            public long getCnt() {
+                return cnt;
+            }
+        };
     }
 
     private ChatRoom room(Long id, Long brandId) {

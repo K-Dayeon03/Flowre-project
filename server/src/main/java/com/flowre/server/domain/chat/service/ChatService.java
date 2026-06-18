@@ -20,12 +20,13 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -44,16 +45,26 @@ public class ChatService {
     public List<ChatRoomResponse> getRooms(User user) {
         List<ChatRoom> rooms = chatRoomRepository
                 .findAllByMemberUserIdAndBrandId(user.getId(), user.getBrandId());
-        return rooms.stream().map(room -> {
-            Message last = messageRepository.findTopByRoomIdOrderBySentAtDesc(room.getId()).orElse(null);
+        if (rooms.isEmpty()) {
+            return List.of();
+        }
 
-            int unread = chatRoomMemberRepository
-                    .findByChatRoomIdAndUserId(room.getId(), user.getId())
-                    .map(m -> countUnread(room.getId(), m.getLastReadAt()))
-                    .orElse(0);
+        List<Long> roomIds = rooms.stream().map(ChatRoom::getId).toList();
 
-            return ChatRoomResponse.of(room, last, unread);
-        }).toList();
+        // 방별 마지막 메시지 / 안읽음 수를 각각 한 번의 쿼리로 일괄 조회해 N+1을 제거한다.
+        Map<Long, Message> lastByRoom = messageRepository.findLatestPerRoom(roomIds).stream()
+                .collect(Collectors.toMap(Message::getRoomId, m -> m, (a, b) -> a));
+        Map<Long, Integer> unreadByRoom = messageRepository.countUnreadPerRoom(user.getId(), roomIds).stream()
+                .collect(Collectors.toMap(
+                        MessageRepository.UnreadCount::getRoomId,
+                        u -> (int) Math.min(u.getCnt(), Integer.MAX_VALUE)));
+
+        return rooms.stream()
+                .map(room -> ChatRoomResponse.of(
+                        room,
+                        lastByRoom.get(room.getId()),
+                        unreadByRoom.getOrDefault(room.getId(), 0)))
+                .toList();
     }
 
     /**
@@ -199,13 +210,6 @@ public class ChatService {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
         return room;
-    }
-
-    private int countUnread(Long roomId, LocalDateTime lastReadAt) {
-        long count = lastReadAt == null
-                ? messageRepository.countByRoomId(roomId)
-                : messageRepository.countByRoomIdAndSentAtAfter(roomId, lastReadAt);
-        return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
     }
 
     private void addMember(ChatRoom room, User user) {
