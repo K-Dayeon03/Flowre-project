@@ -114,7 +114,7 @@ client/
 | id | Long | PK |
 | email | String | 로그인 ID |
 | role | Enum | STORE_STAFF / STORE_MANAGER / HQ_STAFF / ADMIN |
-| brandId | Long | 소속 브랜드 (JAJU 등) |
+| brandId | Long | 소속 브랜드 |
 | storeId | Long | 소속 매장 |
 
 ### Schedule (스케줄)

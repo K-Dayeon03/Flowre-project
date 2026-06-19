@@ -176,7 +176,7 @@ class StoreServiceTest {
     private User user(UserRole role) {
         return User.builder()
                 .id(1L)
-                .email("user@jaju.com")
+                .email("user@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("테스트")

@@ -46,11 +46,11 @@ class UserServiceTest {
     @Test
     void createEmployeeSucceedsWhenRequesterIsHq() {
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@jaju.com", UserRole.STORE_STAFF);
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@flowre.com", UserRole.STORE_STAFF);
         when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
                 .thenReturn(Optional.of(store(10L, "1001")));
         when(userRepository.existsByEmployeeCode("1001WXYZ!")).thenReturn(false);
-        when(userRepository.existsByEmail("newuser@jaju.com")).thenReturn(false);
+        when(userRepository.existsByEmail("newuser@flowre.com")).thenReturn(false);
         when(userRepository.existsByStoreIdAndRoleAndStatus(10L, UserRole.STORE_MANAGER, UserStatus.ACTIVE))
                 .thenReturn(true);
         when(passwordEncoder.encode("Password1!")).thenReturn("encoded-pw");
@@ -68,7 +68,7 @@ class UserServiceTest {
     @Test
     void createEmployeeFailsWhenRequesterIsNotHq() {
         User requester = staffUser();
-        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@jaju.com", UserRole.STORE_STAFF);
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@flowre.com", UserRole.STORE_STAFF);
 
         assertThatThrownBy(() -> userService.createEmployee(requester, request))
                 .isInstanceOf(CustomException.class)
@@ -82,7 +82,7 @@ class UserServiceTest {
     void createEmployeeFailsWhenHqStaffCreatesAdmin() {
         // 권한 상승 차단: HQ_STAFF는 ADMIN 계정을 생성할 수 없다.
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "admin@jaju.com", UserRole.ADMIN);
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "admin@flowre.com", UserRole.ADMIN);
 
         assertThatThrownBy(() -> userService.createEmployee(requester, request))
                 .isInstanceOf(CustomException.class)
@@ -95,7 +95,7 @@ class UserServiceTest {
     @Test
     void createEmployeeFailsWhenEmployeeCodeDoesNotStartWithStoreCode() {
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1002", "1001WXYZ!", "newuser@jaju.com", UserRole.STORE_STAFF);
+        EmployeeCreateRequest request = request("1002", "1001WXYZ!", "newuser@flowre.com", UserRole.STORE_STAFF);
 
         assertThatThrownBy(() -> userService.createEmployee(requester, request))
                 .isInstanceOf(CustomException.class)
@@ -108,7 +108,7 @@ class UserServiceTest {
     @Test
     void createEmployeeFailsWhenStoreNotFound() {
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@jaju.com", UserRole.STORE_STAFF);
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@flowre.com", UserRole.STORE_STAFF);
         when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.createEmployee(requester, request))
@@ -120,7 +120,7 @@ class UserServiceTest {
     @Test
     void createEmployeeFailsWhenEmployeeCodeAlreadyExists() {
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@jaju.com", UserRole.STORE_STAFF);
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@flowre.com", UserRole.STORE_STAFF);
         when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
                 .thenReturn(Optional.of(store(10L, "1001")));
         when(userRepository.existsByEmployeeCode("1001WXYZ!")).thenReturn(true);
@@ -134,11 +134,11 @@ class UserServiceTest {
     @Test
     void createStaffFailsWhenStoreHasNoActiveManager() {
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@jaju.com", UserRole.STORE_STAFF);
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@flowre.com", UserRole.STORE_STAFF);
         when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
                 .thenReturn(Optional.of(store(10L, "1001")));
         when(userRepository.existsByEmployeeCode("1001WXYZ!")).thenReturn(false);
-        when(userRepository.existsByEmail("newuser@jaju.com")).thenReturn(false);
+        when(userRepository.existsByEmail("newuser@flowre.com")).thenReturn(false);
         when(userRepository.existsByStoreIdAndRoleAndStatus(10L, UserRole.STORE_MANAGER, UserStatus.ACTIVE))
                 .thenReturn(false);
 
@@ -154,11 +154,11 @@ class UserServiceTest {
     @Test
     void createFirstManagerIsActiveWhenStoreHasNoActiveManager() {
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1001", "1001MGRA!", "manager@jaju.com", UserRole.STORE_MANAGER);
+        EmployeeCreateRequest request = request("1001", "1001MGRA!", "manager@flowre.com", UserRole.STORE_MANAGER);
         when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
                 .thenReturn(Optional.of(store(10L, "1001")));
         when(userRepository.existsByEmployeeCode("1001MGRA!")).thenReturn(false);
-        when(userRepository.existsByEmail("manager@jaju.com")).thenReturn(false);
+        when(userRepository.existsByEmail("manager@flowre.com")).thenReturn(false);
         when(userRepository.existsByStoreIdAndRoleAndStatus(10L, UserRole.STORE_MANAGER, UserStatus.ACTIVE))
                 .thenReturn(false);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -172,11 +172,11 @@ class UserServiceTest {
     @Test
     void createSecondManagerIsPendingWhenStoreHasActiveManager() {
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1001", "1001MGRB!", "manager2@jaju.com", UserRole.STORE_MANAGER);
+        EmployeeCreateRequest request = request("1001", "1001MGRB!", "manager2@flowre.com", UserRole.STORE_MANAGER);
         when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
                 .thenReturn(Optional.of(store(10L, "1001")));
         when(userRepository.existsByEmployeeCode("1001MGRB!")).thenReturn(false);
-        when(userRepository.existsByEmail("manager2@jaju.com")).thenReturn(false);
+        when(userRepository.existsByEmail("manager2@flowre.com")).thenReturn(false);
         when(userRepository.existsByStoreIdAndRoleAndStatus(10L, UserRole.STORE_MANAGER, UserStatus.ACTIVE))
                 .thenReturn(true);
         when(userRepository.findByStoreIdAndRoleAndStatus(10L, UserRole.STORE_MANAGER, UserStatus.ACTIVE))
@@ -192,11 +192,11 @@ class UserServiceTest {
     @Test
     void createEmployeeIsPendingWhenStoreHasActiveManager() {
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@jaju.com", UserRole.STORE_STAFF);
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@flowre.com", UserRole.STORE_STAFF);
         when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
                 .thenReturn(Optional.of(store(10L, "1001")));
         when(userRepository.existsByEmployeeCode("1001WXYZ!")).thenReturn(false);
-        when(userRepository.existsByEmail("newuser@jaju.com")).thenReturn(false);
+        when(userRepository.existsByEmail("newuser@flowre.com")).thenReturn(false);
         when(userRepository.existsByStoreIdAndRoleAndStatus(10L, UserRole.STORE_MANAGER, UserStatus.ACTIVE))
                 .thenReturn(true);
         when(userRepository.findByStoreIdAndRoleAndStatus(10L, UserRole.STORE_MANAGER, UserStatus.ACTIVE))
@@ -212,11 +212,11 @@ class UserServiceTest {
     @Test
     void createHqStaffIsActiveEvenWhenStoreHasActiveManager() {
         User requester = hqUser();
-        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newhq@jaju.com", UserRole.HQ_STAFF);
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newhq@flowre.com", UserRole.HQ_STAFF);
         when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
                 .thenReturn(Optional.of(store(10L, "1001")));
         when(userRepository.existsByEmployeeCode("1001WXYZ!")).thenReturn(false);
-        when(userRepository.existsByEmail("newhq@jaju.com")).thenReturn(false);
+        when(userRepository.existsByEmail("newhq@flowre.com")).thenReturn(false);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UserResponse result = userService.createEmployee(requester, request);
@@ -299,7 +299,7 @@ class UserServiceTest {
     private User hqUser() {
         return User.builder()
                 .id(1L)
-                .email("hq@jaju.com")
+                .email("hq@flowre.com")
                 .employeeCode("0000HQAA!")
                 .password("encoded")
                 .name("본사")
@@ -307,14 +307,14 @@ class UserServiceTest {
                 .brandId(1L)
                 .storeId(1L)
                 .storeCode("0000")
-                .storeName("JAJU 본사")
+                .storeName("Flowre 본사")
                 .build();
     }
 
     private User staffUser() {
         return User.builder()
                 .id(2L)
-                .email("staff@jaju.com")
+                .email("staff@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("직원")
@@ -329,7 +329,7 @@ class UserServiceTest {
     private User managerUser(Long id, Long storeId) {
         return User.builder()
                 .id(id)
-                .email("manager" + id + "@jaju.com")
+                .email("manager" + id + "@flowre.com")
                 .employeeCode("1001MGRA!")
                 .password("encoded")
                 .name("점장")
@@ -345,7 +345,7 @@ class UserServiceTest {
     private User pendingEmployee(Long id, Long storeId) {
         return User.builder()
                 .id(id)
-                .email("pending" + id + "@jaju.com")
+                .email("pending" + id + "@flowre.com")
                 .employeeCode("1001PEND!")
                 .password("encoded")
                 .name("대기 직원")

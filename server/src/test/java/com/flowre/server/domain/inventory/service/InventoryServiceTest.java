@@ -165,7 +165,7 @@ class InventoryServiceTest {
     private User storeStaff(Long id, Long brandId, Long storeId) {
         return User.builder()
                 .id(id)
-                .email("staff@jaju.com")
+                .email("staff@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("매장 직원")
@@ -180,7 +180,7 @@ class InventoryServiceTest {
     private User hqStaff(Long id, Long brandId) {
         return User.builder()
                 .id(id)
-                .email("hq@jaju.com")
+                .email("hq@flowre.com")
                 .employeeCode("9001ABCD!")
                 .password("encoded")
                 .name("본사 직원")

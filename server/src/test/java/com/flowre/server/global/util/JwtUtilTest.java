@@ -15,7 +15,7 @@ class JwtUtilTest {
 
     @Test
     void accessTokenHasAccessTypeOnly() {
-        String token = jwtUtil.generateAccessToken(1L, "manager@jaju.com", "STORE_MANAGER");
+        String token = jwtUtil.generateAccessToken(1L, "manager@flowre.com", "STORE_MANAGER");
 
         Claims claims = jwtUtil.parseClaims(token);
 

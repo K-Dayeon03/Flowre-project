@@ -47,7 +47,7 @@ class AuthServiceTest {
         when(passwordEncoder.matches("Test1234!", user.getPassword())).thenReturn(true);
         when(storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001"))
                 .thenReturn(Optional.of(store("1001")));
-        when(jwtUtil.generateAccessToken(1L, "manager@jaju.com", "STORE_MANAGER")).thenReturn("access-token");
+        when(jwtUtil.generateAccessToken(1L, "manager@flowre.com", "STORE_MANAGER")).thenReturn("access-token");
         when(jwtUtil.generateRefreshToken(1L)).thenReturn("refresh-token");
         when(jwtUtil.getRefreshExpirationMs()).thenReturn(604800000L);
 
@@ -155,7 +155,7 @@ class AuthServiceTest {
     private User user(String storeCode, String employeeCode) {
         return User.builder()
                 .id(1L)
-                .email("manager@jaju.com")
+                .email("manager@flowre.com")
                 .employeeCode(employeeCode)
                 .password("encoded-password")
                 .name("테스트 점장")

@@ -131,7 +131,7 @@ class NoticeServiceTest {
     private User user(Long id, Long brandId, UserRole role) {
         return User.builder()
                 .id(id)
-                .email("user@jaju.com")
+                .email("user@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("테스트 사용자")

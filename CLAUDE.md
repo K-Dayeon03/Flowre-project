@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Project: Flowre (플로우리)
 
 ## Overview
-신세계까사 JAJU 매장 직원 전용 통합 업무 관리 앱 — 스케줄·문서·채팅을 하나의 플랫폼에서 처리
+입점 매장 직원 전용 통합 업무 관리 앱 — 스케줄·문서·채팅을 하나의 플랫폼에서 처리
 
 ---
 
@@ -114,7 +114,7 @@ client/
 | id | Long | PK |
 | email | String | 로그인 ID |
 | role | Enum | STORE_STAFF / STORE_MANAGER / HQ_STAFF / ADMIN |
-| brandId | Long | 소속 브랜드 (JAJU 등) |
+| brandId | Long | 소속 브랜드 |
 | storeId | Long | 소속 매장 |
 
 ### Schedule (스케줄)

@@ -108,7 +108,7 @@ class ScheduleServiceTest {
     private User storeStaff(Long brandId, Long storeId) {
         return User.builder()
                 .id(10L)
-                .email("staff@jaju.com")
+                .email("staff@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("매장 직원")
@@ -123,7 +123,7 @@ class ScheduleServiceTest {
     private User hqStaff(Long brandId) {
         return User.builder()
                 .id(20L)
-                .email("hq@jaju.com")
+                .email("hq@flowre.com")
                 .employeeCode("9001ABCD!")
                 .password("encoded")
                 .name("본사 직원")
