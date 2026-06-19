@@ -49,4 +49,10 @@ public class Notice {
 
     @LastModifiedDate
     private LocalDateTime updatedAt;
+
+    public void update(String title, String content, boolean pinned) {
+        this.title = title;
+        this.content = content;
+        this.pinned = pinned;
+    }
 }

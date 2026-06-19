@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { SafeAreaView, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
 import { MainStackParamList } from '../../navigation/types';
@@ -23,10 +24,12 @@ export default function NoticeListScreen({ navigation }: Props) {
   const fetchNotices = useNoticeStore((s) => s.fetchNotices);
   const fetchUnreadCount = useNoticeStore((s) => s.fetchUnreadCount);
 
-  useEffect(() => {
-    fetchNotices();
-    fetchUnreadCount();
-  }, [fetchNotices, fetchUnreadCount]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotices();
+      fetchUnreadCount();
+    }, [fetchNotices, fetchUnreadCount])
+  );
 
   const sortedNotices = useMemo(
     () => [...notices].sort((a, b) => Number(b.pinned) - Number(a.pinned)),

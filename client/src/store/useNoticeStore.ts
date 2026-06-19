@@ -10,6 +10,8 @@ interface NoticeState {
   fetchUnreadCount: () => Promise<void>;
   markRead: (id: number) => Promise<void>;
   createNotice: (body: NoticeCreateRequest) => Promise<Notice>;
+  updateNotice: (id: number, body: NoticeCreateRequest) => Promise<Notice>;
+  deleteNotice: (id: number) => Promise<void>;
 }
 
 export const useNoticeStore = create<NoticeState>((set) => ({
@@ -51,5 +53,21 @@ export const useNoticeStore = create<NoticeState>((set) => ({
     const created = await noticeApi.createNotice(body);
     set((state) => ({ notices: [created, ...state.notices] }));
     return created;
+  },
+
+  updateNotice: async (id, body) => {
+    const updated = await noticeApi.updateNotice(id, body);
+    set((state) => ({
+      notices: state.notices.map((n) => (n.id === id ? updated : n)),
+    }));
+    return updated;
+  },
+
+  deleteNotice: async (id) => {
+    await noticeApi.deleteNotice(id);
+    set((state) => ({
+      notices: state.notices.filter((n) => n.id !== id),
+      unreadCount: Math.max(0, state.unreadCount - 1),
+    }));
   },
 }));

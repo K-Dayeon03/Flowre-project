@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, Radius, Shadow } from '../../constants/theme';
 import { MainStackParamList } from '../../navigation/types';
@@ -58,9 +58,11 @@ export default function ScheduleListScreen() {
   const schedules = useScheduleStore((s) => s.schedules);
   const fetchSchedules = useScheduleStore((s) => s.fetchSchedules);
 
-  useEffect(() => {
-    fetchSchedules();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchSchedules();
+    }, [fetchSchedules])
+  );
 
   const markedDates: MarkedDate[] = Object.entries(
     schedules.reduce<Record<string, string>>((acc, s) => {
