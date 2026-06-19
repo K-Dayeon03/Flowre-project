@@ -1,14 +1,27 @@
 import { create } from 'zustand';
 import { CategoryCount, inventoryApi, InventoryItem, InventoryLabel, InventoryLoadResult } from '../api/inventoryApi';
 
+interface SearchParams {
+  query?: string;
+  archived?: boolean;
+  labelName?: string;
+  category?: string;
+}
+
 interface InventoryState {
   items: InventoryItem[];
   labels: InventoryLabel[];
   categoryCounts: CategoryCount[];
   loading: boolean;
+  loadingMore: boolean;
   error: string | null;
+  totalCount: number;
+  hasNext: boolean;
+  currentPage: number;
+  lastParams: SearchParams;
 
-  fetchItems: (params?: { query?: string; archived?: boolean; labelName?: string; category?: string }) => Promise<void>;
+  fetchItems: (params?: SearchParams) => Promise<void>;
+  fetchMoreItems: () => Promise<void>;
   fetchCategoryCounts: (params?: { archived?: boolean }) => Promise<void>;
   fetchLabels: () => Promise<void>;
   archiveItem: (
@@ -27,18 +40,44 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   labels: [{ id: 1, name: '추후 필요 재고' }],
   categoryCounts: [],
   loading: false,
+  loadingMore: false,
   error: null,
+  totalCount: 0,
+  hasNext: false,
+  currentPage: 0,
+  lastParams: {},
 
-  /** 점별 재고 현황을 서버에서 조회해 목록을 갱신합니다. */
-  fetchItems: async (params) => {
-    set({ loading: true, error: null });
+  /** 첫 페이지 재고 현황을 서버에서 조회해 목록을 갱신합니다. */
+  fetchItems: async (params = {}) => {
+    set({ loading: true, error: null, currentPage: 0, lastParams: params });
     try {
-      const items = await inventoryApi.search(params);
-      set({ items });
+      const page = await inventoryApi.search({ ...params, page: 0 });
+      set({ items: page.items, totalCount: page.totalCount, hasNext: page.hasNext, currentPage: 0 });
     } catch (e: any) {
       set({ error: e.message ?? '재고를 불러오지 못했습니다.' });
     } finally {
       set({ loading: false });
+    }
+  },
+
+  /** 다음 페이지를 이어 붙입니다 (무한 스크롤). */
+  fetchMoreItems: async () => {
+    const { hasNext, loadingMore, loading, currentPage, lastParams } = get();
+    if (!hasNext || loadingMore || loading) return;
+    const nextPage = currentPage + 1;
+    set({ loadingMore: true });
+    try {
+      const page = await inventoryApi.search({ ...lastParams, page: nextPage });
+      set((state) => ({
+        items: [...state.items, ...page.items],
+        totalCount: page.totalCount,
+        hasNext: page.hasNext,
+        currentPage: nextPage,
+      }));
+    } catch (e: any) {
+      set({ error: e.message ?? '추가 재고를 불러오지 못했습니다.' });
+    } finally {
+      set({ loadingMore: false });
     }
   },
 
@@ -52,7 +91,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
-  /** 아카이브 라벨 목록을 조회합니다. */
+  /** 보관 라벨 목록을 조회합니다. */
   fetchLabels: async () => {
     try {
       const labels = await inventoryApi.getLabels();
@@ -63,7 +102,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   },
 
   /**
-   * 입력 수량만큼 실시간 재고에서 차감하고 그 수량을 아카이브로 이동합니다.
+   * 입력 수량만큼 실시간 재고에서 차감하고 보관함으로 이동합니다.
    * 서버는 수량이 차감된 원본 항목을 반환하므로, 목록의 원본을 교체합니다.
    */
   archiveItem: async (id, data) => {
@@ -71,14 +110,22 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     set((state) => ({
       items: state.items.map((item) => (item.id === updatedSource.id ? updatedSource : item)),
     }));
-    // 새 라벨이 생성됐을 수 있으므로 라벨 목록을 갱신한다.
     await get().fetchLabels();
   },
 
-  /** 아카이브 항목을 실시간 재고로 되돌립니다. */
+  /**
+   * 보관함 항목을 해제합니다. 서버에서 원본 실시간 재고에 수량을 복원합니다.
+   * 보관 항목은 목록에서 제거하고, 실시간 재고 탭에서는 원본 항목의 수량이 증가합니다.
+   */
   unarchiveItem: async (id) => {
-    await inventoryApi.unarchive(id);
-    set((state) => ({ items: state.items.filter((item) => item.id !== id) }));
+    const restoredSource = await inventoryApi.unarchive(id);
+    set((state) => ({
+      // 보관 항목 제거
+      items: state.items
+        .filter((item) => item.id !== id)
+        // 원본 항목이 목록에 있으면 복원된 수량으로 교체
+        .map((item) => (item.id === restoredSource.id ? restoredSource : item)),
+    }));
   },
 
   /** 본사 사용분을 차감하고 서버가 반환한 항목으로 교체합니다. */
@@ -106,9 +153,8 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   },
 
   /**
-   * 사용자가 선택한 당일 점별 재고 xlsx 파일을 서버에 업로드해 전체 교체로 반영한 뒤,
-   * 목록·라벨을 새로고침하고 반영 통계를 반환합니다. 직원·점장은 본인 매장 행만,
-   * 본사·관리자는 파일 내 전 매장이 반영됩니다(서버 스코프 처리).
+   * 사용자가 선택한 당일 점별 재고 xlsx 파일을 서버에 업로드해 반영한 뒤 목록을 새로고침합니다.
+   * 직원·점장은 본인 매장 행만, 본사·관리자는 파일 내 전 매장이 반영됩니다.
    */
   uploadDailyFile: async (file) => {
     set({ loading: true, error: null });
@@ -125,7 +171,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
-  /** 서버에 data 폴더 재고 재적재를 요청한 뒤 목록·라벨을 새로고침합니다. */
+  /** 서버의 data 폴더 재고를 재적재합니다 (본사·관리자 전용). */
   reloadFromExcel: async () => {
     set({ loading: true, error: null });
     try {

@@ -1,4 +1,4 @@
-import { inventoryApi, InventoryItem } from '../../api/inventoryApi';
+import { inventoryApi, InventoryItem, InventoryPage } from '../../api/inventoryApi';
 import { useInventoryStore } from '../useInventoryStore';
 
 jest.mock('../../api/inventoryApi', () => ({
@@ -35,6 +35,13 @@ const fakeInventory = (overrides?: Partial<InventoryItem>): InventoryItem => ({
   ...overrides,
 });
 
+const fakePage = (items: InventoryItem[]): InventoryPage => ({
+  items,
+  totalCount: items.length,
+  totalPages: 1,
+  hasNext: false,
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
   useInventoryStore.setState({
@@ -42,27 +49,32 @@ beforeEach(() => {
     labels: [{ id: 1, name: '추후 필요 재고' }],
     categoryCounts: [],
     loading: false,
+    loadingMore: false,
     error: null,
+    totalCount: 0,
+    hasNext: false,
+    currentPage: 0,
+    lastParams: {},
   });
 });
 
 describe('fetchItems()', () => {
   it('검색 결과로 items를 갱신한다', async () => {
     const list = [fakeInventory()];
-    mockedApi.search.mockResolvedValue(list);
+    mockedApi.search.mockResolvedValue(fakePage(list));
 
     await useInventoryStore.getState().fetchItems({ query: '다운필', archived: false });
 
-    expect(mockedApi.search).toHaveBeenCalledWith({ query: '다운필', archived: false });
+    expect(mockedApi.search).toHaveBeenCalledWith({ query: '다운필', archived: false, page: 0 });
     expect(useInventoryStore.getState().items).toEqual(list);
   });
 
   it('카테고리 필터를 그대로 API에 전달한다', async () => {
-    mockedApi.search.mockResolvedValue([]);
+    mockedApi.search.mockResolvedValue(fakePage([]));
 
     await useInventoryStore.getState().fetchItems({ archived: false, category: 'OUTER' });
 
-    expect(mockedApi.search).toHaveBeenCalledWith({ archived: false, category: 'OUTER' });
+    expect(mockedApi.search).toHaveBeenCalledWith({ archived: false, category: 'OUTER', page: 0 });
   });
 });
 
@@ -118,13 +130,13 @@ describe('uploadDailyFile()', () => {
     };
     const refreshed = [fakeInventory()];
     mockedApi.uploadDaily.mockResolvedValue(loadResult);
-    mockedApi.search.mockResolvedValue(refreshed);
+    mockedApi.search.mockResolvedValue(fakePage(refreshed));
     mockedApi.getLabels.mockResolvedValue([{ id: 1, name: '추후 필요 재고' }]);
 
     const result = await useInventoryStore.getState().uploadDailyFile(file);
 
     expect(mockedApi.uploadDaily).toHaveBeenCalledWith(file);
-    expect(mockedApi.search).toHaveBeenCalledWith({ archived: false });
+    expect(mockedApi.search).toHaveBeenCalledWith({ archived: false, page: 0 });
     expect(mockedApi.getLabels).toHaveBeenCalled();
     expect(result).toEqual(loadResult);
     expect(useInventoryStore.getState().items).toEqual(refreshed);

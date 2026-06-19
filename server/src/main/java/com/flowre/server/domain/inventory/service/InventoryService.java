@@ -11,10 +11,12 @@ import com.flowre.server.domain.inventory.repository.InventoryItemRepository;
 import com.flowre.server.domain.inventory.repository.InventoryLabelRepository;
 import com.flowre.server.domain.inventory.repository.InventoryTransactionRepository;
 import com.flowre.server.domain.user.entity.User;
-import com.flowre.server.domain.user.entity.UserRole;
 import com.flowre.server.global.exception.CustomException;
 import com.flowre.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -36,20 +38,29 @@ public class InventoryService {
     private final InventoryExcelLoader inventoryExcelLoader;
     private final AuditLogService auditLogService;
 
-    /** 재고 목록을 브랜드 단위로 격리해 검색합니다. */
+    /**
+     * 재고 목록을 브랜드 단위로 격리해 페이지 단위로 검색합니다.
+     * 한 페이지에 최대 30건, 최신 수정 순으로 정렬합니다.
+     */
     @Transactional(readOnly = true)
-    public List<InventoryResponse> search(User user, Long storeId, String query, Boolean archived,
-                                          String labelName, String category) {
+    public InventoryPageResponse search(User user, Long storeId, String query, Boolean archived,
+                                        String labelName, String category, int page) {
         Long effectiveStoreId = canViewAllStores(user) ? storeId : user.getStoreId();
         String normalizedQuery = normalizeNullable(query);
         String normalizedLabel = normalizeNullable(labelName);
         ProductCategory parsedCategory = parseCategory(category);
+        PageRequest pageRequest = PageRequest.of(page, 30, Sort.by(Sort.Direction.DESC, "updatedAt", "id"));
 
-        return inventoryItemRepository
-                .search(user.getBrandId(), effectiveStoreId, normalizedQuery, archived, normalizedLabel, parsedCategory)
-                .stream()
-                .map(InventoryResponse::from)
-                .toList();
+        Page<InventoryItem> result = inventoryItemRepository.search(
+                user.getBrandId(), effectiveStoreId, normalizedQuery, archived, normalizedLabel,
+                parsedCategory, pageRequest);
+
+        return InventoryPageResponse.of(
+                result.map(InventoryResponse::from).getContent(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.hasNext()
+        );
     }
 
     /**
@@ -152,13 +163,41 @@ public class InventoryService {
         return InventoryResponse.from(source);
     }
 
-    /** 재고 항목을 아카이브에서 해제합니다. */
+    /**
+     * 보관함 항목을 해제합니다.
+     *
+     * 보관 시 차감했던 수량을 원본 실시간 재고 항목에 복원한 뒤 보관 항목을 삭제합니다.
+     * 원본 항목(sourceItemId)이 존재하면 수량을 복원하고, 존재하지 않으면 보관 항목 자체를
+     * 실시간 재고로 전환합니다.
+     */
     @Transactional
     public InventoryResponse unarchive(User user, Long id) {
-        InventoryItem item = getItem(user, id);
-        assertStoreVisible(user, item);
-        item.unarchive();
-        return InventoryResponse.from(item);
+        InventoryItem archived = getItem(user, id);
+        assertStoreVisible(user, archived);
+
+        if (!archived.isArchived()) {
+            throw new CustomException(ErrorCode.INVENTORY_NOT_FOUND);
+        }
+
+        // 원본 항목이 있으면 차감했던 수량을 복원한다.
+        if (archived.getSourceItemId() != null) {
+            return inventoryItemRepository
+                    .findByIdAndBrandId(archived.getSourceItemId(), user.getBrandId())
+                    .map(source -> {
+                        source.adjust(archived.getQuantity());
+                        inventoryItemRepository.delete(archived);
+                        return InventoryResponse.from(source);
+                    })
+                    .orElseGet(() -> {
+                        // 원본이 이미 삭제된 경우 보관 항목을 실시간 재고로 전환한다.
+                        archived.unarchive();
+                        return InventoryResponse.from(archived);
+                    });
+        }
+
+        // sourceItemId가 없는 레거시 항목은 기존 방식대로 flag만 제거한다.
+        archived.unarchive();
+        return InventoryResponse.from(archived);
     }
 
     /** 본사 사용 재고를 차감하고 이력을 남깁니다. */

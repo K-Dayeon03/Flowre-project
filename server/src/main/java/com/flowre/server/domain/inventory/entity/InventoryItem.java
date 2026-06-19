@@ -78,6 +78,9 @@ public class InventoryItem {
     @Column(nullable = false)
     private boolean archived = false;
 
+    /** 보관 항목일 때 수량을 차감한 원본 실시간 재고 아이템 ID. 보관 해제 시 이 항목에 수량을 복원한다. */
+    private Long sourceItemId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "archive_label_id")
     private InventoryLabel archiveLabel;
@@ -86,6 +89,7 @@ public class InventoryItem {
 
     private String archivedBy;
 
+    /** 보관 목적(용도)명 — 예: "VM 스테이징", "VIP 예약", "이월 재고" */
     private String archiveItemName;
 
     private String archiveItemCode;
@@ -132,6 +136,7 @@ public class InventoryItem {
                 .retailPrice(source.retailPrice)
                 .quantity(archiveQuantity)
                 .archived(true)
+                .sourceItemId(source.getId())
                 .archiveLabel(label)
                 .archiveItemName(archiveItemName)
                 .archiveItemCode(archiveItemCode)

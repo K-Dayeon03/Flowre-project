@@ -22,13 +22,24 @@ export interface InventoryItem {
   retailPrice?: number;
   quantity: number;
   archived: boolean;
+  /** 보관 항목의 원본 실시간 재고 아이템 ID — 보관 해제 시 이 항목 수량 복원에 사용 */
+  sourceItemId?: number;
   archiveLabelName?: string;
+  /** 보관 목적/용도명 (예: "VM 스테이징") */
   archiveItemName?: string;
   archiveItemCode?: string;
   archiveQuantity?: number;
   archivedAt?: string;
   archivedBy?: string;
   updatedAt?: string;
+}
+
+/** 페이지네이션이 적용된 재고 목록 응답 */
+export interface InventoryPage {
+  items: InventoryItem[];
+  totalCount: number;
+  totalPages: number;
+  hasNext: boolean;
 }
 
 export interface InventoryLabel {
@@ -69,13 +80,17 @@ export interface InventoryLoadResult {
 }
 
 export const inventoryApi = {
+  /**
+   * 재고 목록을 페이지 단위로 검색한다. page=0부터 시작하며 한 페이지에 30건.
+   */
   search: async (params?: {
     query?: string;
     storeId?: number;
     archived?: boolean;
     labelName?: string;
     category?: string;
-  }): Promise<InventoryItem[]> => {
+    page?: number;
+  }): Promise<InventoryPage> => {
     const res = await apiClient.get('/api/inventories', { params });
     return unwrap(res);
   },

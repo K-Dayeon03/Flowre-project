@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+
 @RestController
 @RequestMapping("/api/inventories")
 @RequiredArgsConstructor
@@ -20,18 +21,19 @@ public class InventoryController {
 
     private final InventoryService inventoryService;
 
-    /** GET /api/inventories?query=&storeId=&archived=&labelName=&category= */
+    /** GET /api/inventories?query=&storeId=&archived=&labelName=&category=&page=0 */
     @GetMapping
-    public ResponseEntity<ApiResponse<List<InventoryResponse>>> search(
+    public ResponseEntity<ApiResponse<InventoryPageResponse>> search(
             @AuthenticationPrincipal User user,
             @RequestParam(required = false) Long storeId,
             @RequestParam(required = false) String query,
             @RequestParam(required = false) Boolean archived,
             @RequestParam(required = false) String labelName,
-            @RequestParam(required = false) String category
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "0") int page
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
-                inventoryService.search(user, storeId, query, archived, labelName, category)));
+                inventoryService.search(user, storeId, query, archived, labelName, category, page)));
     }
 
     /** GET /api/inventories/category-counts?storeId=&archived= — 카테고리별 재고 건수 */

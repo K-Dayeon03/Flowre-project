@@ -30,6 +30,7 @@ public class InventoryResponse {
     private Integer retailPrice;
     private Integer quantity;
     private boolean archived;
+    private Long sourceItemId;
     private String archiveLabelName;
     private String archiveItemName;
     private String archiveItemCode;
@@ -64,6 +65,7 @@ public class InventoryResponse {
                 .retailPrice(item.getRetailPrice())
                 .quantity(item.getQuantity())
                 .archived(item.isArchived())
+                .sourceItemId(item.getSourceItemId())
                 .archiveLabelName(item.getArchiveLabel() != null ? item.getArchiveLabel().getName() : null)
                 .archiveItemName(item.getArchiveItemName())
                 .archiveItemCode(item.getArchiveItemCode())
