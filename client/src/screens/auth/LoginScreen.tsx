@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -9,59 +9,41 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import * as Location from 'expo-location';
-import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
+import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../store/useAuthStore';
 import { getLoginRequiredError } from './loginValidation';
-import GradientButton from '../../components/GradientButton';
 import AppFooter from '../../components/AppFooter';
-import { NearbyStore, storeApi } from '../../api/storeApi';
+import BrandWordmark from '../../components/BrandWordmark';
 
-interface Coordinates {
-  latitude: number;
-  longitude: number;
-}
-
-/** 웹과 네이티브에서 현재 위치 좌표를 얻습니다. 실패 시 null을 반환합니다. */
-async function getCurrentCoordinates(): Promise<Coordinates | null> {
-  try {
-    if (Platform.OS === 'web') {
-      const geolocation = (globalThis.navigator as any)?.geolocation;
-      if (!geolocation) return null;
-      return await new Promise<Coordinates | null>((resolve) => {
-        geolocation.getCurrentPosition(
-          (position: { coords: Coordinates }) => resolve(position.coords),
-          () => resolve(null),
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 }
-        );
-      });
-    }
-
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (permission.status !== 'granted') return null;
-    const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    return {
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-    };
-  } catch {
-    return null;
-  }
-}
+const LoginColors = {
+  page: '#F1F3F4',
+  surface: 'rgba(255, 255, 255, 0.74)',
+  surfaceStrong: 'rgba(255, 255, 255, 0.9)',
+  surfaceSoft: 'rgba(247, 248, 248, 0.74)',
+  ink: '#2B3035',
+  muted: '#6B737C',
+  faint: '#8D949B',
+  line: 'rgba(188, 196, 203, 0.58)',
+  lineStrong: 'rgba(149, 158, 167, 0.42)',
+  gray: '#69717A',
+  button: '#3F464D',
+  buttonPressed: '#2F353B',
+  shadow: 'rgba(43, 48, 53, 0.12)',
+};
 
 export default function LoginScreen() {
+  const { width } = useWindowDimensions();
   const [storeCode, setStoreCode] = useState('');
   const [employeeCode, setEmployeeCode] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [locating, setLocating] = useState(false);
-  const [nearbyStores, setNearbyStores] = useState<NearbyStore[]>([]);
-  const [storeModalVisible, setStoreModalVisible] = useState(false);
   const [error, setError] = useState('');
 
   const login = useAuthStore((s) => s.login);
+  const isWide = width >= 860;
 
   const handleLogin = async () => {
     const validationError = getLoginRequiredError(storeCode, employeeCode, password);
@@ -82,254 +64,245 @@ export default function LoginScreen() {
     }
   };
 
-  const handleFindStore = async () => {
-    setLocating(true);
-    try {
-      const coords = await getCurrentCoordinates();
-      if (!coords) return;
-      const stores = await storeApi.getNearbyStores(coords.latitude, coords.longitude, 5);
-      if (stores.length === 1) {
-        setStoreCode(stores[0].storeCode);
-        return;
-      }
-      if (stores.length > 1) {
-        setNearbyStores(stores);
-        setStoreModalVisible(true);
-      }
-    } catch {
-      // 위치 기반 자동채움 실패는 수동 입력 흐름을 막지 않는다.
-    } finally {
-      setLocating(false);
-    }
-  };
-
-  const selectStore = (store: NearbyStore) => {
-    setStoreCode(store.storeCode);
-    setStoreModalVisible(false);
-  };
-
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <View style={styles.hero}>
-            <Text style={styles.heroLogo}>flowre</Text>
-            <Text style={styles.tagline}>일의 흐름을 하나로</Text>
-          </View>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={[styles.authShell, isWide && styles.authShellWide]}>
+            <View style={[styles.heroPanel, isWide && styles.heroPanelWide]}>
+              <View style={styles.wordmarkFrame}>
+                <BrandWordmark size="hero" />
+              </View>
+              <Text style={styles.tagline}>일의 흐름을 하나로</Text>
+              <Text style={styles.heroCopy}>입점 등록한 브랜드와 매장이 함께 쓰는 Flowre 업무 공간</Text>
+            </View>
 
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>직원 로그인</Text>
-            <Text style={styles.formSub}>점별 코드와 직원 계정으로 접속하세요.</Text>
+            <View style={[styles.formCard, isWide && styles.formCardWide]}>
+              <View style={styles.formHeader}>
+                <View>
+                  <Text style={styles.formTitle}>직원 로그인</Text>
+                  <Text style={styles.formSub}>입점 등록 후 발급받은 점별 코드와 직원 계정으로 접속하세요.</Text>
+                </View>
+                <View style={styles.formStatus}>
+                  <View style={styles.statusDot} />
+                  <Text style={styles.statusText}>secure</Text>
+                </View>
+              </View>
 
-            <View style={styles.inputWrapper}>
-              <Text style={styles.label}>점별 코드</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="예: 1001"
-                placeholderTextColor={Colors.textMuted}
-                value={storeCode}
-                onChangeText={setStoreCode}
-                keyboardType="number-pad"
-                maxLength={4}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity style={styles.locationButton} onPress={handleFindStore} disabled={locating} activeOpacity={0.82}>
-                <Text style={styles.locationButtonText}>{locating ? '매장 찾는 중...' : '📍 내 위치로 매장 찾기'}</Text>
+              <View style={styles.inputWrapper}>
+                <Text style={styles.label}>점별 코드</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="예: 1001"
+                  placeholderTextColor={LoginColors.faint}
+                  value={storeCode}
+                  onChangeText={setStoreCode}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.inputWrapper}>
+                <Text style={styles.label}>직원 아이디</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="예: 1001ABCD!"
+                  placeholderTextColor={LoginColors.faint}
+                  value={employeeCode}
+                  onChangeText={setEmployeeCode}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.inputWrapper}>
+                <Text style={styles.label}>비밀번호</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="비밀번호를 입력하세요"
+                  placeholderTextColor={LoginColors.faint}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  autoComplete="password"
+                />
+              </View>
+
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              <TouchableOpacity
+                activeOpacity={0.86}
+                style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color={Colors.surface} /> : <Text style={styles.loginButtonText}>로그인</Text>}
               </TouchableOpacity>
             </View>
-
-            <View style={styles.inputWrapper}>
-              <Text style={styles.label}>직원 아이디</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="예: 1001ABCD!"
-                placeholderTextColor={Colors.textMuted}
-                value={employeeCode}
-                onChangeText={setEmployeeCode}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            <View style={styles.inputWrapper}>
-              <Text style={styles.label}>비밀번호</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="비밀번호를 입력하세요"
-                placeholderTextColor={Colors.textMuted}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoComplete="password"
-              />
-            </View>
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <GradientButton title="로그인" onPress={handleLogin} loading={loading} disabled={loading} style={styles.loginButton} />
           </View>
 
           <AppFooter />
         </ScrollView>
       </KeyboardAvoidingView>
-
-      <Modal visible={storeModalVisible} transparent animationType="fade" onRequestClose={() => setStoreModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>가까운 매장 선택</Text>
-            {nearbyStores.map((store) => (
-              <TouchableOpacity key={store.storeCode} style={styles.storeOption} onPress={() => selectStore(store)}>
-                <View>
-                  <Text style={styles.storeName}>{store.storeName}</Text>
-                  <Text style={styles.storeDistance}>{store.storeCode} · 약 {Math.round(store.distanceMeters)}m</Text>
-                </View>
-                <Text style={styles.storeArrow}>›</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.modalClose} onPress={() => setStoreModalVisible(false)}>
-              <Text style={styles.modalCloseText}>닫기</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1, backgroundColor: LoginColors.page },
   flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xl,
     paddingBottom: Spacing.lg,
   },
-  hero: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xxl + Spacing.xl,
-    paddingBottom: Spacing.xl,
-    alignItems: 'center',
-  },
-  heroLogo: {
-    fontSize: 40,
-    fontWeight: '900',
-    color: Colors.textPrimary,
-    letterSpacing: -1,
-  },
-  tagline: {
-    marginTop: Spacing.xs,
-    color: Colors.textMuted,
-    fontSize: FontSize.sm,
-    fontWeight: '500',
-  },
-  formCard: {
-    margin: Spacing.md,
+  authShell: {
+    width: '100%',
+    maxWidth: 1100,
+    alignSelf: 'center',
     gap: Spacing.md,
-    backgroundColor: Colors.surface,
+  },
+  authShellWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  heroPanel: {
+    minHeight: 260,
+    justifyContent: 'center',
+    backgroundColor: LoginColors.surface,
     borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: LoginColors.line,
+    padding: Spacing.xl,
+    shadowColor: LoginColors.shadow,
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.18,
+    shadowRadius: 32,
+    elevation: 2,
+  },
+  heroPanelWide: {
+    flex: 1.05,
+    minHeight: 520,
+  },
+  wordmarkFrame: {
+    alignSelf: 'flex-start',
+    paddingBottom: Spacing.xs,
+  },
+  heroCopy: {
+    maxWidth: 360,
+    marginTop: Spacing.md,
+    color: LoginColors.muted,
+    fontSize: FontSize.md,
+    lineHeight: 22,
+    fontWeight: '600',
+  },
+  tagline: {
+    marginTop: Spacing.sm,
+    color: LoginColors.ink,
+    fontSize: FontSize.xl,
+    fontWeight: '900',
+  },
+  formCard: {
+    gap: Spacing.md,
+    backgroundColor: LoginColors.surfaceStrong,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: LoginColors.line,
     padding: Spacing.lg,
-    maxWidth: 520,
-    alignSelf: 'center',
-    width: '92%',
-    ...Shadow.raised,
+    shadowColor: LoginColors.shadow,
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.2,
+    shadowRadius: 30,
+    elevation: 2,
+  },
+  formCardWide: {
+    flex: 0.78,
+    justifyContent: 'center',
+    minWidth: 360,
+  },
+  formHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
   },
   formTitle: {
     fontSize: FontSize.xl,
     fontWeight: '900',
-    color: Colors.textPrimary,
+    color: LoginColors.ink,
   },
   formSub: {
     marginTop: -Spacing.sm,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: LoginColors.muted,
+  },
+  formStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: LoginColors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: LoginColors.line,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: Radius.full,
+    backgroundColor: LoginColors.button,
+  },
+  statusText: {
+    color: LoginColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
   },
   inputWrapper: { gap: Spacing.xs },
   label: {
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-    fontWeight: '700',
+    color: LoginColors.muted,
+    fontWeight: '800',
   },
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: LoginColors.surfaceSoft,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: LoginColors.line,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     fontSize: FontSize.md,
-    color: Colors.textPrimary,
-  },
-  locationButton: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radius.md,
-    backgroundColor: `${Colors.primary}12`,
-    borderWidth: 1,
-    borderColor: `${Colors.primary}22`,
-  },
-  locationButtonText: {
-    color: Colors.primaryDark,
-    fontSize: FontSize.sm,
-    fontWeight: '800',
+    color: LoginColors.ink,
   },
   errorText: {
     fontSize: FontSize.xs,
     color: Colors.error,
     textAlign: 'center',
   },
-  loginButton: { marginTop: Spacing.xs },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(30, 27, 46, 0.36)',
+  loginButton: {
+    minHeight: 52,
+    marginTop: Spacing.xs,
+    borderRadius: Radius.md,
+    backgroundColor: LoginColors.button,
+    alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.lg,
+    shadowColor: LoginColors.shadow,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
+    elevation: 2,
   },
-  modalCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    ...Shadow.raised,
+  loginButtonDisabled: {
+    backgroundColor: LoginColors.buttonPressed,
+    opacity: 0.68,
   },
-  modalTitle: {
-    fontSize: FontSize.lg,
+  loginButtonText: {
+    color: Colors.surface,
+    fontSize: FontSize.md,
     fontWeight: '900',
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  storeOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  storeName: {
-    fontSize: FontSize.md,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  storeDistance: {
-    marginTop: 2,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
-  storeArrow: {
-    fontSize: FontSize.xxl,
-    color: Colors.accent,
-    fontWeight: '800',
-  },
-  modalClose: {
-    marginTop: Spacing.md,
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-  },
-  modalCloseText: {
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    fontWeight: '800',
   },
 });

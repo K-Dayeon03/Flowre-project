@@ -30,7 +30,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Flowre API")
-                        .description("신세계까사 JAJU 매장 직원 통합 업무 관리 앱 백엔드 API")
+                        .description("입점 브랜드 매장 직원을 위한 통합 업무 관리 앱 백엔드 API")
                         .version("v1"))
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
                 .components(new Components().addSecuritySchemes(BEARER_SCHEME, bearerScheme));

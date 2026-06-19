@@ -13,6 +13,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useStoreContextStore } from '../store/useStoreContextStore';
 import { Store, storeApi } from '../api/storeApi';
 import Avatar from './Avatar';
+import BrandWordmark from './BrandWordmark';
 import { canManageStores } from '../screens/home/homePermissions';
 
 const TABS: { label: string; route: string; group: string[] }[] = [
@@ -54,7 +55,15 @@ export default function AppHeader({ currentRoute }: Props) {
     <>
       <View style={styles.bar}>
         {/* 로고 */}
-        <Text style={styles.logo}>flowre</Text>
+        <TouchableOpacity
+          style={styles.logoButton}
+          onPress={() => navigation.navigate('Home')}
+          activeOpacity={0.78}
+          accessibilityRole="button"
+          accessibilityLabel="홈으로 이동"
+        >
+          <BrandWordmark size="header" light />
+        </TouchableOpacity>
 
         {/* 상단 탭 메뉴 */}
         <ScrollView
@@ -144,12 +153,11 @@ const styles = StyleSheet.create({
     height: 52,
     gap: Spacing.sm,
   },
-  logo: {
-    fontSize: FontSize.lg,
-    fontWeight: '900',
-    color: Colors.surface,
-    letterSpacing: -0.5,
-    minWidth: 58,
+  logoButton: {
+    minWidth: 76,
+    minHeight: 52,
+    justifyContent: 'center',
+    paddingRight: Spacing.sm,
   },
   tabScroll: {
     flex: 1,

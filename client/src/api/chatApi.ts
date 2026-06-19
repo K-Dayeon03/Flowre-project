@@ -3,6 +3,13 @@ import { apiClient, unwrap } from './client';
 export type RoomType = 'GROUP' | 'DIRECT';
 export type MessageType = 'TEXT' | 'IMAGE' | 'FILE';
 
+export interface StoreMember {
+  id: number;
+  name: string;
+  employeeCode: string;
+  role: string;
+}
+
 export interface ChatRoom {
   id: number;
   name: string;
@@ -64,5 +71,11 @@ export const chatApi = {
 
   markRead: async (roomId: number): Promise<void> => {
     await apiClient.post(`/api/chat/rooms/${roomId}/read`);
+  },
+
+  /** 같은 매장 활성 직원 목록 (채팅 대상 선택용) */
+  getStoreMembers: async (): Promise<StoreMember[]> => {
+    const res = await apiClient.get('/api/employees/store-members');
+    return unwrap(res);
   },
 };

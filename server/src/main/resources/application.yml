@@ -54,6 +54,8 @@ cors:
   allowed-origins: "http://localhost:8081,http://localhost:19006,http://localhost:3000"
 
 flowre:
+  kakao:
+    rest-api-key: ${KAKAO_REST_API_KEY:}
   inventory:
     data-dir: ../data
     auto-load: true
@@ -63,9 +65,9 @@ flowre:
     enabled: ${FLOWRE_ADMIN_ENABLED:true}
     brand-id: ${FLOWRE_ADMIN_BRAND_ID:1}
     store-code: ${FLOWRE_ADMIN_STORE_CODE:0000}
-    store-name: ${FLOWRE_ADMIN_STORE_NAME:JAJU 본사}
+    store-name: ${FLOWRE_ADMIN_STORE_NAME:Flowre 운영 본부}
     employee-code: ${FLOWRE_ADMIN_EMPLOYEE_CODE:0000ADMN!}
-    email: ${FLOWRE_ADMIN_EMAIL:admin@jaju.com}
+    email: ${FLOWRE_ADMIN_EMAIL:admin@flowre.local}
     name: ${FLOWRE_ADMIN_NAME:시스템 관리자}
     password: ${FLOWRE_ADMIN_PASSWORD:flowre-admin-1234!}
 

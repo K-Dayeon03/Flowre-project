@@ -28,6 +28,9 @@ public enum ErrorCode {
     // Store
     STORE_NOT_FOUND(HttpStatus.NOT_FOUND, "STORE_001", "매장을 찾을 수 없습니다."),
     STORE_ALREADY_EXISTS(HttpStatus.CONFLICT, "STORE_002", "이미 등록된 점별 코드입니다."),
+    STORE_CODE_EXHAUSTED(HttpStatus.CONFLICT, "STORE_003", "발급 가능한 점별 코드가 없습니다."),
+    KAKAO_API_KEY_MISSING(HttpStatus.SERVICE_UNAVAILABLE, "STORE_004", "카카오 주소 검색 API 키가 설정되지 않았습니다."),
+    KAKAO_ADDRESS_SEARCH_FAILED(HttpStatus.BAD_GATEWAY, "STORE_005", "카카오 주소 검색에 실패했습니다. REST API 키와 서버 네트워크를 확인해주세요."),
 
     // Notice
     NOTICE_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTICE_001", "공지를 찾을 수 없습니다."),

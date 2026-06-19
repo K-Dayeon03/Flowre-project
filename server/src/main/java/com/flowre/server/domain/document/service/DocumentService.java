@@ -105,12 +105,15 @@ public class DocumentService {
     }
 
     /**
-     * 문서 수정
+     * 문서 수정 — 업로더 본인 또는 본사(HQ_STAFF·ADMIN)만 가능
      */
     @Transactional
     public DocumentResponse update(User user, Long id, DocumentUpdateRequest request) {
         Document doc = documentRepository.findByIdAndBrandId(id, user.getBrandId())
                 .orElseThrow(() -> new CustomException(ErrorCode.DOCUMENT_NOT_FOUND));
+        if (!user.getRole().canModifyAnyDocument() && !doc.getUploaderId().equals(user.getId())) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
         doc.update(
                 request.getTitle(),
                 request.getCategory(),
@@ -125,12 +128,15 @@ public class DocumentService {
     }
 
     /**
-     * 문서 삭제
+     * 문서 삭제 — 업로더 본인 또는 본사(HQ_STAFF·ADMIN)만 가능
      */
     @Transactional
     public void delete(User user, Long id) {
         Document doc = documentRepository.findByIdAndBrandId(id, user.getBrandId())
                 .orElseThrow(() -> new CustomException(ErrorCode.DOCUMENT_NOT_FOUND));
+        if (!user.getRole().canModifyAnyDocument() && !doc.getUploaderId().equals(user.getId())) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
         documentRepository.delete(doc);
         log.info("[Document] deleted id={} brandId={} uploaderId={}", id, user.getBrandId(), user.getId());
     }

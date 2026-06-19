@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo } from 'react';
 import {
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
+import { FontSize, Radius, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { useChatStore } from '../../store/useChatStore';
@@ -18,7 +19,6 @@ import { canApproveEmployees, canCreateNotices, canManageStores, canRegisterEmpl
 import Badge from '../../components/Badge';
 import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
-import MetricCard from '../../components/MetricCard';
 import SectionHeader from '../../components/SectionHeader';
 import { useResponsive } from '../../hooks/useResponsive';
 import { Favorite } from '../../api/favoriteApi';
@@ -50,6 +50,21 @@ const MENU_LABEL: Record<string, string> = {
   EMPLOYEE_MANAGE: '직원 등록',
   EMPLOYEE_APPROVAL: '직원 승인',
   NOTICE: '공지',
+};
+
+const DashboardColors = {
+  page: '#F1F3F4',
+  surface: 'rgba(255, 255, 255, 0.68)',
+  surfaceSoft: 'rgba(247, 248, 248, 0.72)',
+  ink: '#2D3135',
+  muted: '#6E747B',
+  faint: '#90979F',
+  line: 'rgba(196, 202, 207, 0.58)',
+  lineStrong: 'rgba(168, 176, 183, 0.5)',
+  gray: '#6B737C',
+  grayDark: '#42484F',
+  graySoft: 'rgba(226, 230, 233, 0.76)',
+  shadow: 'rgba(45, 49, 53, 0.12)',
 };
 
 export default function HomeScreen() {
@@ -89,6 +104,8 @@ export default function HomeScreen() {
   const canShowEmployeeApproval = canApproveEmployees(user?.role);
   const pendingCount = schedules.filter((s) => s.status === 'PENDING').length;
   const doneCount = schedules.filter((s) => s.status === 'DONE').length;
+  const scheduleTotal = pendingCount + inProgressCount + doneCount;
+  const completionRate = scheduleTotal > 0 ? Math.round((doneCount / scheduleTotal) * 100) : 0;
 
   const navigateFavorite = (favorite: Favorite) => {
     if (favorite.targetType === 'MENU') {
@@ -114,34 +131,40 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.workspace}>
-        {/* 대시보드 헤더 */}
-        <View style={styles.topBar}>
-          <View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.workspace}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.topBar, responsive.isMobile && styles.topBarMobile]}>
+          <View style={styles.topCopy}>
             <Text style={styles.topKicker}>{getTodayLabel()}</Text>
-            <Text style={styles.topTitle}>{user?.name ?? '직원'}님, 오늘의 업무 현황</Text>
-            <Text style={styles.topSubtitle}>{displayStoreName}</Text>
+            <Text style={styles.topTitle}>매장 통합관리 대시보드</Text>
+            <Text style={styles.topSubtitle}>
+              {displayStoreName} · {user?.name ?? '직원'}님 업무 현황
+            </Text>
+          </View>
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>실시간 운영</Text>
           </View>
         </View>
 
-        {/* KPI 요약 카드 */}
         <View style={styles.summaryRow}>
-          <MetricCard label="오늘 스케줄" value={String(todaySchedules.length)} sub={inProgressCount > 0 ? `진행 중 ${inProgressCount}` : '진행 없음'} color={Colors.primary} />
-          <MetricCard label="안읽은 채팅" value={String(totalUnread)} sub="메시지" color={Colors.success} />
-          <MetricCard label="안읽은 공지" value={String(unreadNoticeCount)} sub="새 공지" color={Colors.info} />
-          <MetricCard label="완료 스케줄" value={String(doneCount)} sub={pendingCount > 0 ? `대기 ${pendingCount}` : '대기 없음'} color={Colors.warning} />
+          <DashboardMetric label="오늘 스케줄" value={String(todaySchedules.length)} sub={inProgressCount > 0 ? `진행 중 ${inProgressCount}` : '진행 없음'} />
+          <DashboardMetric label="완료율" value={`${completionRate}%`} sub={scheduleTotal > 0 ? `${doneCount}/${scheduleTotal} 완료` : '업무 없음'} />
+          <DashboardMetric label="안읽은 채팅" value={String(totalUnread)} sub="메시지" />
+          <DashboardMetric label="안읽은 공지" value={String(unreadNoticeCount)} sub="새 공지" />
         </View>
 
-        {/* 대시보드 콘텐츠 그리드 */}
         <View style={[styles.dashboardGrid, responsive.isWide && styles.dashboardGridWide]}>
-          {/* 좌/메인 컬럼 */}
           <View style={[styles.dashboardMain, responsive.isWide && styles.dashboardMainWide]}>
             <View style={styles.panel}>
-              <SectionHeader title="스케줄 현황" onAction={() => navigation.navigate('ScheduleList')} />
+              <SectionHeader title="업무 상태" onAction={() => navigation.navigate('ScheduleList')} />
               <View style={styles.statusStrip}>
-                <StatusTile label="대기" value={pendingCount} color={Colors.warning} />
-                <StatusTile label="진행 중" value={inProgressCount} color={Colors.primary} />
-                <StatusTile label="완료" value={doneCount} color={Colors.success} />
+                <StatusTile label="대기" value={pendingCount} />
+                <StatusTile label="진행 중" value={inProgressCount} />
+                <StatusTile label="완료" value={doneCount} />
               </View>
             </View>
 
@@ -158,12 +181,12 @@ export default function HomeScreen() {
                     style={styles.scheduleCard}
                     onPress={() => navigation.navigate('ScheduleDetail', { scheduleId: s.id })}
                   >
-                    <View style={[styles.typeBar, { backgroundColor: Colors.scheduleType[s.type] }]} />
+                    <View style={styles.typeBar} />
                     <View style={styles.scheduleInfo}>
                       <Text style={styles.scheduleTitle}>{s.title}</Text>
                       <Text style={styles.scheduleDue}>{s.dueDate.split('T')[0]}</Text>
                     </View>
-                    <Badge label={STATUS_LABEL[s.status]} color={Colors.statusBadge[s.status]} />
+                    <Badge label={STATUS_LABEL[s.status]} color={DashboardColors.gray} />
                   </TouchableOpacity>
                 ))
               )}
@@ -182,16 +205,17 @@ export default function HomeScreen() {
                     style={styles.chatRow}
                     onPress={() => navigation.navigate('ChatRoom', { roomId: r.id, roomName: r.name, roomType: r.type })}
                   >
-                    <Text style={styles.chatIcon}>{r.type === 'GROUP' ? '👥' : '💬'}</Text>
+                    <View style={styles.chatIcon}>
+                      <Text style={styles.chatIconText}>{r.type === 'GROUP' ? 'G' : '1:1'}</Text>
+                    </View>
                     <Text style={styles.chatTitle} numberOfLines={1}>{r.name}</Text>
-                    {r.unread > 0 ? <Badge label={r.unread} color={Colors.error} subtle={false} /> : null}
+                    {r.unread > 0 ? <Badge label={r.unread} color={DashboardColors.grayDark} subtle={false} /> : null}
                   </TouchableOpacity>
                 ))
               )}
             </View>
           </View>
 
-          {/* 우/사이드 컬럼 */}
           <View style={[styles.dashboardSide, responsive.isWide && styles.dashboardSideWide]}>
             <TouchableOpacity
               activeOpacity={0.88}
@@ -200,8 +224,8 @@ export default function HomeScreen() {
             >
               <Card style={styles.noticeBanner}>
                 <View style={styles.noticeBannerTop}>
-                  <Text style={styles.noticeEyebrow}>공지</Text>
-                  {unreadNoticeCount > 0 ? <Badge label={unreadNoticeCount} color={Colors.error} subtle={false} /> : null}
+                  <Text style={styles.noticeEyebrow}>공지 브리핑</Text>
+                  {unreadNoticeCount > 0 ? <Badge label={unreadNoticeCount} color={DashboardColors.grayDark} subtle={false} /> : null}
                 </View>
                 {headlineNotice ? (
                   <>
@@ -227,7 +251,7 @@ export default function HomeScreen() {
                 ) : (
                   favorites.slice(0, 4).map((favorite) => (
                     <TouchableOpacity key={favorite.id} style={styles.favoriteChip} onPress={() => navigateFavorite(favorite)} activeOpacity={0.84}>
-                      <Text style={styles.favoriteIcon}>⭐</Text>
+                      <View style={styles.favoriteMark} />
                       <Text style={styles.favoriteLabel} numberOfLines={1}>
                         {favorite.label ?? (favorite.targetKey ? MENU_LABEL[favorite.targetKey] : '즐겨찾기')}
                       </Text>
@@ -250,8 +274,25 @@ export default function HomeScreen() {
             )}
           </View>
         </View>
-      </View>
+        <HomeFooterBar
+          storeName={displayStoreName}
+          scheduleCount={todaySchedules.length}
+          unreadCount={totalUnread + unreadNoticeCount}
+          isCompact={responsive.isMobile}
+        />
+      </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function DashboardMetric({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+  return (
+    <View style={styles.metricCard}>
+      <View style={styles.metricAccent} />
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+      {sub != null ? <Text style={styles.metricSub}>{sub}</Text> : null}
+    </View>
   );
 }
 
@@ -267,69 +308,178 @@ function ManagementCard({ title, sub, onPress }: { title: string; sub: string; o
   );
 }
 
-function StatusTile({ label, value, color }: { label: string; value: number; color: string }) {
+function StatusTile({ label, value }: { label: string; value: number }) {
   return (
-    <View style={[styles.statusTile, { borderColor: `${color}2E`, backgroundColor: `${color}0D` }]}>
-      <View style={[styles.statusDot, { backgroundColor: color }]} />
-      <Text style={[styles.statusValue, { color }]}>{value}</Text>
+    <View style={styles.statusTile}>
+      <View style={styles.statusDot} />
+      <Text style={styles.statusValue}>{value}</Text>
       <Text style={styles.statusLabel}>{label}</Text>
     </View>
   );
 }
 
+function HomeFooterBar({
+  storeName,
+  scheduleCount,
+  unreadCount,
+  isCompact,
+}: {
+  storeName: string;
+  scheduleCount: number;
+  unreadCount: number;
+  isCompact: boolean;
+}) {
+  return (
+    <View style={[styles.footerBar, isCompact && styles.footerBarMobile]}>
+      <View style={styles.footerBrand}>
+        <Text style={styles.footerBrandText}>flowre</Text>
+        <Text style={styles.footerSubText}>{storeName}</Text>
+      </View>
+      <View style={[styles.footerMeta, isCompact && styles.footerMetaMobile]}>
+        <Text style={styles.footerMetaText}>오늘 업무 {scheduleCount}</Text>
+        <Text style={styles.footerDivider}>·</Text>
+        <Text style={styles.footerMetaText}>미확인 {unreadCount}</Text>
+        <Text style={styles.footerDivider}>·</Text>
+        <Text style={styles.footerMetaText}>© 2026 Flowre</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1, backgroundColor: DashboardColors.page },
+  scroll: { flex: 1, backgroundColor: DashboardColors.page },
   workspace: {
-    flex: 1,
-    padding: Spacing.md,
-    gap: Spacing.sm,
-    backgroundColor: Colors.background,
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xxl,
+    gap: Spacing.md,
   },
   topBar: {
-    paddingBottom: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: DashboardColors.line,
+  },
+  topBarMobile: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  topCopy: {
+    flex: 1,
+    minWidth: 0,
   },
   topKicker: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    fontWeight: '600',
-    letterSpacing: 0.4,
+    fontSize: FontSize.sm,
+    color: DashboardColors.muted,
+    fontWeight: '700',
+    letterSpacing: 0,
   },
   topTitle: {
-    marginTop: 2,
-    fontSize: FontSize.xl,
-    color: Colors.textPrimary,
+    marginTop: Spacing.xs,
+    fontSize: FontSize.xxl,
+    color: DashboardColors.ink,
     fontWeight: '900',
+    lineHeight: 30,
   },
   topSubtitle: {
-    marginTop: 2,
-    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+    color: DashboardColors.muted,
     fontSize: FontSize.sm,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minWidth: 86,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.graySoft,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.gray,
+  },
+  liveText: {
+    color: DashboardColors.grayDark,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
   },
   summaryRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.sm,
   },
+  metricCard: {
+    flex: 1,
+    flexBasis: 150,
+    minWidth: 138,
+    minHeight: 104,
+    padding: Spacing.md,
+    overflow: 'hidden',
+    backgroundColor: DashboardColors.surface,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    shadowColor: DashboardColors.shadow,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 1,
+  },
+  metricAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: DashboardColors.lineStrong,
+  },
+  metricValue: {
+    color: DashboardColors.grayDark,
+    fontSize: FontSize.xxl,
+    fontWeight: '900',
+    marginTop: Spacing.xs,
+  },
+  metricLabel: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  metricSub: {
+    color: DashboardColors.faint,
+    fontSize: FontSize.xs,
+    marginTop: 1,
+  },
   dashboardGrid: {
     flex: 1,
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   dashboardGridWide: {
     flexDirection: 'row',
   },
   dashboardMain: {
     flex: 1,
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   dashboardMainWide: {
     flex: 1.6,
   },
   dashboardSide: {
     flex: 1,
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   dashboardSideWide: {
     flex: 1,
@@ -337,17 +487,20 @@ const styles = StyleSheet.create({
     maxWidth: 400,
   },
   panel: {
-    flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: DashboardColors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: DashboardColors.line,
     padding: Spacing.md,
-    ...Shadow.card,
+    shadowColor: DashboardColors.shadow,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.18,
+    shadowRadius: 26,
+    elevation: 1,
   },
   panelEmptyCard: {
-    backgroundColor: Colors.surfaceMuted,
-    borderColor: Colors.border,
+    backgroundColor: DashboardColors.surfaceSoft,
+    borderColor: DashboardColors.line,
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -360,7 +513,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 90,
     borderWidth: 1,
-    borderRadius: Radius.md,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surfaceSoft,
+    borderRadius: Radius.sm,
     padding: Spacing.md,
   },
   statusDot: {
@@ -368,18 +523,20 @@ const styles = StyleSheet.create({
     height: 7,
     borderRadius: Radius.full,
     marginBottom: Spacing.sm,
+    backgroundColor: DashboardColors.gray,
   },
-  statusValue: { fontSize: FontSize.xxl, fontWeight: '900' },
+  statusValue: { color: DashboardColors.grayDark, fontSize: FontSize.xxl, fontWeight: '900' },
   statusLabel: {
     marginTop: 2,
-    color: Colors.textSecondary,
+    color: DashboardColors.muted,
     fontSize: FontSize.xs,
     fontWeight: '700',
   },
   noticeBanner: {
-    borderColor: Colors.border,
+    borderColor: DashboardColors.line,
     padding: Spacing.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: DashboardColors.surface,
+    borderRadius: Radius.lg,
   },
   noticeBannerTop: {
     flexDirection: 'row',
@@ -390,23 +547,22 @@ const styles = StyleSheet.create({
   noticeEyebrow: {
     fontSize: FontSize.xs,
     fontWeight: '900',
-    color: Colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: DashboardColors.grayDark,
+    letterSpacing: 0,
   },
   noticeTitle: {
     fontSize: FontSize.lg,
-    color: Colors.textPrimary,
+    color: DashboardColors.ink,
     fontWeight: '900',
   },
   noticeBody: {
     marginTop: Spacing.xs,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: DashboardColors.muted,
     lineHeight: 19,
   },
   noticeMore: { alignSelf: 'flex-start', marginTop: Spacing.sm },
-  noticeMoreText: { color: Colors.primaryDark, fontSize: FontSize.sm, fontWeight: '800' },
+  noticeMoreText: { color: DashboardColors.grayDark, fontSize: FontSize.sm, fontWeight: '800' },
   favoriteGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -417,24 +573,32 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: '46%',
     minHeight: 58,
-    backgroundColor: Colors.surfaceMuted,
-    borderRadius: Radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: DashboardColors.surfaceSoft,
+    borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: DashboardColors.line,
     padding: Spacing.sm,
     justifyContent: 'center',
   },
-  favoriteIcon: { fontSize: FontSize.md, marginBottom: 2 },
-  favoriteLabel: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: '800' },
+  favoriteMark: {
+    width: 8,
+    height: 8,
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.gray,
+  },
+  favoriteLabel: { flex: 1, fontSize: FontSize.sm, color: DashboardColors.ink, fontWeight: '800' },
   managementGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   managementCard: {
     flexGrow: 1,
     flexBasis: '47%',
     minHeight: 76,
-    backgroundColor: Colors.surfaceMuted,
-    borderRadius: Radius.md,
+    backgroundColor: DashboardColors.surfaceSoft,
+    borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: DashboardColors.line,
     padding: Spacing.md,
     justifyContent: 'center',
   },
@@ -444,34 +608,98 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.sm,
   },
-  managementTitle: { fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: '900' },
-  managementArrow: { fontSize: FontSize.xl, color: Colors.primary, fontWeight: '900', lineHeight: 22 },
-  managementSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  managementTitle: { fontSize: FontSize.md, color: DashboardColors.ink, fontWeight: '900' },
+  managementArrow: { fontSize: FontSize.xl, color: DashboardColors.gray, fontWeight: '900', lineHeight: 22 },
+  managementSub: { fontSize: FontSize.xs, color: DashboardColors.muted, marginTop: 2 },
   scheduleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceMuted,
-    borderRadius: Radius.md,
+    backgroundColor: DashboardColors.surfaceSoft,
+    borderRadius: Radius.sm,
     marginBottom: Spacing.sm,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: DashboardColors.line,
   },
-  typeBar: { width: 4, alignSelf: 'stretch' },
+  typeBar: { width: 4, alignSelf: 'stretch', backgroundColor: DashboardColors.lineStrong },
   scheduleInfo: { flex: 1, padding: Spacing.sm + 4 },
-  scheduleTitle: { fontSize: FontSize.md, fontWeight: '800', color: Colors.textPrimary },
-  scheduleDue: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  scheduleTitle: { fontSize: FontSize.md, fontWeight: '800', color: DashboardColors.ink },
+  scheduleDue: { fontSize: FontSize.xs, color: DashboardColors.muted, marginTop: 2 },
   chatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceMuted,
+    backgroundColor: DashboardColors.surfaceSoft,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 4,
-    borderRadius: Radius.md,
+    borderRadius: Radius.sm,
     marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: DashboardColors.line,
   },
-  chatIcon: { marginRight: Spacing.sm, fontSize: FontSize.lg },
-  chatTitle: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: '700' },
+  chatIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.graySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
+  },
+  chatIconText: {
+    color: DashboardColors.grayDark,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  chatTitle: { flex: 1, fontSize: FontSize.md, color: DashboardColors.ink, fontWeight: '700' },
+  footerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surface,
+  },
+  footerBarMobile: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+  },
+  footerBrand: {
+    minWidth: 0,
+  },
+  footerBrandText: {
+    color: DashboardColors.grayDark,
+    fontSize: FontSize.md,
+    fontWeight: '900',
+  },
+  footerSubText: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  footerMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: Spacing.xs,
+  },
+  footerMetaMobile: {
+    justifyContent: 'flex-start',
+  },
+  footerMetaText: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '800',
+  },
+  footerDivider: {
+    color: DashboardColors.faint,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
 });

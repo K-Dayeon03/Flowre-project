@@ -32,8 +32,8 @@ class DocumentServiceTest {
 
     @Test
     void deleteRemovesOwnedDocument() {
-        User user = user(1L);
-        Document doc = document(5L, 1L);
+        User user = user(1L, UserRole.STORE_MANAGER);
+        Document doc = document(5L, 1L, user.getId());
         when(documentRepository.findByIdAndBrandId(5L, 1L)).thenReturn(Optional.of(doc));
 
         documentService.delete(user, 5L);
@@ -43,7 +43,7 @@ class DocumentServiceTest {
 
     @Test
     void deleteFailsForOtherBrandDocument() {
-        User user = user(1L);
+        User user = user(1L, UserRole.STORE_MANAGER);
         // 다른 브랜드 문서는 findByIdAndBrandId에서 걸러져 조회되지 않는다.
         when(documentRepository.findByIdAndBrandId(5L, 1L)).thenReturn(Optional.empty());
 
@@ -56,8 +56,33 @@ class DocumentServiceTest {
     }
 
     @Test
+    void deleteFailsWhenNotOwnerAndNotHeadquarters() {
+        User user = user(1L, UserRole.STORE_STAFF);
+        Document doc = document(5L, 1L, 99L); // 업로더 id = 99, user id = 1
+        when(documentRepository.findByIdAndBrandId(5L, 1L)).thenReturn(Optional.of(doc));
+
+        assertThatThrownBy(() -> documentService.delete(user, 5L))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(documentRepository, never()).delete(any(Document.class));
+    }
+
+    @Test
+    void deleteSucceedsForHqStaffEvenIfNotOwner() {
+        User hqUser = user(1L, UserRole.HQ_STAFF);
+        Document doc = document(5L, 1L, 99L); // 업로더 id = 99, 본사 직원(id=1)이 삭제
+        when(documentRepository.findByIdAndBrandId(5L, 1L)).thenReturn(Optional.of(doc));
+
+        documentService.delete(hqUser, 5L);
+
+        verify(documentRepository).delete(doc);
+    }
+
+    @Test
     void updateFailsForOtherBrandDocument() {
-        User user = user(1L);
+        User user = user(1L, UserRole.STORE_MANAGER);
         when(documentRepository.findByIdAndBrandId(5L, 1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> documentService.update(user, 5L, updateRequest("새 제목", DocumentCategory.NOTICE)))
@@ -67,8 +92,20 @@ class DocumentServiceTest {
     }
 
     @Test
+    void updateFailsWhenNotOwnerAndNotHeadquarters() {
+        User user = user(1L, UserRole.STORE_STAFF);
+        Document doc = document(5L, 1L, 99L); // 업로더 id = 99
+        when(documentRepository.findByIdAndBrandId(5L, 1L)).thenReturn(Optional.of(doc));
+
+        assertThatThrownBy(() -> documentService.update(user, 5L, updateRequest("새 제목", DocumentCategory.NOTICE)))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
     void entityUpdateChangesMetadataButKeepsS3KeyWhenBlank() {
-        Document doc = document(5L, 1L);  // s3Key = "documents/orig/file.pdf"
+        Document doc = document(5L, 1L, 1L);  // s3Key = "documents/orig/file.pdf"
 
         // s3Key를 비워(null) 보내면 기존 파일 경로를 유지하고 메타데이터만 바꾼다.
         doc.update("수정 제목", DocumentCategory.REPORT, null, "수정 설명", null, null);
@@ -86,27 +123,27 @@ class DocumentServiceTest {
         return request;
     }
 
-    private Document document(Long id, Long brandId) {
+    private Document document(Long id, Long brandId, Long uploaderId) {
         return Document.builder()
                 .id(id)
                 .title("원본 제목")
                 .s3Key("documents/orig/file.pdf")
                 .category(DocumentCategory.MANUAL)
-                .uploaderId(1L)
+                .uploaderId(uploaderId)
                 .uploader("업로더")
                 .brandId(brandId)
                 .description("원본 설명")
                 .build();
     }
 
-    private User user(Long brandId) {
+    private User user(Long brandId, UserRole role) {
         return User.builder()
                 .id(1L)
                 .email("u@jaju.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("사용자")
-                .role(UserRole.STORE_MANAGER)
+                .role(role)
                 .brandId(brandId)
                 .storeId(1001L)
                 .storeCode("1001")

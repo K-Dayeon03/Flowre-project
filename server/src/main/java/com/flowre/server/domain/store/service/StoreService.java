@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.List;
 
 @Service
@@ -21,6 +22,10 @@ import java.util.List;
 public class StoreService {
 
     private final StoreRepository storeRepository;
+    private static final SecureRandom STORE_CODE_RANDOM = new SecureRandom();
+    private static final int MIN_STORE_CODE = 1;
+    private static final int MAX_STORE_CODE = 9999;
+    private static final int MAX_STORE_CODE_GENERATION_ATTEMPTS = 100;
     private static final int DEFAULT_NEARBY_LIMIT = 5;
     private static final int MAX_NEARBY_LIMIT = 20;
     private static final double EARTH_RADIUS_METERS = 6_371_000;
@@ -39,21 +44,21 @@ public class StoreService {
     @Transactional
     public StoreResponse createStore(User user, StoreCreateRequest request) {
         assertCanManageStores(user);
-        if (storeRepository.existsByBrandIdAndStoreCode(user.getBrandId(), request.getStoreCode())) {
-            throw new CustomException(ErrorCode.STORE_ALREADY_EXISTS);
-        }
+        String storeCode = generateUniqueStoreCode(user.getBrandId());
 
         Store store = Store.builder()
                 .brandId(user.getBrandId())
-                .storeCode(request.getStoreCode())
+                .storeCode(storeCode)
                 .storeName(request.getStoreName().trim())
                 .postalCode(request.getPostalCode())
                 .roadAddress(request.getRoadAddress().trim())
                 .jibunAddress(trimToNull(request.getJibunAddress()))
                 .detailAddress(trimToNull(request.getDetailAddress()))
+                .latitude(request.getLatitude())
+                .longitude(request.getLongitude())
                 .active(true)
                 .build();
-        return StoreResponse.from(storeRepository.save(store));
+        return StoreResponse.from(storeRepository.saveAndFlush(store));
     }
 
     /** 기존 매장의 주소 정보를 수정합니다. */
@@ -127,6 +132,21 @@ public class StoreService {
         if (!user.getRole().canManage()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
+    }
+
+    private String generateUniqueStoreCode(Long brandId) {
+        for (int attempt = 0; attempt < MAX_STORE_CODE_GENERATION_ATTEMPTS; attempt++) {
+            String candidate = randomStoreCode();
+            if (!storeRepository.existsByBrandIdAndStoreCode(brandId, candidate)) {
+                return candidate;
+            }
+        }
+        throw new CustomException(ErrorCode.STORE_CODE_EXHAUSTED);
+    }
+
+    private String randomStoreCode() {
+        int code = STORE_CODE_RANDOM.nextInt(MAX_STORE_CODE - MIN_STORE_CODE + 1) + MIN_STORE_CODE;
+        return "%04d".formatted(code);
     }
 
     private int normalizeLimit(Integer limit) {

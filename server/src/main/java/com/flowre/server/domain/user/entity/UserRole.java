@@ -28,4 +28,9 @@ public enum UserRole {
     public boolean canCreateNotice() {
         return this == STORE_MANAGER || isHeadquarters();
     }
+
+    /** 본인이 업로드하지 않은 문서도 수정·삭제할 수 있는 관리 권한 — 본사(HQ_STAFF·ADMIN)만. */
+    public boolean canModifyAnyDocument() {
+        return isHeadquarters();
+    }
 }

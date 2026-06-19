@@ -18,7 +18,7 @@ public class InventoryDataLoaderRunner implements CommandLineRunner {
     @Value("${flowre.inventory.auto-load:true}")
     private boolean autoLoad;
 
-    /** 시작 시 data 폴더 재고를 적재할 기본 브랜드 ID (시드 브랜드 JAJU=1). */
+    /** 시작 시 data 폴더 재고를 적재할 기본 브랜드 ID입니다. */
     @Value("${flowre.inventory.default-brand-id:1}")
     private long defaultBrandId;
 

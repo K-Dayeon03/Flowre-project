@@ -35,16 +35,19 @@ class StoreServiceTest {
     @Test
     void adminCanCreateStore() {
         User admin = user(UserRole.ADMIN);
-        StoreCreateRequest request = createRequest("1001", "강남점");
-        when(storeRepository.existsByBrandIdAndStoreCode(1L, "1001")).thenReturn(false);
-        when(storeRepository.save(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        StoreCreateRequest request = createRequest("강남점");
+        when(storeRepository.existsByBrandIdAndStoreCode(eq(1L), anyString())).thenReturn(false);
+        when(storeRepository.saveAndFlush(any(Store.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         StoreResponse response = storeService.createStore(admin, request);
 
-        assertThat(response.getStoreCode()).isEqualTo("1001");
+        assertThat(response.getStoreCode()).matches("^\\d{4}$");
+        assertThat(response.getStoreCode()).isNotEqualTo("0000");
         assertThat(response.getStoreName()).isEqualTo("강남점");
         assertThat(response.getPostalCode()).isEqualTo("06035");
         assertThat(response.getRoadAddress()).isEqualTo("서울 강남구 가로수길 5");
+        assertThat(response.getLatitude()).isEqualTo(37.5219);
+        assertThat(response.getLongitude()).isEqualTo(127.0227);
     }
 
     @Test
@@ -82,13 +85,13 @@ class StoreServiceTest {
     }
 
     @Test
-    void duplicateStoreCodeFails() {
-        when(storeRepository.existsByBrandIdAndStoreCode(1L, "1001")).thenReturn(true);
+    void createStoreFailsWhenStoreCodePoolIsExhausted() {
+        when(storeRepository.existsByBrandIdAndStoreCode(eq(1L), anyString())).thenReturn(true);
 
-        assertThatThrownBy(() -> storeService.createStore(user(UserRole.HQ_STAFF), createRequest("1001", "강남점")))
+        assertThatThrownBy(() -> storeService.createStore(user(UserRole.HQ_STAFF), createRequest("강남점")))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode")
-                .isEqualTo(ErrorCode.STORE_ALREADY_EXISTS);
+                .isEqualTo(ErrorCode.STORE_CODE_EXHAUSTED);
     }
 
     @Test
@@ -158,14 +161,15 @@ class StoreServiceTest {
                 .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
-    private StoreCreateRequest createRequest(String storeCode, String storeName) {
+    private StoreCreateRequest createRequest(String storeName) {
         StoreCreateRequest request = new StoreCreateRequest();
-        ReflectionTestUtils.setField(request, "storeCode", storeCode);
         ReflectionTestUtils.setField(request, "storeName", storeName);
         ReflectionTestUtils.setField(request, "postalCode", "06035");
         ReflectionTestUtils.setField(request, "roadAddress", "서울 강남구 가로수길 5");
         ReflectionTestUtils.setField(request, "jibunAddress", "서울 강남구 신사동 533");
         ReflectionTestUtils.setField(request, "detailAddress", "1층");
+        ReflectionTestUtils.setField(request, "latitude", 37.5219);
+        ReflectionTestUtils.setField(request, "longitude", 127.0227);
         return request;
     }
 

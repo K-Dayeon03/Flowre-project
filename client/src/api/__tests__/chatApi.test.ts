@@ -127,6 +127,51 @@ describe('chatApi.sendMessage()', () => {
   });
 });
 
+// ── createRoom() ─────────────────────────────────────────────────
+describe('chatApi.createRoom()', () => {
+  it('POST /api/chat/rooms 에 name·memberUserIds 전달', async () => {
+    const room = fakeRoom({ id: 5, name: '강남점 업무방', type: 'GROUP' });
+
+    mock.onPost('/api/chat/rooms').reply((config) => {
+      const body = JSON.parse(config.data);
+      expect(body.name).toBe('강남점 업무방');
+      expect(body.memberUserIds).toEqual([2, 3]);
+      return [200, { data: room }];
+    });
+
+    const result = await chatApi.createRoom({ name: '강남점 업무방', memberUserIds: [2, 3] });
+    expect(result).toEqual(room);
+  });
+
+  it('다른 매장 멤버 포함 시 서버 403 → 에러 throw', async () => {
+    mock.onPost('/api/chat/rooms').reply(403, { message: '권한이 없습니다' });
+
+    await expect(chatApi.createRoom({ name: '테스트방', memberUserIds: [99] })).rejects.toThrow();
+  });
+});
+
+// ── getStoreMembers() ─────────────────────────────────────────────
+describe('chatApi.getStoreMembers()', () => {
+  it('GET /api/employees/store-members → StoreMember[] 반환', async () => {
+    const members = [
+      { id: 2, name: '박지수', employeeCode: '1001BCDE!', role: 'STORE_STAFF' },
+      { id: 3, name: '이민호', employeeCode: '1001CDEF!', role: 'STORE_MANAGER' },
+    ];
+    mock.onGet('/api/employees/store-members').reply(200, { data: members });
+
+    const result = await chatApi.getStoreMembers();
+    expect(result).toEqual(members);
+    expect(result).toHaveLength(2);
+  });
+
+  it('같은 매장 직원이 없으면 빈 배열 반환', async () => {
+    mock.onGet('/api/employees/store-members').reply(200, { data: [] });
+
+    const result = await chatApi.getStoreMembers();
+    expect(result).toEqual([]);
+  });
+});
+
 // ── markRead() ────────────────────────────────────────────────────
 describe('chatApi.markRead()', () => {
   it('POST /api/chat/rooms/1/read 호출', async () => {

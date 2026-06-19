@@ -51,6 +51,16 @@ public class UserService {
                 .toList();
     }
 
+    /** 같은 매장의 활성 직원 목록을 조회합니다 — 채팅 대상 선택용, 본인 제외. */
+    @Transactional(readOnly = true)
+    public List<UserResponse> getStoreMembers(User requester) {
+        return userRepository.findByStoreIdAndStatusOrderByCreatedAtAsc(requester.getStoreId(), UserStatus.ACTIVE)
+                .stream()
+                .filter(u -> !u.getId().equals(requester.getId()))
+                .map(UserResponse::from)
+                .toList();
+    }
+
     /**
      * 본사 권한자가 신규 직원 계정을 발급합니다.
      *
