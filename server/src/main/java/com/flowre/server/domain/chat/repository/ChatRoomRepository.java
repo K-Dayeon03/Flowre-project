@@ -11,8 +11,14 @@ import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
-    @Query("SELECT DISTINCT r FROM ChatRoom r JOIN r.members m WHERE m.userId = :userId")
-    List<ChatRoom> findAllByMemberUserId(@Param("userId") Long userId);
+    @Query("""
+        SELECT DISTINCT r FROM ChatRoom r
+        JOIN r.members m
+        WHERE m.userId = :userId
+          AND r.brandId = :brandId
+    """)
+    List<ChatRoom> findAllByMemberUserIdAndBrandId(@Param("userId") Long userId,
+                                                   @Param("brandId") Long brandId);
 
     Optional<ChatRoom> findByStoreIdAndType(Long storeId, RoomType type);
 

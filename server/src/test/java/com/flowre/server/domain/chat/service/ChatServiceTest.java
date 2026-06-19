@@ -1,5 +1,6 @@
 package com.flowre.server.domain.chat.service;
 
+import com.flowre.server.domain.chat.dto.ChatRoomResponse;
 import com.flowre.server.domain.chat.dto.CreateDirectRoomRequest;
 import com.flowre.server.domain.chat.dto.CreateRoomRequest;
 import com.flowre.server.domain.chat.dto.MessageResponse;
@@ -67,13 +68,72 @@ class ChatServiceTest {
         Message newer = message(3L, base.plusMinutes(2));
         Message older = message(2L, base.plusMinutes(1));
 
+        when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(room(10L, 1L)));
         when(chatRoomMemberRepository.existsByChatRoomIdAndUserId(10L, 1L)).thenReturn(true);
-        when(messageRepository.findByRoomIdOrderBySentAtDesc(eq(10L), any(Pageable.class)))
+        when(messageRepository.findByRoomIdOrderByIdDesc(eq(10L), any(Pageable.class)))
                 .thenReturn(List.of(newer, older));
 
         List<MessageResponse> responses = chatService.getMessages(user, 10L, null, 20);
 
         assertThat(responses).extracting(MessageResponse::getId).containsExactly(2L, 3L);
+    }
+
+    @Test
+    void getMessagesRejectsRoomFromDifferentBrand() {
+        User user = user(1L, 1L, 1001L, UserRole.STORE_STAFF);
+        // 다른 브랜드(2L) 소속 채팅방 — 멤버십과 무관하게 brand 불일치로 차단되어야 함
+        when(chatRoomRepository.findById(10L)).thenReturn(Optional.of(room(10L, 2L)));
+
+        assertThatThrownBy(() -> chatService.getMessages(user, 10L, null, 20))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(chatRoomMemberRepository, never()).existsByChatRoomIdAndUserId(any(), any());
+    }
+
+    @Test
+    void getRoomsFiltersByRequesterBrand() {
+        User user = user(1L, 1L, 1001L, UserRole.STORE_STAFF);
+        when(chatRoomRepository.findAllByMemberUserIdAndBrandId(1L, 1L)).thenReturn(List.of());
+
+        chatService.getRooms(user);
+
+        verify(chatRoomRepository).findAllByMemberUserIdAndBrandId(1L, 1L);
+    }
+
+    @Test
+    void getRoomsAggregatesLastMessageAndUnreadInBatch() {
+        User user = user(1L, 1L, 1001L, UserRole.STORE_STAFF);
+        ChatRoom room = room(10L, 1L);
+        when(chatRoomRepository.findAllByMemberUserIdAndBrandId(1L, 1L)).thenReturn(List.of(room));
+        Message last = message(5L, LocalDateTime.of(2026, 6, 18, 10, 0));
+        when(messageRepository.findLatestPerRoom(List.of(10L))).thenReturn(List.of(last));
+        when(messageRepository.countUnreadPerRoom(1L, List.of(10L))).thenReturn(List.of(unread(10L, 3)));
+
+        List<ChatRoomResponse> rooms = chatService.getRooms(user);
+
+        assertThat(rooms).hasSize(1);
+        assertThat(rooms.get(0).getUnread()).isEqualTo(3);
+        assertThat(rooms.get(0).getLastMessage()).isEqualTo("메시지");
+        // 방마다 개별 쿼리하지 않고 일괄 조회만 사용한다 (N+1 제거).
+        verify(messageRepository, never()).findTopByRoomIdOrderBySentAtDesc(any());
+    }
+
+    @Test
+    void createRoomStoresRequesterBrandId() {
+        User me = user(1L, 1L, 1001L, UserRole.STORE_MANAGER);
+        User member = user(2L, 1L, 1001L, UserRole.STORE_STAFF);
+        CreateRoomRequest request = createRoomRequest("강남점 업무방", List.of(2L));
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(me));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(member));
+        when(chatRoomRepository.save(any(ChatRoom.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        chatService.createRoom(me, request);
+
+        verify(chatRoomRepository).save(argThat(room -> room.getBrandId().equals(1L)));
     }
 
     @Test
@@ -137,6 +197,30 @@ class ChatServiceTest {
                 .content("메시지")
                 .type(MessageType.TEXT)
                 .sentAt(sentAt)
+                .build();
+    }
+
+    private com.flowre.server.domain.chat.repository.MessageRepository.UnreadCount unread(Long roomId, long cnt) {
+        return new com.flowre.server.domain.chat.repository.MessageRepository.UnreadCount() {
+            @Override
+            public Long getRoomId() {
+                return roomId;
+            }
+
+            @Override
+            public long getCnt() {
+                return cnt;
+            }
+        };
+    }
+
+    private ChatRoom room(Long id, Long brandId) {
+        return ChatRoom.builder()
+                .id(id)
+                .type(RoomType.GROUP)
+                .brandId(brandId)
+                .name("테스트 채팅방")
+                .storeId(1001L)
                 .build();
     }
 

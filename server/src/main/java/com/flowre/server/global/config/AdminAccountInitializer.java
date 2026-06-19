@@ -41,13 +41,13 @@ public class AdminAccountInitializer implements CommandLineRunner {
     @Value("${flowre.admin.store-code:0000}")
     private String storeCode;
 
-    @Value("${flowre.admin.store-name:JAJU 본사}")
+    @Value("${flowre.admin.store-name:Flowre 운영 본부}")
     private String storeName;
 
     @Value("${flowre.admin.employee-code:0000ADMN!}")
     private String employeeCode;
 
-    @Value("${flowre.admin.email:admin@jaju.com}")
+    @Value("${flowre.admin.email:admin@flowre.local}")
     private String email;
 
     @Value("${flowre.admin.name:시스템 관리자}")

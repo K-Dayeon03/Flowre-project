@@ -1,9 +1,11 @@
 package com.flowre.server.domain.store.controller;
 
 import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
+import com.flowre.server.domain.store.dto.AddressSearchResponse;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
 import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
+import com.flowre.server.domain.store.service.KakaoAddressSearchService;
 import com.flowre.server.domain.store.service.StoreService;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.global.response.ApiResponse;
@@ -24,6 +26,7 @@ import java.util.List;
 public class StoreController {
 
     private final StoreService storeService;
+    private final KakaoAddressSearchService kakaoAddressSearchService;
 
     /** GET /api/stores/nearby - 현재 위치 기준 가까운 매장을 공개 조회합니다. */
     @GetMapping("/nearby")
@@ -33,6 +36,14 @@ public class StoreController {
             @RequestParam(required = false) Integer limit
     ) {
         return ResponseEntity.ok(ApiResponse.ok(storeService.getNearbyStores(lat, lng, limit)));
+    }
+
+    /** GET /api/stores/addresses/search - 카카오 로컬 API로 매장 주소를 검색합니다. */
+    @GetMapping("/addresses/search")
+    public ResponseEntity<ApiResponse<List<AddressSearchResponse>>> searchAddresses(
+            @RequestParam String query
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(kakaoAddressSearchService.search(query)));
     }
 
     /** GET /api/stores - 브랜드 내 점별 매장 목록을 조회합니다. */

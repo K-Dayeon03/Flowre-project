@@ -37,7 +37,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Long userId = jwtUtil.getUserId(token);
                 User user = userRepository.findById(userId).orElse(null);
 
-                if (user != null) {
+                // 토큰이 유효해도 비활성(PENDING/REJECTED) 계정은 인증 컨텍스트를 설정하지 않는다.
+                // 토큰 발급 후 점장이 거절·비활성화한 직원이 남은 토큰으로 접근하는 것을 차단.
+                if (user != null && user.isActive()) {
                     var authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
                     var authentication = new UsernamePasswordAuthenticationToken(
                             user, null, List.of(authority));

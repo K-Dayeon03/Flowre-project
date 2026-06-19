@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -102,6 +104,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT.getCode(), "지원하지 않는 요청 방식입니다."));
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLockException(
+            OptimisticLockingFailureException e, HttpServletRequest request) {
+        log.warn("[OptimisticLockException] {} {} - {}", request.getMethod(), request.getRequestURI(), e.getMessage());
+        return fail(ErrorCode.CONFLICT, ErrorCode.CONFLICT.getMessage());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolationException(
+            DataIntegrityViolationException e, HttpServletRequest request) {
+        // 유니크 제약 위반(예: 1:1 채팅방 동시 생성) 등은 충돌(409)로 변환한다.
+        log.warn("[DataIntegrityViolationException] {} {} - {}",
+                request.getMethod(), request.getRequestURI(), e.getMessage());
+        return fail(ErrorCode.CONFLICT, ErrorCode.CONFLICT.getMessage());
     }
 
     @ExceptionHandler(DataAccessException.class)

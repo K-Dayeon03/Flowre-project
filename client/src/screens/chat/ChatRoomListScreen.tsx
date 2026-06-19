@@ -11,23 +11,26 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import SearchBar from '../../components/SearchBar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
-import { ChatStackParamList } from '../../navigation/types';
+import { Colors, FontSize, Spacing, Radius, Shadow } from '../../constants/theme';
+import { MainStackParamList } from '../../navigation/types';
 import { useChatStore } from '../../store/useChatStore';
-import { chatApi } from '../../api/chatApi';
+import { chatApi, StoreMember } from '../../api/chatApi';
 
-type Nav = NativeStackNavigationProp<ChatStackParamList, 'ChatRoomList'>;
+type Nav = NativeStackNavigationProp<MainStackParamList, 'ChatRoomList'>;
 
 export default function ChatRoomListScreen() {
   const navigation = useNavigation<Nav>();
   const [search, setSearch] = useState('');
   const [showNewChat, setShowNewChat] = useState(false);
   const [chatMode, setChatMode] = useState<'DIRECT' | 'GROUP'>('DIRECT');
-  const [targetId, setTargetId] = useState('');
   const [roomName, setRoomName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [members, setMembers] = useState<StoreMember[]>([]);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
   const rooms = useChatStore((s) => s.rooms);
   const loading = useChatStore((s) => s.loading);
@@ -45,13 +48,29 @@ export default function ChatRoomListScreen() {
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const openNewChat = async () => {
+    setShowNewChat(true);
+    setSelectedIds([]);
+    setRoomName('');
+    setLoadingMembers(true);
+    try {
+      setMembers(await chatApi.getStoreMembers());
+    } catch {
+      Alert.alert('오류', '직원 목록을 불러오지 못했습니다.');
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const toggleMember = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+    );
+  };
+
   const handleStartChat = async () => {
-    const memberIds = targetId
-      .split(',')
-      .map((value) => parseInt(value.trim(), 10))
-      .filter((value) => Number.isInteger(value));
-    if (memberIds.length === 0) {
-      Alert.alert('알림', '직원 번호를 입력해주세요.');
+    if (selectedIds.length === 0) {
+      Alert.alert('알림', '대화할 직원을 선택해주세요.');
       return;
     }
     if (chatMode === 'GROUP' && !roomName.trim()) {
@@ -61,10 +80,10 @@ export default function ChatRoomListScreen() {
     setCreating(true);
     try {
       const room = chatMode === 'DIRECT'
-        ? await chatApi.createDirectRoom(memberIds[0])
-        : await chatApi.createRoom({ name: roomName.trim(), memberUserIds: memberIds });
+        ? await chatApi.createDirectRoom(selectedIds[0])
+        : await chatApi.createRoom({ name: roomName.trim(), memberUserIds: selectedIds });
       setShowNewChat(false);
-      setTargetId('');
+      setSelectedIds([]);
       setRoomName('');
       await fetchRooms();
       navigation.navigate('ChatRoom', {
@@ -73,7 +92,7 @@ export default function ChatRoomListScreen() {
         roomType: room.type,
       });
     } catch {
-      Alert.alert('오류', '채팅방을 만들 수 없습니다. 직원 번호를 확인해주세요.');
+      Alert.alert('오류', '채팅방을 만들 수 없습니다. 권한을 확인해주세요.');
     } finally {
       setCreating(false);
     }
@@ -81,15 +100,18 @@ export default function ChatRoomListScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* 검색 */}
-      <View style={styles.searchBar}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="채팅방 검색"
-          placeholderTextColor={Colors.textMuted}
+      <View style={styles.controlPanel}>
+        <View style={styles.screenHead}>
+          <View>
+            <Text style={styles.screenKicker}>CHAT</Text>
+            <Text style={styles.screenTitle}>대화 목록</Text>
+          </View>
+          <Text style={styles.screenCount}>{filtered.length}개</Text>
+        </View>
+        <SearchBar
           value={search}
           onChangeText={setSearch}
+          placeholder="채팅방 검색"
         />
       </View>
 
@@ -101,6 +123,7 @@ export default function ChatRoomListScreen() {
         <FlatList
           data={filtered}
           keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.roomItem}
@@ -114,7 +137,7 @@ export default function ChatRoomListScreen() {
               {/* 아바타 */}
               <View style={[styles.avatar, item.type === 'GROUP' && styles.avatarGroup]}>
                 <Text style={styles.avatarText}>
-                  {item.type === 'GROUP' ? '👥' : item.name[0]}
+                  {item.name[0]}
                 </Text>
               </View>
 
@@ -140,7 +163,6 @@ export default function ChatRoomListScreen() {
               )}
             </TouchableOpacity>
           )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyText}>채팅방이 없습니다.</Text>
@@ -150,7 +172,7 @@ export default function ChatRoomListScreen() {
       )}
 
       {/* 새 채팅 FAB */}
-      <TouchableOpacity style={styles.fab} onPress={() => setShowNewChat(true)} activeOpacity={0.85}>
+      <TouchableOpacity style={styles.fab} onPress={openNewChat} activeOpacity={0.85}>
         <Text style={styles.fabText}>✏️</Text>
       </TouchableOpacity>
 
@@ -176,7 +198,7 @@ export default function ChatRoomListScreen() {
               </TouchableOpacity>
             </View>
 
-            {chatMode === 'GROUP' ? (
+            {chatMode === 'GROUP' && (
               <TextInput
                 style={styles.modalInput}
                 placeholder="채팅방 이름"
@@ -184,22 +206,42 @@ export default function ChatRoomListScreen() {
                 value={roomName}
                 onChangeText={setRoomName}
               />
-            ) : null}
+            )}
 
-            <TextInput
-              style={styles.modalInput}
-              placeholder={chatMode === 'DIRECT' ? '직원 번호 (예: 1001)' : '직원 번호들 (예: 1001,1002,1003)'}
-              placeholderTextColor={Colors.textMuted}
-              value={targetId}
-              onChangeText={setTargetId}
-              keyboardType={chatMode === 'DIRECT' ? 'number-pad' : 'default'}
-              autoFocus
-            />
+            {loadingMembers ? (
+              <ActivityIndicator color={Colors.accent} style={{ paddingVertical: Spacing.md }} />
+            ) : members.length === 0 ? (
+              <Text style={styles.memberEmpty}>같은 매장 직원이 없습니다.</Text>
+            ) : (
+              <View style={styles.memberList}>
+                {members.map((m) => {
+                  const selected = selectedIds.includes(m.id);
+                  const disabled = chatMode === 'DIRECT' && selectedIds.length > 0 && !selected;
+                  return (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[styles.memberItem, selected && styles.memberItemSelected, disabled && styles.memberItemDisabled]}
+                      onPress={() => !disabled && toggleMember(m.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.memberAvatar}>
+                        <Text style={styles.memberAvatarText}>{m.name[0]}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.memberName, selected && styles.memberNameSelected]}>{m.name}</Text>
+                        <Text style={styles.memberCode}>{m.employeeCode}</Text>
+                      </View>
+                      {selected && <Text style={styles.checkMark}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             <View style={styles.modalBtns}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
-                onPress={() => { setShowNewChat(false); setTargetId(''); setRoomName(''); }}
+                onPress={() => { setShowNewChat(false); setSelectedIds([]); setRoomName(''); }}
               >
                 <Text style={styles.modalCancelText}>취소</Text>
               </TouchableOpacity>
@@ -224,47 +266,79 @@ export default function ChatRoomListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  searchBar: {
+  controlPanel: {
+    margin: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.md,
+    ...Shadow.card,
+  },
+  screenHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    margin: Spacing.md,
+    justifyContent: 'space-between',
+  },
+  screenKicker: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  screenTitle: {
+    marginTop: 2,
+    fontSize: FontSize.xl,
+    color: Colors.textPrimary,
+    fontWeight: '900',
+  },
+  screenCount: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    backgroundColor: Colors.surfaceMuted,
     borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  searchIcon: { fontSize: 16, marginRight: Spacing.sm },
-  searchInput: {
-    flex: 1,
-    paddingVertical: Spacing.sm + 2,
-    fontSize: FontSize.md,
-    color: Colors.textPrimary,
-  },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  list: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: 0,
+    paddingBottom: 96,
+    gap: Spacing.sm,
+  },
   roomItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.card,
   },
   avatar: {
-    width: 50,
-    height: 50,
+    width: 36,
+    height: 36,
     borderRadius: Radius.full,
-    backgroundColor: Colors.accent + '30',
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
   },
-  avatarGroup: { backgroundColor: Colors.primary + '15' },
-  avatarText: { fontSize: 20 },
+  avatarGroup: { backgroundColor: Colors.primary },
+  avatarText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.surface },
   roomInfo: { flex: 1 },
   roomTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
   roomName: {
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontWeight: '800',
     color: Colors.textPrimary,
     flex: 1,
   },
@@ -286,7 +360,6 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.sm,
   },
   unreadText: { color: Colors.surface, fontSize: FontSize.xs, fontWeight: '700' },
-  separator: { height: 1, backgroundColor: Colors.border, marginLeft: 78 },
   empty: { paddingVertical: 60, alignItems: 'center' },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
   fab: {
@@ -299,31 +372,28 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    ...Shadow.raised,
   },
-  fabText: { fontSize: 22 },
+  fabText: { fontSize: 20, color: Colors.surface, lineHeight: 24 },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(14, 86, 128, 0.34)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
     padding: Spacing.xl,
     gap: Spacing.md,
   },
   modalTitle: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.textPrimary },
   modalDesc: { fontSize: FontSize.sm, color: Colors.textSecondary },
   modalInput: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceMuted,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 4,
     fontSize: FontSize.lg,
@@ -342,6 +412,34 @@ const styles = StyleSheet.create({
   modeButtonActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   modeText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '700' },
   modeTextActive: { color: Colors.surface },
+  memberList: { gap: Spacing.xs },
+  memberItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.sm,
+    backgroundColor: Colors.background,
+  },
+  memberItemSelected: { borderColor: Colors.primary, backgroundColor: Colors.primary + '12' },
+  memberItemDisabled: { opacity: 0.35 },
+  memberAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.accent + '30',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  memberAvatarText: { fontSize: FontSize.md, fontWeight: '700', color: Colors.primary },
+  memberName: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary },
+  memberNameSelected: { color: Colors.primary },
+  memberCode: { fontSize: FontSize.xs, color: Colors.textMuted },
+  checkMark: { fontSize: FontSize.md, color: Colors.primary, fontWeight: '700' },
+  memberEmpty: { fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'center', paddingVertical: Spacing.md },
   modalCancelBtn: {
     flex: 1,
     paddingVertical: Spacing.md,

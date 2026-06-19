@@ -1,5 +1,6 @@
 package com.flowre.server.domain.user.service;
 
+import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
 import com.flowre.server.domain.user.dto.EmployeeCreateRequest;
@@ -38,7 +39,8 @@ class UserServiceTest {
         storeRepository = mock(StoreRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
         approvalNotificationService = mock(ApprovalNotificationService.class);
-        userService = new UserService(userRepository, storeRepository, passwordEncoder, approvalNotificationService);
+        userService = new UserService(userRepository, storeRepository, passwordEncoder,
+                approvalNotificationService, mock(AuditLogService.class));
     }
 
     @Test
@@ -67,6 +69,20 @@ class UserServiceTest {
     void createEmployeeFailsWhenRequesterIsNotHq() {
         User requester = staffUser();
         EmployeeCreateRequest request = request("1001", "1001WXYZ!", "newuser@jaju.com", UserRole.STORE_STAFF);
+
+        assertThatThrownBy(() -> userService.createEmployee(requester, request))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void createEmployeeFailsWhenHqStaffCreatesAdmin() {
+        // 권한 상승 차단: HQ_STAFF는 ADMIN 계정을 생성할 수 없다.
+        User requester = hqUser();
+        EmployeeCreateRequest request = request("1001", "1001WXYZ!", "admin@jaju.com", UserRole.ADMIN);
 
         assertThatThrownBy(() -> userService.createEmployee(requester, request))
                 .isInstanceOf(CustomException.class)

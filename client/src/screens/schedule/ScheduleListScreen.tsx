@@ -9,12 +9,14 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
-import { ScheduleStackParamList } from '../../navigation/types';
+import { Colors, FontSize, Spacing, Radius, Shadow } from '../../constants/theme';
+import { MainStackParamList } from '../../navigation/types';
 import Calendar, { MarkedDate } from '../../components/Calendar';
+import FilterBar from '../../components/FilterBar';
+import SearchBar from '../../components/SearchBar';
 import { useScheduleStore } from '../../store/useScheduleStore';
 
-type Nav = NativeStackNavigationProp<ScheduleStackParamList, 'ScheduleList'>;
+type Nav = NativeStackNavigationProp<MainStackParamList, 'ScheduleList'>;
 
 const TYPE_LABEL: Record<string, string> = {
   MANNEQUIN: '마네킹 교체',
@@ -37,10 +39,21 @@ function toDateKey(dueDate: string): string {
   return dueDate.split('T')[0];
 }
 
+type StatusFilter = 'PENDING' | 'IN_PROGRESS' | 'DONE' | undefined;
+
+const STATUS_FILTER_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
+  { label: '전체', value: undefined },
+  { label: '대기', value: 'PENDING' },
+  { label: '진행 중', value: 'IN_PROGRESS' },
+  { label: '완료', value: 'DONE' },
+];
+
 export default function ScheduleListScreen() {
   const navigation = useNavigation<Nav>();
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(undefined);
+  const [searchText, setSearchText] = useState('');
 
   const schedules = useScheduleStore((s) => s.schedules);
   const fetchSchedules = useScheduleStore((s) => s.fetchSchedules);
@@ -59,32 +72,51 @@ export default function ScheduleListScreen() {
     }, {})
   ).map(([date, color]) => ({ date, color }));
 
-  const displayed = viewMode === 'calendar'
-    ? schedules.filter((s) => toDateKey(s.dueDate) === selectedDate)
-    : schedules;
+  const displayed = schedules
+    .filter((s) => viewMode === 'calendar' ? toDateKey(s.dueDate) === selectedDate : true)
+    .filter((s) => statusFilter ? s.status === statusFilter : true)
+    .filter((s) => searchText.trim() ? s.title.includes(searchText.trim()) : true);
 
   const selectedCount = schedules.filter((s) => toDateKey(s.dueDate) === selectedDate).length;
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* 뷰 전환 토글 */}
-      <View style={styles.toggleRow}>
-        <TouchableOpacity
-          style={[styles.toggleBtn, viewMode === 'calendar' && styles.toggleActive]}
-          onPress={() => setViewMode('calendar')}
-        >
-          <Text style={[styles.toggleText, viewMode === 'calendar' && styles.toggleTextActive]}>
-            📅 캘린더
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toggleBtn, viewMode === 'list' && styles.toggleActive]}
-          onPress={() => setViewMode('list')}
-        >
-          <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>
-            ☰ 목록
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.controlPanel}>
+        <View style={styles.screenHead}>
+          <View>
+            <Text style={styles.screenKicker}>SCHEDULE</Text>
+            <Text style={styles.screenTitle}>업무 일정</Text>
+          </View>
+          <Text style={styles.screenCount}>{schedules.length}건</Text>
+        </View>
+        <View style={styles.toggleRow}>
+          <TouchableOpacity
+            style={[styles.toggleBtn, viewMode === 'calendar' && styles.toggleActive]}
+            onPress={() => setViewMode('calendar')}
+          >
+            <Text style={[styles.toggleText, viewMode === 'calendar' && styles.toggleTextActive]}>
+              캘린더
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleBtn, viewMode === 'list' && styles.toggleActive]}
+            onPress={() => setViewMode('list')}
+          >
+            <Text style={[styles.toggleText, viewMode === 'list' && styles.toggleTextActive]}>
+              목록
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <FilterBar
+          options={STATUS_FILTER_OPTIONS}
+          value={statusFilter}
+          onChange={setStatusFilter}
+        />
+        <SearchBar
+          value={searchText}
+          onChangeText={setSearchText}
+          placeholder="일정 제목 검색"
+        />
       </View>
 
       <FlatList
@@ -158,30 +190,67 @@ export default function ScheduleListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+  controlPanel: {
+    margin: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.md,
+    ...Shadow.card,
+  },
+  screenHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  screenKicker: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  screenTitle: {
+    marginTop: 2,
+    fontSize: FontSize.xl,
+    color: Colors.textPrimary,
+    fontWeight: '900',
+  },
+  screenCount: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    backgroundColor: Colors.surfaceMuted,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
   toggleRow: {
     flexDirection: 'row',
-    padding: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    gap: Spacing.sm,
+    padding: 4,
+    backgroundColor: Colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    gap: 4,
   },
   toggleBtn: {
     flex: 1,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.sm,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   toggleActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+    ...Shadow.card,
   },
-  toggleText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '500' },
-  toggleTextActive: { color: Colors.surface, fontWeight: '700' },
-  list: { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 100 },
+  toggleText: { fontSize: FontSize.sm, color: Colors.textMuted, fontWeight: '600' },
+  toggleTextActive: { color: Colors.textPrimary, fontWeight: '800' },
+  list: { padding: Spacing.md, paddingTop: 0, gap: Spacing.sm, paddingBottom: 88 },
   dateLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -196,18 +265,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
     padding: Spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.card,
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.sm },
   typeChip: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
   typeText: { fontSize: FontSize.xs, fontWeight: '600' },
   statusBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
   statusText: { fontSize: FontSize.xs, fontWeight: '600' },
-  cardTitle: { fontSize: FontSize.md, fontWeight: '600', color: Colors.textPrimary, marginBottom: Spacing.sm },
-  cardBottom: { flexDirection: 'row', gap: Spacing.md },
+  cardTitle: { fontSize: FontSize.md, fontWeight: '800', color: Colors.textPrimary, marginBottom: Spacing.sm },
+  cardBottom: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
   cardMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
   empty: { paddingVertical: 48, alignItems: 'center', gap: Spacing.sm },
   emptyIcon: { fontSize: 40 },
@@ -216,16 +284,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: Spacing.xl,
     right: Spacing.lg,
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     borderRadius: Radius.full,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    ...Shadow.raised,
   },
   fabText: { color: Colors.surface, fontSize: 28, lineHeight: 32 },
 });

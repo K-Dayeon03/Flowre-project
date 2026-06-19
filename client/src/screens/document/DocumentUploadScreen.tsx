@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
 import { DocumentCategory, documentApi } from '../../api/documentApi';
-import { DocumentStackParamList } from '../../navigation/types';
+import { MainStackParamList } from '../../navigation/types';
 
-type Props = NativeStackScreenProps<DocumentStackParamList, 'DocumentUpload'>;
+type Props = NativeStackScreenProps<MainStackParamList, 'DocumentUpload'>;
 
 const CATEGORIES: Array<{ key: DocumentCategory; label: string }> = [
   { key: 'MANUAL', label: '매뉴얼' },
@@ -236,11 +236,10 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: { flex: 1, padding: Spacing.md },
   filePicker: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
     borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderRadius: Radius.lg,
     marginBottom: Spacing.lg,
     overflow: 'hidden',
   },
@@ -254,30 +253,30 @@ const styles = StyleSheet.create({
   fileEmptySubText: { fontSize: FontSize.sm, color: Colors.textMuted },
   field: { marginBottom: Spacing.lg },
   fieldLabel: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '700',
     marginBottom: Spacing.xs,
   },
   categoryRow: { flexDirection: 'row', gap: Spacing.sm },
   categoryBtn: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
+    paddingVertical: Spacing.sm,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceMuted,
   },
-  categoryBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  categoryBtnActive: { backgroundColor: `${Colors.primary}12`, borderColor: Colors.primary },
   categoryBtnText: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  categoryBtnTextActive: { color: Colors.surface, fontWeight: '600' },
+  categoryBtnTextActive: { color: Colors.primary, fontWeight: '700' },
   input: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical: Spacing.md,
     fontSize: FontSize.md,
     color: Colors.textPrimary,
   },
@@ -290,10 +289,11 @@ const styles = StyleSheet.create({
   },
   uploadBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   uploadBtnDisabled: { opacity: 0.6 },
-  uploadBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '700' },
+  uploadBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '900' },
 });

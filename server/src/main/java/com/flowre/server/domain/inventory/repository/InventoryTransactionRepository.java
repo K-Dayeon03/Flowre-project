@@ -9,5 +9,7 @@ public interface InventoryTransactionRepository extends JpaRepository<InventoryT
 
     List<InventoryTransaction> findByBrandIdOrderByCreatedAtDesc(Long brandId);
 
+    List<InventoryTransaction> findByBrandIdAndStoreIdOrderByCreatedAtDesc(Long brandId, Long storeId);
+
     List<InventoryTransaction> findByBrandIdAndInventoryItemIdOrderByCreatedAtDesc(Long brandId, Long inventoryItemId);
 }

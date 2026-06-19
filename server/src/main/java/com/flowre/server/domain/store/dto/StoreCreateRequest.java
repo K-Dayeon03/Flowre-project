@@ -1,5 +1,7 @@
 package com.flowre.server.domain.store.dto;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
@@ -12,10 +14,6 @@ import lombok.Getter;
  */
 @Getter
 public class StoreCreateRequest {
-
-    @NotBlank(message = "점별 코드를 입력해주세요.")
-    @Pattern(regexp = "^\\d{4}$", message = "점별 코드는 숫자 4자리여야 합니다.")
-    private String storeCode;
 
     @NotBlank(message = "매장명을 입력해주세요.")
     private String storeName;
@@ -30,4 +28,12 @@ public class StoreCreateRequest {
     private String jibunAddress;
 
     private String detailAddress;
+
+    @DecimalMin(value = "-90.0", message = "위도는 -90 이상이어야 합니다.")
+    @DecimalMax(value = "90.0", message = "위도는 90 이하여야 합니다.")
+    private Double latitude;
+
+    @DecimalMin(value = "-180.0", message = "경도는 -180 이상이어야 합니다.")
+    @DecimalMax(value = "180.0", message = "경도는 180 이하여야 합니다.")
+    private Double longitude;
 }

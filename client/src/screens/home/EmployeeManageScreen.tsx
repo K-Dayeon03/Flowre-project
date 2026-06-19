@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
 import { AssignableRole, Employee, employeeApi } from '../../api/employeeApi';
 
 const EMPLOYEE_CODE_REGEX = /^\d{4}[A-Za-z]{4}[!@#$%^&*?]$/;
@@ -259,25 +259,29 @@ const styles = StyleSheet.create({
   container: { padding: Spacing.md, paddingBottom: Spacing.xl },
   form: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    marginBottom: Spacing.md,
+    ...Shadow.card,
   },
   formTitle: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.xs,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
     marginBottom: Spacing.xs,
   },
   input: {
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical: Spacing.md,
     fontSize: FontSize.md,
     color: Colors.textPrimary,
   },
@@ -285,22 +289,23 @@ const styles = StyleSheet.create({
   roleButton: {
     flex: 1,
     paddingVertical: Spacing.sm + 2,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceMuted,
     alignItems: 'center',
   },
   roleButtonSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: `${Colors.primary}12`,
     borderColor: Colors.primary,
   },
-  roleButtonText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '500' },
-  roleButtonTextSelected: { color: Colors.surface, fontWeight: '700' },
+  roleButtonText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '600' },
+  roleButtonTextSelected: { color: Colors.primary, fontWeight: '700' },
   createButton: {
     backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
     marginTop: Spacing.xs,
   },
@@ -308,11 +313,11 @@ const styles = StyleSheet.create({
   createButtonText: {
     color: Colors.surface,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontWeight: '900',
   },
   errorText: {
     color: Colors.error,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     textAlign: 'center',
   },
   hintText: {
@@ -322,10 +327,13 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   listHeading: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.xs,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
     marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   statusBadge: {
     paddingHorizontal: Spacing.sm,
@@ -345,11 +353,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     padding: Spacing.md,
-    marginTop: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    ...Shadow.card,
+    marginBottom: Spacing.sm,
   },
   codeBadge: {
     minWidth: 78,
@@ -368,7 +377,7 @@ const styles = StyleSheet.create({
   employeeName: {
     color: Colors.textPrimary,
     fontSize: FontSize.md,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   employeeMeta: {
     color: Colors.textSecondary,

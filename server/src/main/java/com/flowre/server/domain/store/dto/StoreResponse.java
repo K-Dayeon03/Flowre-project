@@ -15,6 +15,8 @@ public class StoreResponse {
     private String roadAddress;
     private String jibunAddress;
     private String detailAddress;
+    private Double latitude;
+    private Double longitude;
     private boolean active;
 
     /** 매장 엔티티를 API 응답 DTO로 변환합니다. */
@@ -28,6 +30,8 @@ public class StoreResponse {
                 .roadAddress(store.getRoadAddress())
                 .jibunAddress(store.getJibunAddress())
                 .detailAddress(store.getDetailAddress())
+                .latitude(store.getLatitude())
+                .longitude(store.getLongitude())
                 .active(store.isActive())
                 .build();
     }

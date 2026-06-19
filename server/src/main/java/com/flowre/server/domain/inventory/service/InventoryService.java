@@ -1,5 +1,7 @@
 package com.flowre.server.domain.inventory.service;
 
+import com.flowre.server.domain.audit.entity.AuditAction;
+import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.inventory.dto.*;
 import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.InventoryLabel;
@@ -32,6 +34,7 @@ public class InventoryService {
     private final InventoryLabelRepository inventoryLabelRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final InventoryExcelLoader inventoryExcelLoader;
+    private final AuditLogService auditLogService;
 
     /** 재고 목록을 브랜드 단위로 격리해 검색합니다. */
     @Transactional(readOnly = true)
@@ -182,6 +185,8 @@ public class InventoryService {
                 .usedByName(user.getName())
                 .build());
 
+        auditLogService.record(user, AuditAction.INVENTORY_DEDUCTED, "INVENTORY_ITEM", item.getId(),
+                item.getProductName() + " " + request.getQuantity() + "개 차감 - " + request.getReason());
         return InventoryResponse.from(item);
     }
 
@@ -208,14 +213,25 @@ public class InventoryService {
                 .usedByName(user.getName())
                 .build());
 
+        auditLogService.record(user, AuditAction.INVENTORY_ADJUSTED, "INVENTORY_ITEM", item.getId(),
+                item.getProductName() + " 수량 변경 " + request.getQuantityChange() + " - " + request.getReason());
         return InventoryResponse.from(item);
     }
 
-    /** 본사 재고 사용 이력을 브랜드 단위로 조회합니다. */
+    /**
+     * 재고 사용 이력을 조회합니다.
+     *
+     * 본사·관리자는 브랜드 전체 매장의 이력을, 매장 직원·점장은 자기 매장 이력만 볼 수 있도록
+     * 매장 스코프를 적용한다(단건 이력 조회 getItemTransactions와 동일한 격리 정책).
+     */
     @Transactional(readOnly = true)
     public List<InventoryTransactionResponse> getTransactions(User user) {
-        return inventoryTransactionRepository.findByBrandIdOrderByCreatedAtDesc(user.getBrandId())
-                .stream()
+        List<InventoryTransaction> transactions = canViewAllStores(user)
+                ? inventoryTransactionRepository.findByBrandIdOrderByCreatedAtDesc(user.getBrandId())
+                : inventoryTransactionRepository.findByBrandIdAndStoreIdOrderByCreatedAtDesc(
+                        user.getBrandId(), user.getStoreId());
+
+        return transactions.stream()
                 .map(InventoryTransactionResponse::from)
                 .toList();
     }
@@ -244,7 +260,7 @@ public class InventoryService {
     @Transactional
     public InventoryLoadResponse reloadFromDataDirectory(User user) {
         assertCanUploadInventory(user);
-        return inventoryExcelLoader.loadFromDataDirectory();
+        return inventoryExcelLoader.loadFromDataDirectory(user.getBrandId());
     }
 
     /**
@@ -256,7 +272,7 @@ public class InventoryService {
     @Transactional
     public InventoryLoadResponse uploadDailyInventory(User user, MultipartFile file) {
         String storeScopeCode = canViewAllStores(user) ? null : user.getStoreCode();
-        return inventoryExcelLoader.loadUploadedFile(file, storeScopeCode);
+        return inventoryExcelLoader.loadUploadedFile(file, storeScopeCode, user.getBrandId());
     }
 
     private InventoryItem getItem(User user, Long id) {
@@ -280,17 +296,17 @@ public class InventoryService {
     }
 
     private boolean canViewAllStores(User user) {
-        return user.getRole() == UserRole.HQ_STAFF || user.getRole() == UserRole.ADMIN;
+        return user.getRole().canViewAllStores();
     }
 
     private void assertCanDeduct(User user) {
-        if (user.getRole() != UserRole.HQ_STAFF && user.getRole() != UserRole.ADMIN) {
+        if (!user.getRole().canManage()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }
 
     private void assertCanUploadInventory(User user) {
-        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.HQ_STAFF) {
+        if (!user.getRole().canManage()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

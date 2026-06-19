@@ -113,9 +113,7 @@ public class NoticeService {
     }
 
     private void assertCanCreateNotice(User user) {
-        if (user.getRole() != UserRole.ADMIN
-                && user.getRole() != UserRole.HQ_STAFF
-                && user.getRole() != UserRole.STORE_MANAGER) {
+        if (!user.getRole().canCreateNotice()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

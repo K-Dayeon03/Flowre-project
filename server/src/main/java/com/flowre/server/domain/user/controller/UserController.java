@@ -36,6 +36,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(userService.createEmployee(user, request)));
     }
 
+    /** GET /api/employees/store-members - 같은 매장 활성 직원 목록 (채팅 대상 선택용, 본인 제외) */
+    @GetMapping("/store-members")
+    public ResponseEntity<ApiResponse<List<UserResponse>>> getStoreMembers(@AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(ApiResponse.ok(userService.getStoreMembers(user)));
+    }
+
     /** GET /api/employees/pending - 승인 대기 직원 목록을 조회합니다. (점장·관리자 전용) */
     @GetMapping("/pending")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getPendingEmployees(@AuthenticationPrincipal User user) {

@@ -41,6 +41,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/stores/nearby").permitAll()
                 .requestMatchers("/dummy-s3/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
+                .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .anyRequest().authenticated()
             )

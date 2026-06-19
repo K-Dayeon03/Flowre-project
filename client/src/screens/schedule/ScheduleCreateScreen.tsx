@@ -12,7 +12,7 @@ import {
   Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Colors, FontSize, Spacing, Radius } from '../../constants/theme';
+import { Colors, FontSize, Spacing, Radius, Shadow } from '../../constants/theme';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import Calendar from '../../components/Calendar';
 
@@ -183,29 +183,29 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: Spacing.md },
   field: { marginBottom: Spacing.lg },
   fieldLabel: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '700',
     marginBottom: Spacing.xs,
   },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   typeBtn: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
+    paddingVertical: Spacing.sm,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceMuted,
   },
   typeBtnText: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  typeBtnTextActive: { color: Colors.surface, fontWeight: '600' },
+  typeBtnTextActive: { color: Colors.primary, fontWeight: '700' },
   input: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical: Spacing.md,
     fontSize: FontSize.md,
     color: Colors.textPrimary,
   },
@@ -217,9 +217,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical: Spacing.md,
   },
   datePickerValue: { fontSize: FontSize.md, color: Colors.textPrimary },
   datePickerPlaceholder: { fontSize: FontSize.md, color: Colors.textMuted },
@@ -232,12 +232,13 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '700' },
+  submitBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '900' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -247,9 +248,12 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '100%',
-    backgroundColor: Colors.background,
-    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: Spacing.md,
+    ...Shadow.raised,
   },
   modalTitle: {
     fontSize: FontSize.lg,

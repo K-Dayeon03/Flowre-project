@@ -9,6 +9,8 @@ export interface Store {
   roadAddress?: string;
   jibunAddress?: string;
   detailAddress?: string;
+  latitude?: number;
+  longitude?: number;
   active: boolean;
 }
 
@@ -19,12 +21,21 @@ export interface NearbyStore {
 }
 
 export interface StoreCreateRequest {
-  storeCode: string;
   storeName: string;
   postalCode: string;
   roadAddress: string;
   jibunAddress?: string;
   detailAddress?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface AddressSearchResult {
+  postalCode: string;
+  roadAddress: string;
+  jibunAddress: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface StoreAddressUpdateRequest {
@@ -43,6 +54,12 @@ export const storeApi = {
   /** 현재 좌표 기준 가까운 매장 목록을 공개 조회합니다. */
   getNearbyStores: async (lat: number, lng: number, limit = 5): Promise<NearbyStore[]> => {
     const res = await apiClient.get('/api/stores/nearby', { params: { lat, lng, limit } });
+    return unwrap(res);
+  },
+
+  /** 카카오 로컬 API 기반 주소 검색 결과를 조회합니다. */
+  searchAddresses: async (query: string): Promise<AddressSearchResult[]> => {
+    const res = await apiClient.get('/api/stores/addresses/search', { params: { query } });
     return unwrap(res);
   },
 

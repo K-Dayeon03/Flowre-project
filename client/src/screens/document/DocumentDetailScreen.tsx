@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,12 +11,13 @@ import {
   View,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
-import { DocumentStackParamList } from '../../navigation/types';
+import { useFocusEffect } from '@react-navigation/native';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
+import { MainStackParamList } from '../../navigation/types';
 import { Document, documentApi } from '../../api/documentApi';
 import FavoriteToggle from '../../components/FavoriteToggle';
 
-type Props = NativeStackScreenProps<DocumentStackParamList, 'DocumentDetail'>;
+type Props = NativeStackScreenProps<MainStackParamList, 'DocumentDetail'>;
 
 const CATEGORY_LABEL = {
   MANUAL: '매뉴얼',
@@ -29,12 +30,17 @@ export default function DocumentDetailScreen({ navigation, route }: Props) {
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    documentApi.getById(documentId)
-      .then(setDocument)
-      .catch(() => Alert.alert('오류', '문서를 불러오지 못했습니다.'))
-      .finally(() => setLoading(false));
-  }, [documentId]);
+  // 수정 화면에서 돌아왔을 때도 최신 내용이 반영되도록 포커스 시마다 재조회한다.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      documentApi.getById(documentId)
+        .then((doc) => { if (active) setDocument(doc); })
+        .catch(() => { if (active) Alert.alert('오류', '문서를 불러오지 못했습니다.'); })
+        .finally(() => { if (active) setLoading(false); });
+      return () => { active = false; };
+    }, [documentId])
+  );
 
   useEffect(() => {
     navigation.setOptions({
@@ -151,29 +157,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 140,
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     marginBottom: Spacing.md,
+    ...Shadow.card,
   },
   fileTypeText: { fontSize: FontSize.lg, color: Colors.primary, fontWeight: '800' },
-  title: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.textPrimary, marginBottom: Spacing.md },
+  title: { fontSize: FontSize.xl, fontWeight: '900', color: Colors.textPrimary, marginBottom: Spacing.sm },
   categoryChip: {
     alignSelf: 'flex-start',
-    backgroundColor: Colors.accent + '20',
+    backgroundColor: Colors.primary + '14',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: Radius.full,
     marginBottom: Spacing.md,
   },
-  categoryText: { fontSize: FontSize.xs, color: Colors.accent, fontWeight: '700' },
+  categoryText: { fontSize: FontSize.xs, color: Colors.primaryDark, fontWeight: '700' },
   metaCard: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadow.card,
   },
   metaRow: { flexDirection: 'row', paddingVertical: Spacing.sm + 2 },
   metaRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -181,37 +189,41 @@ const styles = StyleSheet.create({
   metaValue: { flex: 1, fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: '500' },
   descCard: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadow.card,
   },
   descLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.sm },
-  descText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 22 },
+  descText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 24 },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
   previewBtn: {
     flex: 1,
     borderWidth: 1,
     borderColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  previewBtnText: { color: Colors.primary, fontSize: FontSize.md, fontWeight: '600' },
+  previewBtnText: { color: Colors.primary, fontSize: FontSize.md, fontWeight: '700' },
   downloadBtn: {
     flex: 1,
     backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  downloadBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '600' },
+  downloadBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '700' },
   editBtn: {
     borderWidth: 1,
     borderColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
@@ -219,8 +231,9 @@ const styles = StyleSheet.create({
   deleteBtn: {
     borderWidth: 1,
     borderColor: Colors.error,
-    borderRadius: Radius.sm,
-    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    height: 52,
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.xl,
   },

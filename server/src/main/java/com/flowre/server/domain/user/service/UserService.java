@@ -1,5 +1,7 @@
 package com.flowre.server.domain.user.service;
 
+import com.flowre.server.domain.audit.entity.AuditAction;
+import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
 import com.flowre.server.domain.user.dto.EmployeeCreateRequest;
@@ -37,6 +39,7 @@ public class UserService {
     private final StoreRepository storeRepository;
     private final PasswordEncoder passwordEncoder;
     private final ApprovalNotificationService approvalNotificationService;
+    private final AuditLogService auditLogService;
 
     /** 본사 권한자가 같은 브랜드 내 직원 계정 목록을 조회합니다. */
     @Transactional(readOnly = true)
@@ -44,6 +47,16 @@ public class UserService {
         assertCanManageEmployees(requester);
         return userRepository.findByBrandIdOrderByEmployeeCodeAsc(requester.getBrandId())
                 .stream()
+                .map(UserResponse::from)
+                .toList();
+    }
+
+    /** 같은 매장의 활성 직원 목록을 조회합니다 — 채팅 대상 선택용, 본인 제외. */
+    @Transactional(readOnly = true)
+    public List<UserResponse> getStoreMembers(User requester) {
+        return userRepository.findByStoreIdAndStatusOrderByCreatedAtAsc(requester.getStoreId(), UserStatus.ACTIVE)
+                .stream()
+                .filter(u -> !u.getId().equals(requester.getId()))
                 .map(UserResponse::from)
                 .toList();
     }
@@ -58,6 +71,7 @@ public class UserService {
     @Transactional
     public UserResponse createEmployee(User requester, EmployeeCreateRequest request) {
         assertCanManageEmployees(requester);
+        assertCanAssignRole(requester, request.getRole());
 
         if (!request.getEmployeeCode().startsWith(request.getStoreCode())) {
             throw new CustomException(ErrorCode.INVALID_EMPLOYEE_CODE);
@@ -129,6 +143,8 @@ public class UserService {
         employee.approve(requester.getId(), LocalDateTime.now());
         log.info("[User] 직원 계정 승인 — approvedBy={}, employeeCode={}",
                 requester.getEmployeeCode(), employee.getEmployeeCode());
+        auditLogService.record(requester, AuditAction.EMPLOYEE_APPROVED, "EMPLOYEE", employee.getId(),
+                "직원 승인: " + employee.getEmployeeCode());
         return UserResponse.from(employee);
     }
 
@@ -139,6 +155,8 @@ public class UserService {
         employee.reject(requester.getId(), reason.trim(), LocalDateTime.now());
         log.info("[User] 직원 계정 거절 — rejectedBy={}, employeeCode={}, reason={}",
                 requester.getEmployeeCode(), employee.getEmployeeCode(), reason.trim());
+        auditLogService.record(requester, AuditAction.EMPLOYEE_REJECTED, "EMPLOYEE", employee.getId(),
+                "직원 거절: " + employee.getEmployeeCode() + " - " + reason.trim());
         return UserResponse.from(employee);
     }
 
@@ -185,7 +203,17 @@ public class UserService {
     }
 
     private void assertCanManageEmployees(User user) {
-        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.HQ_STAFF) {
+        if (!user.getRole().canManage()) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    /**
+     * 요청자가 부여하려는 권한을 발급할 수 있는지 검증합니다.
+     * ADMIN 계정은 오직 ADMIN만 생성할 수 있어, HQ_STAFF가 ADMIN을 만들어 권한을 상승시키는 것을 막는다.
+     */
+    private void assertCanAssignRole(User requester, UserRole targetRole) {
+        if (targetRole == UserRole.ADMIN && requester.getRole() != UserRole.ADMIN) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

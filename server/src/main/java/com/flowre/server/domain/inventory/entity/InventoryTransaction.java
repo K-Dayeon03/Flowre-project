@@ -8,7 +8,13 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "inventory_transactions")
+@Table(
+        name = "inventory_transactions",
+        indexes = {
+                @Index(name = "idx_inv_tx_brand_item", columnList = "brand_id, inventory_item_id, created_at"),
+                @Index(name = "idx_inv_tx_brand_store", columnList = "brand_id, store_id, created_at")
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor

@@ -1,52 +1,78 @@
+// AdobeColor 어두운 그레이 팔레트
+// #F2F2F2 · #BFBFBF · #8C8C8C · #595959 · #262626
+
 export const Colors = {
-  primary: '#4F46E5',
-  primaryDark: '#4338CA',
-  accent: '#06B6D4',
-  background: '#F7F8FC',
+  // 인터랙티브 액션 컬러 (팔레트 외 유일한 색상)
+  primary: '#2563EB',
+  primaryDark: '#1D4ED8',
+  accent: '#60A5FA',
+
+  // 팔레트 1: 밝은 그레이 캔버스
+  background: '#F2F2F2',
+  // 팔레트 밖: 순백 카드
   surface: '#FFFFFF',
-  border: '#E6E8F0',
-  textPrimary: '#1E1B2E',
-  textSecondary: '#6B7280',
-  textMuted: '#A5AAB8',
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  info: '#06B6D4',
-  tabBar: '#FFFFFF',
+  // 배경과 흰색 사이
+  surfaceMuted: '#F7F7F7',
+
+  // 팔레트 2: 테두리
+  border: '#BFBFBF',
+  // 팔레트 3: 강한 테두리
+  borderStrong: '#8C8C8C',
+
+  // 팔레트 5: 프라이머리 텍스트 (딥 차콜)
+  textPrimary: '#262626',
+  // 팔레트 4: 세컨더리 텍스트
+  textSecondary: '#595959',
+  // 팔레트 3: 뮤트 텍스트
+  textMuted: '#8C8C8C',
+
+  success: '#059669',
+  warning: '#D97706',
+  error: '#DC2626',
+  info: '#0284C7',
+
+  tabBar: '#262626',
+
+  // AppHeader / 상단 네비게이션 바 (팔레트 5 기반)
+  sidebar: '#262626',
+  sidebarMuted: '#363636',
+  sidebarText: '#8C8C8C',
+  sidebarBorder: '#404040',
+
   scheduleType: {
-    MANNEQUIN: '#4F46E5',
-    HQ_VISIT: '#06B6D4',
-    VM_CHECK: '#10B981',
-    OTHER: '#F59E0B',
+    MANNEQUIN: '#7C3AED',
+    HQ_VISIT: '#2563EB',
+    VM_CHECK: '#059669',
+    OTHER: '#D97706',
   },
   statusBadge: {
-    PENDING: '#F59E0B',
-    IN_PROGRESS: '#06B6D4',
-    DONE: '#10B981',
+    PENDING: '#D97706',
+    IN_PROGRESS: '#2563EB',
+    DONE: '#059669',
   },
 };
 
 export const Gradients = {
-  brand: ['#4F46E5', '#06B6D4'] as const,
-  brandDark: ['#4338CA', '#0891B2'] as const,
-  soft: ['#EEF2FF', '#ECFEFF'] as const,
-  success: ['#10B981', '#06B6D4'] as const,
+  brand: ['#2563EB', '#60A5FA'] as const,
+  brandDark: ['#1D4ED8', '#2563EB'] as const,
+  soft: ['#FFFFFF', '#F2F2F2'] as const,
+  success: ['#059669', '#34D399'] as const,
 };
 
 export const Shadow = {
   card: {
-    shadowColor: '#1E1B2E',
-    shadowOffset: { width: 0, height: 8 },
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
-    shadowRadius: 18,
-    elevation: 3,
+    shadowRadius: 4,
+    elevation: 1,
   },
   raised: {
-    shadowColor: '#1E1B2E',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    elevation: 3,
   },
 };
 
@@ -71,8 +97,8 @@ export const FontSize = {
 
 export const Radius = {
   sm: 6,
-  md: 12,
-  lg: 20,
-  xl: 28,
+  md: 10,
+  lg: 14,
+  xl: 18,
   full: 999,
 };

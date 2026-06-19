@@ -5,7 +5,8 @@ import lombok.*;
 
 @Entity
 @Table(name = "chat_room_members",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"chat_room_id", "user_id"}))
+       uniqueConstraints = @UniqueConstraint(columnNames = {"chat_room_id", "user_id"}),
+       indexes = @Index(name = "idx_chat_room_members_user_id", columnList = "user_id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
