@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**신세계까사 JAJU 매장 직원 전용 통합 업무 관리 앱**  
+**입점 매장 직원 전용 통합 업무 관리 앱**  
 스케줄 · 문서 · 채팅 · 공지 · 재고를 하나의 플랫폼에서 처리합니다.
 
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.4-6DB33F?style=flat-square&logo=springboot&logoColor=white)
@@ -614,6 +614,6 @@ npx jest chatApi  --watchAll=false
 
 <div align="center">
 
-© 2026 Flowre · 신세계까사 JAJU 매장 통합 업무관리 플랫폼
+© 2026 Flowre · 입점 매장 통합 업무관리 플랫폼
 
 </div>

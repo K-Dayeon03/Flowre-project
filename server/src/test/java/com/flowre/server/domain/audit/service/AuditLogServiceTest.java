@@ -83,7 +83,7 @@ class AuditLogServiceTest {
     private User user(Long id, Long brandId, UserRole role) {
         return User.builder()
                 .id(id)
-                .email("u@jaju.com")
+                .email("u@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("사용자")

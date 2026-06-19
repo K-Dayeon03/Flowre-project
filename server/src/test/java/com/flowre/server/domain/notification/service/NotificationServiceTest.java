@@ -58,7 +58,7 @@ class NotificationServiceTest {
     private User user(Long id) {
         return User.builder()
                 .id(id)
-                .email("u" + id + "@jaju.com")
+                .email("u" + id + "@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("점장" + id)

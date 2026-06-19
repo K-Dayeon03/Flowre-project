@@ -85,7 +85,7 @@ class JwtAuthenticationFilterTest {
     private User user(UserStatus status) {
         return User.builder()
                 .id(1L)
-                .email("user@jaju.com")
+                .email("user@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("테스트 사용자")

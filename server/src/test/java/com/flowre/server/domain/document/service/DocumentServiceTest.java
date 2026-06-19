@@ -139,7 +139,7 @@ class DocumentServiceTest {
     private User user(Long brandId, UserRole role) {
         return User.builder()
                 .id(1L)
-                .email("u@jaju.com")
+                .email("u@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("사용자")

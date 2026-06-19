@@ -54,7 +54,7 @@ class AuthControllerTest {
     private User user() {
         return User.builder()
                 .id(1L)
-                .email("manager@jaju.com")
+                .email("manager@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded")
                 .name("테스트 점장")

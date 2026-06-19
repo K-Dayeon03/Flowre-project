@@ -227,7 +227,7 @@ class ChatServiceTest {
     private User user(Long id, Long brandId, Long storeId, UserRole role) {
         return User.builder()
                 .id(id)
-                .email("user" + id + "@jaju.com")
+                .email("user" + id + "@flowre.com")
                 .employeeCode("1001ABCD!")
                 .password("encoded-password")
                 .name("테스트 사용자" + id)
