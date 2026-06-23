@@ -53,18 +53,18 @@ const MENU_LABEL: Record<string, string> = {
 };
 
 const DashboardColors = {
-  page: '#F1F3F4',
-  surface: 'rgba(255, 255, 255, 0.68)',
-  surfaceSoft: 'rgba(247, 248, 248, 0.72)',
-  ink: '#2D3135',
-  muted: '#6E747B',
-  faint: '#90979F',
-  line: 'rgba(196, 202, 207, 0.58)',
-  lineStrong: 'rgba(168, 176, 183, 0.5)',
-  gray: '#6B737C',
-  grayDark: '#42484F',
-  graySoft: 'rgba(226, 230, 233, 0.76)',
-  shadow: 'rgba(45, 49, 53, 0.12)',
+  page: '#F0F4FF',
+  surface: '#FFFFFF',
+  surfaceSoft: '#F5F8FF',
+  ink: '#0F172A',
+  muted: '#64748B',
+  faint: '#94A3B8',
+  line: '#DBEAFE',
+  lineStrong: '#93C5FD',
+  gray: '#3B82F6',
+  grayDark: '#1E3A8A',
+  graySoft: '#EFF6FF',
+  shadow: 'rgba(30, 58, 138, 0.12)',
 };
 
 export default function HomeScreen() {

@@ -54,7 +54,6 @@ export default function AppHeader({ currentRoute }: Props) {
   return (
     <>
       <View style={styles.bar}>
-        {/* 로고 */}
         <TouchableOpacity
           style={styles.logoButton}
           onPress={() => navigation.navigate('Home')}
@@ -65,7 +64,6 @@ export default function AppHeader({ currentRoute }: Props) {
           <BrandWordmark size="header" light />
         </TouchableOpacity>
 
-        {/* 상단 탭 메뉴 */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -90,7 +88,6 @@ export default function AppHeader({ currentRoute }: Props) {
           })}
         </ScrollView>
 
-        {/* 우측: 매장 칩 + 아바타 */}
         <View style={styles.rightActions}>
           <TouchableOpacity
             style={styles.storeChip}
@@ -107,7 +104,6 @@ export default function AppHeader({ currentRoute }: Props) {
         </View>
       </View>
 
-      {/* 매장 선택 모달 */}
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -181,7 +177,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tabTextActive: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontWeight: '800',
   },
   tabIndicator: {
@@ -222,7 +218,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(30, 41, 59, 0.45)',
+    backgroundColor: 'rgba(15, 32, 96, 0.45)',
     justifyContent: 'center',
     padding: Spacing.lg,
   },
@@ -230,6 +226,8 @@ const styles = StyleSheet.create({
     maxHeight: '78%',
     backgroundColor: Colors.surface,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: Spacing.md,
     ...Shadow.raised,
   },

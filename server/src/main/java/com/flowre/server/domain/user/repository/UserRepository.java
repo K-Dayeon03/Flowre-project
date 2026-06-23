@@ -4,7 +4,10 @@ import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.domain.user.entity.UserRole;
 import com.flowre.server.domain.user.entity.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,4 +29,20 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     /** 특정 매장의 특정 역할·상태 직원 목록을 조회합니다. (승인 요청 알림 대상 = 활성 점장) */
     List<User> findByStoreIdAndRoleAndStatus(Long storeId, UserRole role, UserStatus status);
+
+    /**
+     * 코드 로테이션 대상 계정을 조회합니다.
+     * ADMIN 역할은 제외하고, 마지막 로테이션이 기준일 이전이거나 한 번도 로테이션되지 않은 활성 계정을 반환합니다.
+     */
+    @Query("""
+            select u from User u
+            where u.role != :adminRole
+              and u.status = :activeStatus
+              and (u.codeRotatedAt is null or u.codeRotatedAt < :threshold)
+            """)
+    List<User> findRotationTargets(
+            @Param("adminRole") UserRole adminRole,
+            @Param("activeStatus") UserStatus activeStatus,
+            @Param("threshold") LocalDateTime threshold
+    );
 }

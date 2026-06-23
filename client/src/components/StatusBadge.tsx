@@ -20,7 +20,6 @@ interface StatusBadgeProps {
   size?: 'sm' | 'md';
 }
 
-/** 상태값 → 색상 매핑 */
 const STATUS_COLOR: Record<string, string> = {
   PENDING: Colors.warning,
   IN_PROGRESS: Colors.primary,
@@ -32,7 +31,6 @@ const STATUS_COLOR: Record<string, string> = {
   REPORT: '#7C3AED',
 };
 
-/** 상태값 → 한글 레이블 매핑 */
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '대기',
   IN_PROGRESS: '진행중',
@@ -44,22 +42,12 @@ const STATUS_LABEL: Record<string, string> = {
   REPORT: '리포트',
 };
 
-/**
- * 스케줄·재고·문서 상태를 subtle 배지 스타일로 표시하는 컴포넌트입니다.
- * 배경색은 색상+'18' 투명도, 텍스트는 해당 색상을 사용합니다.
- *
- * @example
- * ```tsx
- * <StatusBadge status="PENDING" size="sm" />
- * <StatusBadge status="DONE" />
- * ```
- */
 export default function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
   const color = STATUS_COLOR[status] ?? Colors.textMuted;
   const label = STATUS_LABEL[status] ?? status;
 
   return (
-    <View style={[styles.badge, { backgroundColor: `${color}18` }]}>
+    <View style={[styles.badge, { backgroundColor: `${color}14`, borderColor: `${color}30` }]}>
       <Text style={[styles.text, { color }, size === 'sm' ? styles.textSm : styles.textMd]}>
         {label}
       </Text>
@@ -71,6 +59,7 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-start',
     borderRadius: Radius.full,
+    borderWidth: 1,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
   },

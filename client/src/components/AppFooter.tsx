@@ -31,8 +31,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(188, 196, 203, 0.48)',
-    backgroundColor: 'rgba(255, 255, 255, 0.52)',
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
   },
   brandBlock: {
     gap: 2,
@@ -40,12 +40,12 @@ const styles = StyleSheet.create({
   },
   caption: {
     fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-    fontWeight: '700',
+    color: Colors.textMuted,
+    fontWeight: '600',
   },
   copy: {
     fontSize: FontSize.xs,
     color: Colors.textMuted,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });

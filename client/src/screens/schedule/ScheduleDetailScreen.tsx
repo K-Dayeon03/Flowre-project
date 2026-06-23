@@ -16,6 +16,7 @@ import { MainStackParamList } from '../../navigation/types';
 import { Schedule, scheduleApi } from '../../api/scheduleApi';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import FavoriteToggle from '../../components/FavoriteToggle';
+import ConfirmModal from '../../components/ConfirmModal';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'ScheduleDetail'>;
 
@@ -41,6 +42,8 @@ export default function ScheduleDetailScreen({ route, navigation }: Props) {
   const { scheduleId } = route.params;
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [loading, setLoading] = useState(true);
+  const [completeModalVisible, setCompleteModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const completeSchedule = useScheduleStore((s) => s.completeSchedule);
   const deleteSchedule = useScheduleStore((s) => s.deleteSchedule);
 
@@ -68,38 +71,31 @@ export default function ScheduleDetailScreen({ route, navigation }: Props) {
 
   const handleComplete = () => {
     if (!schedule || schedule.status === 'DONE') return;
-    Alert.alert('완료 처리', '이 스케줄을 완료 처리할까요?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '완료',
-        onPress: async () => {
-          try {
-            await completeSchedule(scheduleId);
-            setSchedule((prev) => prev ? { ...prev, status: 'DONE' } : prev);
-          } catch {
-            Alert.alert('오류', '완료 처리에 실패했습니다.');
-          }
-        },
-      },
-    ]);
+    setCompleteModalVisible(true);
+  };
+
+  const confirmComplete = async () => {
+    setCompleteModalVisible(false);
+    try {
+      await completeSchedule(scheduleId);
+      setSchedule((prev) => prev ? { ...prev, status: 'DONE' } : prev);
+    } catch {
+      Alert.alert('오류', '완료 처리에 실패했습니다.');
+    }
   };
 
   const handleDelete = () => {
-    Alert.alert('스케줄 삭제', '이 스케줄을 삭제할까요?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteSchedule(scheduleId);
-            navigation.goBack();
-          } catch {
-            Alert.alert('오류', '삭제에 실패했습니다.');
-          }
-        },
-      },
-    ]);
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDelete = async () => {
+    setDeleteModalVisible(false);
+    try {
+      await deleteSchedule(scheduleId);
+      navigation.goBack();
+    } catch {
+      Alert.alert('오류', '삭제에 실패했습니다.');
+    }
   };
 
   if (loading) {
@@ -179,6 +175,24 @@ export default function ScheduleDetailScreen({ route, navigation }: Props) {
           </View>
         )}
       </View>
+
+      <ConfirmModal
+        visible={completeModalVisible}
+        title="완료 처리"
+        message="이 스케줄을 완료 처리할까요?"
+        confirmLabel="완료"
+        onConfirm={confirmComplete}
+        onCancel={() => setCompleteModalVisible(false)}
+      />
+      <ConfirmModal
+        visible={deleteModalVisible}
+        title="스케줄 삭제"
+        message="이 스케줄을 삭제할까요? 삭제 후 복구할 수 없습니다."
+        confirmLabel="삭제"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }

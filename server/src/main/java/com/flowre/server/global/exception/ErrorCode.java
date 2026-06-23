@@ -24,6 +24,9 @@ public enum ErrorCode {
     APPROVAL_NOT_ALLOWED(HttpStatus.FORBIDDEN, "USER_007", "해당 직원 계정을 승인할 권한이 없습니다."),
     EMPLOYEE_NOT_PENDING(HttpStatus.BAD_REQUEST, "USER_008", "승인 대기 상태의 직원이 아닙니다."),
     STORE_MANAGER_REQUIRED(HttpStatus.BAD_REQUEST, "USER_009", "해당 매장에 점장이 먼저 등록되어 있어야 직원을 등록할 수 있습니다."),
+    CANNOT_MODIFY_ADMIN(HttpStatus.FORBIDDEN, "USER_010", "ADMIN 계정은 수정·삭제·코드 로테이션이 불가합니다."),
+    CANNOT_SELF_DELETE(HttpStatus.BAD_REQUEST, "USER_011", "자기 자신의 계정은 삭제할 수 없습니다."),
+    EMPLOYEE_CODE_ROTATION_FAILED(HttpStatus.CONFLICT, "USER_012", "코드 로테이션 충돌이 발생했습니다. 다시 시도해주세요."),
 
     // Store
     STORE_NOT_FOUND(HttpStatus.NOT_FOUND, "STORE_001", "매장을 찾을 수 없습니다."),

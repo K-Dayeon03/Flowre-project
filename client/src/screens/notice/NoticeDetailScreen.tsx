@@ -21,6 +21,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { canCreateNotices } from '../home/homePermissions';
 import Badge from '../../components/Badge';
 import Card from '../../components/Card';
+import ConfirmModal from '../../components/ConfirmModal';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'NoticeDetail'>;
 
@@ -38,6 +39,7 @@ export default function NoticeDetailScreen({ route, navigation }: Props) {
   const [editContent, setEditContent] = useState('');
   const [editPinned, setEditPinned] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   const markRead = useNoticeStore((s) => s.markRead);
   const updateNotice = useNoticeStore((s) => s.updateNotice);
@@ -98,21 +100,17 @@ export default function NoticeDetailScreen({ route, navigation }: Props) {
   }
 
   function handleDelete() {
-    Alert.alert('공지 삭제', '이 공지를 삭제할까요?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteNotice(noticeId);
-            navigation.goBack();
-          } catch {
-            Alert.alert('오류', '공지를 삭제하지 못했습니다.');
-          }
-        },
-      },
-    ]);
+    setDeleteModalVisible(true);
+  }
+
+  async function confirmDelete() {
+    setDeleteModalVisible(false);
+    try {
+      await deleteNotice(noticeId);
+      navigation.goBack();
+    } catch {
+      Alert.alert('오류', '공지를 삭제하지 못했습니다.');
+    }
   }
 
   if (loading) {
@@ -151,6 +149,16 @@ export default function NoticeDetailScreen({ route, navigation }: Props) {
           </View>
         )}
       </ScrollView>
+
+      <ConfirmModal
+        visible={deleteModalVisible}
+        title="공지 삭제"
+        message="이 공지를 삭제할까요? 삭제 후 복구할 수 없습니다."
+        confirmLabel="삭제"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModalVisible(false)}
+      />
 
       <Modal visible={editVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modalSafe}>

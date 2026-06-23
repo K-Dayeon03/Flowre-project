@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
     ...Shadow.raised,
   },
   disabled: {
-    opacity: 0.58,
+    opacity: 0.55,
   },
   gradient: {
     minHeight: 52,
@@ -48,5 +48,6 @@ const styles = StyleSheet.create({
     color: Colors.surface,
     fontSize: FontSize.md,
     fontWeight: '800',
+    letterSpacing: 0.2,
   },
 });

@@ -9,30 +9,11 @@ export interface FilterOption<T extends string | number | boolean | undefined = 
 }
 
 interface FilterBarProps<T extends string | number | boolean | undefined = string | undefined> {
-  /** 탭 옵션 목록 */
   options: FilterOption<T>[];
-  /** 현재 선택된 값 */
   value: T;
-  /** 탭 선택 콜백 */
   onChange: (value: T) => void;
 }
 
-/**
- * 세그먼트 스타일 필터 탭 컴포넌트입니다.
- * ScheduleListScreen, DocumentListScreen 등 카테고리/상태 필터에 사용합니다.
- *
- * @example
- * ```tsx
- * <FilterBar
- *   options={[
- *     { label: '전체', value: undefined },
- *     { label: '대기', value: 'PENDING' },
- *   ]}
- *   value={activeFilter}
- *   onChange={setActiveFilter}
- * />
- * ```
- */
 export default function FilterBar<T extends string | number | boolean | undefined = string | undefined>({
   options,
   value,
@@ -65,6 +46,7 @@ const styles = StyleSheet.create({
     padding: 3,
     borderWidth: 1,
     borderColor: Colors.border,
+    gap: 2,
   },
   tab: {
     flex: 1,
@@ -73,7 +55,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
   },
   tabActive: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.primary,
     ...Shadow.card,
   },
   tabText: {
@@ -84,6 +66,6 @@ const styles = StyleSheet.create({
   tabTextActive: {
     fontSize: FontSize.sm,
     fontWeight: '800',
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
 });

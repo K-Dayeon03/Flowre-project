@@ -59,6 +59,9 @@ flowre:
   inventory:
     data-dir: ../data
     auto-load: true
+  employee:
+    # 직원 코드 자동 로테이션 주기 (일). ADMIN 계정은 대상 제외.
+    code-rotation-days: ${FLOWRE_CODE_ROTATION_DAYS:90}
   # 부트스트랩 관리자 계정 — 본사 최초 로그인용 단일 ADMIN 계정.
   # 직원 계정은 본사가 앱에서 직접 발급한다. 운영 환경에서는 아래 값을 환경변수로 반드시 덮어쓸 것.
   admin:

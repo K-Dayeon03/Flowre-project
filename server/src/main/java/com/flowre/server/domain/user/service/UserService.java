@@ -4,8 +4,7 @@ import com.flowre.server.domain.audit.entity.AuditAction;
 import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
-import com.flowre.server.domain.user.dto.EmployeeCreateRequest;
-import com.flowre.server.domain.user.dto.UserResponse;
+import com.flowre.server.domain.user.dto.*;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.domain.user.entity.UserRole;
 import com.flowre.server.domain.user.entity.UserStatus;
@@ -14,32 +13,42 @@ import com.flowre.server.global.exception.CustomException;
 import com.flowre.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 
 /**
  * 직원 계정 관리 서비스.
  *
- * 본사(HQ_STAFF/ADMIN)가 직원 아이디와 초기 비밀번호를 발급한다. 단, 매장 직원
- * (STORE_STAFF/STORE_MANAGER)을 등록할 때 해당 매장에 이미 활성 점장이 있다면,
- * 계정은 승인 대기(PENDING) 상태로 생성되어 점장이 "실제 매장 소속 직원"임을 확인·승인하기
- * 전까지 로그인할 수 없다. 점장이 없는 매장(예: 첫 점장 등록)이나 본사 직원(HQ_STAFF)은
- * 승인 대상이 없으므로 곧바로 활성(ACTIVE) 상태로 생성된다.
+ * CRUD, 비밀번호 초기화, 코드 로테이션을 담당한다.
+ * 본사(HQ_STAFF/ADMIN)가 직원 아이디와 초기 비밀번호를 발급하며, 매장 직원(STORE_STAFF)
+ * 등록 시 해당 매장에 활성 점장이 있으면 PENDING으로 생성해 점장 승인을 요구한다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
+    private static final String SUFFIX_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz";
+    private static final String SPECIAL_CHARS = "!@#$%^&*?";
+    private static final int MAX_CODE_RETRY = 100;
+
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
     private final PasswordEncoder passwordEncoder;
     private final ApprovalNotificationService approvalNotificationService;
     private final AuditLogService auditLogService;
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    @Value("${flowre.employee.code-rotation-days:90}")
+    private int codeRotationDays;
+
+    // ── 조회 ────────────────────────────────────────────────────────
 
     /** 본사 권한자가 같은 브랜드 내 직원 계정 목록을 조회합니다. */
     @Transactional(readOnly = true)
@@ -61,12 +70,13 @@ public class UserService {
                 .toList();
     }
 
+    // ── Create ──────────────────────────────────────────────────────
+
     /**
      * 본사 권한자가 신규 직원 계정을 발급합니다.
      *
-     * 직원 아이디는 점별 코드로 시작해야 하며(로그인 검증과 동일), 대상 매장은
-     * 요청자와 같은 브랜드에 활성 상태로 등록되어 있어야 한다. 비밀번호는 BCrypt로 암호화해 저장한다.
-     * 매장 직원 등록 시 해당 매장에 활성 점장이 있으면 PENDING 상태로 생성하고 점장에게 승인 요청 알림을 보낸다.
+     * 직원 아이디는 점별 코드로 시작해야 하며, 대상 매장은 같은 브랜드에 활성 상태로 등록되어야 한다.
+     * 매장 직원 등록 시 해당 매장에 활성 점장이 있으면 PENDING으로 생성하고 점장에게 알림을 보낸다.
      */
     @Transactional
     public UserResponse createEmployee(User requester, EmployeeCreateRequest request) {
@@ -118,9 +128,123 @@ public class UserService {
         return UserResponse.from(saved);
     }
 
+    // ── Update ──────────────────────────────────────────────────────
+
     /**
-     * 점장(또는 관리자)이 자신의 매장(관리자는 브랜드 전체)에서 승인 대기 중인 직원 목록을 조회합니다.
+     * 직원 계정 이름·이메일·역할을 수정합니다.
+     * ADMIN 계정은 수정 불가이며, 본사(HQ/ADMIN)만 호출할 수 있습니다.
      */
+    @Transactional
+    public UserResponse updateEmployee(User requester, Long id, EmployeeUpdateRequest request) {
+        assertCanManageEmployees(requester);
+        User target = findInBrand(requester, id);
+        assertNotAdmin(target);
+        assertCanAssignRole(requester, request.getRole());
+
+        String newEmail = request.getEmail().trim();
+        if (!newEmail.equals(target.getEmail()) && userRepository.existsByEmail(newEmail)) {
+            throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+
+        target.updateInfo(request.getName().trim(), newEmail);
+        auditLogService.record(requester, AuditAction.EMPLOYEE_UPDATED, "EMPLOYEE", target.getId(),
+                "직원 정보 수정: " + target.getEmployeeCode());
+        log.info("[User] 직원 정보 수정 — by={}, target={}", requester.getEmployeeCode(), target.getEmployeeCode());
+        return UserResponse.from(target);
+    }
+
+    // ── Delete ──────────────────────────────────────────────────────
+
+    /**
+     * 직원 계정을 비활성화(소프트 삭제)합니다.
+     * ADMIN 계정과 자기 자신은 삭제 불가입니다.
+     */
+    @Transactional
+    public void deleteEmployee(User requester, Long id) {
+        assertCanManageEmployees(requester);
+        if (requester.getId().equals(id)) {
+            throw new CustomException(ErrorCode.CANNOT_SELF_DELETE);
+        }
+        User target = findInBrand(requester, id);
+        assertNotAdmin(target);
+
+        target.deactivate();
+        auditLogService.record(requester, AuditAction.EMPLOYEE_DELETED, "EMPLOYEE", target.getId(),
+                "직원 계정 비활성화: " + target.getEmployeeCode());
+        log.info("[User] 직원 계정 비활성화 — by={}, target={}", requester.getEmployeeCode(), target.getEmployeeCode());
+    }
+
+    // ── Password Reset ──────────────────────────────────────────────
+
+    /**
+     * 직원 비밀번호를 초기화합니다. ADMIN 계정은 대상 제외.
+     */
+    @Transactional
+    public UserResponse resetPassword(User requester, Long id, String newPassword) {
+        assertCanManageEmployees(requester);
+        User target = findInBrand(requester, id);
+        assertNotAdmin(target);
+
+        target.resetPassword(passwordEncoder.encode(newPassword));
+        auditLogService.record(requester, AuditAction.EMPLOYEE_UPDATED, "EMPLOYEE", target.getId(),
+                "비밀번호 초기화: " + target.getEmployeeCode());
+        log.info("[User] 비밀번호 초기화 — by={}, target={}", requester.getEmployeeCode(), target.getEmployeeCode());
+        return UserResponse.from(target);
+    }
+
+    // ── Code Rotation ────────────────────────────────────────────────
+
+    /**
+     * 직원 코드를 즉시 로테이션합니다.
+     * ADMIN 계정은 대상 제외이며, 본사(HQ/ADMIN)만 호출할 수 있습니다.
+     * 새 코드는 점별 코드 접두사를 유지하고 4자리 영문 + 1자리 특수문자를 무작위로 재생성합니다.
+     */
+    @Transactional
+    public EmployeeCodeRotateResponse rotateEmployeeCode(User requester, Long id) {
+        assertCanManageEmployees(requester);
+        User target = findInBrand(requester, id);
+        assertNotAdmin(target);
+
+        String newCode = generateUniqueCode(target.getStoreCode());
+        target.rotateCode(newCode);
+
+        auditLogService.record(requester, AuditAction.EMPLOYEE_UPDATED, "EMPLOYEE", target.getId(),
+                "코드 로테이션: " + newCode);
+        log.info("[User] 코드 로테이션 — by={}, target={}, newCode={}", requester.getEmployeeCode(), id, newCode);
+
+        return EmployeeCodeRotateResponse.builder()
+                .newEmployeeCode(newCode)
+                .rotatedAt(target.getCodeRotatedAt())
+                .nextRotationAt(target.getCodeRotatedAt().plusDays(codeRotationDays))
+                .build();
+    }
+
+    /**
+     * 스케줄러 호출용: 로테이션 주기(codeRotationDays)가 지난 비-ADMIN 활성 계정의 코드를 자동 순환합니다.
+     * 순환된 계정 수를 반환합니다.
+     */
+    @Transactional
+    public int rotateExpiredCodes() {
+        LocalDateTime threshold = LocalDateTime.now().minusDays(codeRotationDays);
+        List<User> targets = userRepository.findRotationTargets(UserRole.ADMIN, UserStatus.ACTIVE, threshold);
+
+        int rotated = 0;
+        for (User target : targets) {
+            try {
+                String newCode = generateUniqueCode(target.getStoreCode());
+                target.rotateCode(newCode);
+                rotated++;
+                log.info("[User][Scheduler] 코드 자동 로테이션 — employeeId={}, newCode={}", target.getId(), newCode);
+            } catch (Exception e) {
+                log.warn("[User][Scheduler] 코드 로테이션 실패 — employeeId={}: {}", target.getId(), e.getMessage());
+            }
+        }
+        return rotated;
+    }
+
+    // ── Approval ────────────────────────────────────────────────────
+
+    /** 점장(또는 관리자)이 자신의 매장(관리자는 브랜드 전체)에서 승인 대기 중인 직원 목록을 조회합니다. */
     @Transactional(readOnly = true)
     public List<UserResponse> getPendingEmployees(User requester) {
         List<User> pending;
@@ -160,9 +284,35 @@ public class UserService {
         return UserResponse.from(employee);
     }
 
-    /**
-     * 승인/거절 대상 직원을 조회하고, 요청자가 승인 권한을 가지며 대상이 PENDING 상태인지 검증합니다.
-     */
+    // ── 내부 헬퍼 ────────────────────────────────────────────────────
+
+    /** 점별 코드 접두사를 유지한 채 새 직원 코드를 중복 없이 생성합니다. */
+    private String generateUniqueCode(String storeCode) {
+        for (int i = 0; i < MAX_CODE_RETRY; i++) {
+            String candidate = storeCode + randomSuffix();
+            if (!userRepository.existsByEmployeeCode(candidate)) {
+                return candidate;
+            }
+        }
+        throw new CustomException(ErrorCode.EMPLOYEE_CODE_ROTATION_FAILED);
+    }
+
+    /** 영문 4자리 + 특수문자 1자리를 무작위로 생성합니다. */
+    private String randomSuffix() {
+        char[] buf = new char[5];
+        for (int i = 0; i < 4; i++) {
+            buf[i] = SUFFIX_CHARS.charAt(secureRandom.nextInt(SUFFIX_CHARS.length()));
+        }
+        buf[4] = SPECIAL_CHARS.charAt(secureRandom.nextInt(SPECIAL_CHARS.length()));
+        return new String(buf);
+    }
+
+    private User findInBrand(User requester, Long id) {
+        return userRepository.findById(id)
+                .filter(u -> u.getBrandId().equals(requester.getBrandId()))
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    }
+
     private User findPendingTarget(User requester, Long employeeId) {
         User employee = userRepository.findById(employeeId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -173,17 +323,6 @@ public class UserService {
         return employee;
     }
 
-    /**
-     * 신규 직원 계정의 초기 상태를 결정한다.
-     *
-     * <ul>
-     *   <li>STORE_STAFF(일반 직원): 해당 매장에 활성 점장이 <b>반드시</b> 먼저 등록되어 있어야 하며,
-     *       없으면 등록을 거부한다(점장이 승인·알림 수신 주체이기 때문). 점장이 있으면 PENDING으로 생성한다.</li>
-     *   <li>STORE_MANAGER(점장): 매장의 첫 점장(활성 점장 부재)은 부트스트랩으로 즉시 ACTIVE,
-     *       이미 활성 점장이 있으면 기존 점장 승인을 위해 PENDING으로 생성한다.</li>
-     *   <li>HQ_STAFF/ADMIN(본사): 승인 주체가 없으므로 즉시 ACTIVE.</li>
-     * </ul>
-     */
     private UserStatus resolveInitialStatus(UserRole role, Long storeId) {
         if (role == UserRole.STORE_STAFF) {
             if (!hasActiveManager(storeId)) {
@@ -197,7 +336,6 @@ public class UserService {
         return UserStatus.ACTIVE;
     }
 
-    /** 매장에 활성(ACTIVE) 점장이 존재하는지 확인합니다. */
     private boolean hasActiveManager(Long storeId) {
         return userRepository.existsByStoreIdAndRoleAndStatus(storeId, UserRole.STORE_MANAGER, UserStatus.ACTIVE);
     }
@@ -208,20 +346,18 @@ public class UserService {
         }
     }
 
-    /**
-     * 요청자가 부여하려는 권한을 발급할 수 있는지 검증합니다.
-     * ADMIN 계정은 오직 ADMIN만 생성할 수 있어, HQ_STAFF가 ADMIN을 만들어 권한을 상승시키는 것을 막는다.
-     */
     private void assertCanAssignRole(User requester, UserRole targetRole) {
         if (targetRole == UserRole.ADMIN && requester.getRole() != UserRole.ADMIN) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }
 
-    /**
-     * 요청자가 대상 직원을 승인/거절할 권한이 있는지 검증합니다.
-     * 관리자(ADMIN)는 같은 브랜드 전체, 점장(STORE_MANAGER)은 자신의 매장 직원만 승인할 수 있다.
-     */
+    private void assertNotAdmin(User target) {
+        if (target.isAdmin()) {
+            throw new CustomException(ErrorCode.CANNOT_MODIFY_ADMIN);
+        }
+    }
+
     private void assertCanApprove(User requester, User target) {
         if (requester.getRole() == UserRole.ADMIN) {
             if (!requester.getBrandId().equals(target.getBrandId())) {

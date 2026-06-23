@@ -14,29 +14,28 @@ import {
 } from 'react-native';
 import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../store/useAuthStore';
-import { getLoginRequiredError } from './loginValidation';
+import { extractStoreCode, getLoginRequiredError } from './loginValidation';
 import AppFooter from '../../components/AppFooter';
 import BrandWordmark from '../../components/BrandWordmark';
 
 const LoginColors = {
-  page: '#F1F3F4',
-  surface: 'rgba(255, 255, 255, 0.74)',
-  surfaceStrong: 'rgba(255, 255, 255, 0.9)',
-  surfaceSoft: 'rgba(247, 248, 248, 0.74)',
-  ink: '#2B3035',
-  muted: '#6B737C',
-  faint: '#8D949B',
-  line: 'rgba(188, 196, 203, 0.58)',
-  lineStrong: 'rgba(149, 158, 167, 0.42)',
-  gray: '#69717A',
-  button: '#3F464D',
-  buttonPressed: '#2F353B',
-  shadow: 'rgba(43, 48, 53, 0.12)',
+  page: '#F0F4FF',
+  surface: '#FFFFFF',
+  surfaceStrong: '#FFFFFF',
+  surfaceSoft: '#F5F8FF',
+  ink: '#0F172A',
+  muted: '#64748B',
+  faint: '#94A3B8',
+  line: '#DBEAFE',
+  lineStrong: '#93C5FD',
+  gray: '#64748B',
+  button: '#1E3A8A',
+  buttonPressed: '#1E2F77',
+  shadow: 'rgba(30, 58, 138, 0.14)',
 };
 
 export default function LoginScreen() {
   const { width } = useWindowDimensions();
-  const [storeCode, setStoreCode] = useState('');
   const [employeeCode, setEmployeeCode] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,7 +45,7 @@ export default function LoginScreen() {
   const isWide = width >= 860;
 
   const handleLogin = async () => {
-    const validationError = getLoginRequiredError(storeCode, employeeCode, password);
+    const validationError = getLoginRequiredError(employeeCode, password);
     if (validationError) {
       setError(validationError);
       return;
@@ -54,11 +53,10 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      await login(storeCode, employeeCode, password);
+      await login(extractStoreCode(employeeCode), employeeCode, password);
     } catch (e: any) {
-      // 서버가 내려준 실제 사유(승인 대기·거절 등)를 우선 노출하고, 없으면 일반 메시지로 폴백한다.
       const message = e?.response?.data?.error?.message;
-      setError(message ?? '점별 코드, 직원 아이디 또는 비밀번호가 올바르지 않습니다.');
+      setError(message ?? '직원 아이디 또는 비밀번호가 올바르지 않습니다.');
     } finally {
       setLoading(false);
     }
@@ -81,27 +79,12 @@ export default function LoginScreen() {
               <View style={styles.formHeader}>
                 <View>
                   <Text style={styles.formTitle}>직원 로그인</Text>
-                  <Text style={styles.formSub}>입점 등록 후 발급받은 점별 코드와 직원 계정으로 접속하세요.</Text>
+                  <Text style={styles.formSub}>발급받은 직원 아이디와 비밀번호로 접속하세요.</Text>
                 </View>
                 <View style={styles.formStatus}>
                   <View style={styles.statusDot} />
                   <Text style={styles.statusText}>secure</Text>
                 </View>
-              </View>
-
-              <View style={styles.inputWrapper}>
-                <Text style={styles.label}>점별 코드</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="예: 1001"
-                  placeholderTextColor={LoginColors.faint}
-                  value={storeCode}
-                  onChangeText={setStoreCode}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
               </View>
 
               <View style={styles.inputWrapper}>
