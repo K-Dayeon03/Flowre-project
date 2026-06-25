@@ -5,9 +5,13 @@ import com.flowre.server.domain.store.dto.StoreCreateRequest;
 import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.entity.Store;
+import com.flowre.server.domain.chat.repository.ChatRoomRepository;
+import com.flowre.server.domain.chat.repository.MessageRepository;
+import com.flowre.server.domain.schedule.repository.ScheduleRepository;
 import com.flowre.server.domain.store.repository.StoreRepository;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.domain.user.entity.UserRole;
+import com.flowre.server.domain.user.repository.UserRepository;
 import com.flowre.server.global.exception.CustomException;
 import com.flowre.server.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,12 +28,20 @@ import static org.mockito.Mockito.*;
 class StoreServiceTest {
 
     private StoreRepository storeRepository;
+    private ScheduleRepository scheduleRepository;
+    private ChatRoomRepository chatRoomRepository;
+    private MessageRepository messageRepository;
+    private UserRepository userRepository;
     private StoreService storeService;
 
     @BeforeEach
     void setUp() {
         storeRepository = mock(StoreRepository.class);
-        storeService = new StoreService(storeRepository);
+        scheduleRepository = mock(ScheduleRepository.class);
+        chatRoomRepository = mock(ChatRoomRepository.class);
+        messageRepository = mock(MessageRepository.class);
+        userRepository = mock(UserRepository.class);
+        storeService = new StoreService(storeRepository, scheduleRepository, chatRoomRepository, messageRepository, userRepository);
     }
 
     @Test
