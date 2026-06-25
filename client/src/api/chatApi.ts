@@ -2,12 +2,21 @@ import { apiClient, unwrap } from './client';
 
 export type RoomType = 'GROUP' | 'DIRECT';
 export type MessageType = 'TEXT' | 'IMAGE' | 'FILE';
+export type UserRole = 'STORE_STAFF' | 'STORE_MANAGER' | 'HQ_STAFF' | 'ADMIN';
 
 export interface StoreMember {
   id: number;
   name: string;
   employeeCode: string;
   role: string;
+}
+
+export interface ChatMember {
+  id: number;
+  name: string;
+  employeeCode: string;
+  role: UserRole;
+  storeName?: string;
 }
 
 export interface ChatRoom {
@@ -73,9 +82,26 @@ export const chatApi = {
     await apiClient.post(`/api/chat/rooms/${roomId}/read`);
   },
 
+  /** 그룹 채팅방 이름 수정 */
+  updateRoom: async (roomId: number, name: string): Promise<ChatRoom> => {
+    const res = await apiClient.put(`/api/chat/rooms/${roomId}`, { name });
+    return unwrap(res);
+  },
+
+  /** 채팅방 나가기 */
+  leaveRoom: async (roomId: number): Promise<void> => {
+    await apiClient.delete(`/api/chat/rooms/${roomId}`);
+  },
+
   /** 같은 매장 활성 직원 목록 (채팅 대상 선택용) */
   getStoreMembers: async (): Promise<StoreMember[]> => {
     const res = await apiClient.get('/api/employees/store-members');
+    return unwrap(res);
+  },
+
+  /** role 기반 채팅 가능 대상 목록 (매장 직원 + 본사 직원 통합) */
+  getChatCandidates: async (): Promise<ChatMember[]> => {
+    const res = await apiClient.get('/api/chat/members/candidates');
     return unwrap(res);
   },
 };

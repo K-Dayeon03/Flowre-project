@@ -11,6 +11,8 @@ interface ChatState {
   fetchMessages: (roomId: number) => Promise<void>;
   addMessage: (roomId: number, message: Message) => void;
   markRoomRead: (roomId: number) => Promise<void>;
+  removeRoom: (roomId: number) => void;
+  renameRoom: (roomId: number, name: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -54,6 +56,21 @@ export const useChatStore = create<ChatState>((set) => ({
         rooms: updatedRooms,
       };
     });
+  },
+
+  removeRoom: (roomId) => {
+    set((state) => ({
+      rooms: state.rooms.filter((r) => r.id !== roomId),
+      messages: Object.fromEntries(
+        Object.entries(state.messages).filter(([k]) => Number(k) !== roomId)
+      ),
+    }));
+  },
+
+  renameRoom: (roomId, name) => {
+    set((state) => ({
+      rooms: state.rooms.map((r) => (r.id === roomId ? { ...r, name } : r)),
+    }));
   },
 
   /**

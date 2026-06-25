@@ -1,13 +1,23 @@
 package com.flowre.server.domain.store.service;
 
+import com.flowre.server.domain.chat.entity.ChatRoom;
+import com.flowre.server.domain.chat.entity.RoomType;
+import com.flowre.server.domain.chat.repository.ChatRoomRepository;
+import com.flowre.server.domain.chat.repository.MessageRepository;
+import com.flowre.server.domain.schedule.entity.ScheduleStatus;
+import com.flowre.server.domain.schedule.repository.ScheduleRepository;
+import com.flowre.server.domain.store.dto.StoreActivityResponse;
 import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
 import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.entity.Store;
+import com.flowre.server.domain.store.entity.StoreOperationStatus;
 import com.flowre.server.domain.store.repository.StoreRepository;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.domain.user.entity.UserRole;
+import com.flowre.server.domain.user.entity.UserStatus;
+import com.flowre.server.domain.user.repository.UserRepository;
 import com.flowre.server.global.exception.CustomException;
 import com.flowre.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -22,6 +35,10 @@ import java.util.List;
 public class StoreService {
 
     private final StoreRepository storeRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final ChatRoomRepository chatRoomRepository;
+    private final MessageRepository messageRepository;
+    private final UserRepository userRepository;
     private static final SecureRandom STORE_CODE_RANDOM = new SecureRandom();
     private static final int MIN_STORE_CODE = 1;
     private static final int MAX_STORE_CODE = 9999;
@@ -29,6 +46,66 @@ public class StoreService {
     private static final int DEFAULT_NEARBY_LIMIT = 5;
     private static final int MAX_NEARBY_LIMIT = 20;
     private static final double EARTH_RADIUS_METERS = 6_371_000;
+
+    /**
+     * 매장 Activity 현황 조회.
+     * - HQ/ADMIN: 브랜드 전 매장
+     * - STORE_MANAGER: 본인 매장 1개
+     */
+    @Transactional(readOnly = true)
+    public List<StoreActivityResponse> getStoreActivity(User user) {
+        boolean isManager = user.getRole() == UserRole.STORE_MANAGER;
+        if (!user.getRole().isHeadquarters() && !isManager) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+
+        LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+        LocalDateTime todayEnd = LocalDate.now().atTime(LocalTime.MAX);
+
+        List<Store> stores = user.getRole().isHeadquarters()
+                ? storeRepository.findByBrandIdOrderByStoreCodeAsc(user.getBrandId())
+                : storeRepository.findById(user.getStoreId()).map(java.util.List::of).orElse(java.util.List.of());
+
+        return stores.stream()
+                .map(store -> {
+                    LocalDateTime lastActivity = chatRoomRepository
+                            .findByStoreIdAndType(store.getId(), RoomType.GROUP)
+                            .flatMap(room -> messageRepository.findTopByRoomIdOrderBySentAtDesc(room.getId()))
+                            .map(msg -> msg.getSentAt())
+                            .orElse(null);
+
+                    int total = (int) scheduleRepository.countByStoreIdAndDueDateBetween(
+                            store.getId(), todayStart, todayEnd);
+                    int done = (int) scheduleRepository.countByStoreIdAndStatusAndDueDateBetween(
+                            store.getId(), ScheduleStatus.DONE, todayStart, todayEnd);
+                    long activeStaff = userRepository.countByStoreIdAndStatus(
+                            store.getId(), UserStatus.ACTIVE);
+
+                    return StoreActivityResponse.of(store, lastActivity, total, done, activeStaff);
+                })
+                .toList();
+    }
+
+    /**
+     * 매장 운영 상태를 변경합니다.
+     * 점장은 본인 매장만, HQ/ADMIN은 브랜드 내 모든 매장 변경 가능.
+     */
+    @Transactional
+    public StoreActivityResponse updateOperationStatus(User user, Long storeId, StoreOperationStatus status) {
+        Store store = storeRepository.findById(storeId)
+                .filter(s -> s.getBrandId().equals(user.getBrandId()))
+                .orElseThrow(() -> new CustomException(ErrorCode.STORE_NOT_FOUND));
+
+        boolean canUpdate = user.getRole().isHeadquarters()
+                || (user.getRole() == UserRole.STORE_MANAGER && store.getId().equals(user.getStoreId()));
+        if (!canUpdate) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+
+        store.updateOperationStatus(status);
+        storeRepository.saveAndFlush(store);
+        return StoreActivityResponse.of(store, null, 0, 0, 0);
+    }
 
     /** 브랜드 내 점별 매장 목록을 조회합니다. */
     @Transactional(readOnly = true)

@@ -45,6 +45,19 @@ export interface StoreAddressUpdateRequest {
   detailAddress?: string;
 }
 
+export type OperationStatus = 'OPEN' | 'CLOSED';
+
+export interface StoreActivity {
+  storeId: number;
+  storeCode: string;
+  storeName: string;
+  operationStatus: OperationStatus;
+  lastActivityAt: string | null;
+  todayScheduleTotal: number;
+  todayScheduleDone: number;
+  activeStaffCount: number;
+}
+
 export const storeApi = {
   getList: async (): Promise<Store[]> => {
     const res = await apiClient.get('/api/stores');
@@ -71,6 +84,20 @@ export const storeApi = {
   /** 기존 매장의 주소 정보를 수정합니다. (본사 전용) */
   updateAddress: async (storeId: number, data: StoreAddressUpdateRequest): Promise<Store> => {
     const res = await apiClient.patch(`/api/stores/${storeId}/address`, data);
+    return unwrap(res);
+  },
+
+  /** 브랜드 내 전 매장 Activity 현황 조회 (HQ 전용) */
+  getActivity: async (): Promise<StoreActivity[]> => {
+    const res = await apiClient.get('/api/stores/activity');
+    return unwrap(res);
+  },
+
+  /** 매장 운영 상태 변경 (점장: 본인 매장, HQ: 전 매장) */
+  updateOperationStatus: async (storeId: number, status: OperationStatus): Promise<StoreActivity> => {
+    const res = await apiClient.patch(`/api/stores/${storeId}/operation-status`, null, {
+      params: { status },
+    });
     return unwrap(res);
   },
 };

@@ -1,10 +1,12 @@
 package com.flowre.server.domain.store.controller;
 
+import com.flowre.server.domain.store.dto.StoreActivityResponse;
 import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.AddressSearchResponse;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
 import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
+import com.flowre.server.domain.store.entity.StoreOperationStatus;
 import com.flowre.server.domain.store.service.KakaoAddressSearchService;
 import com.flowre.server.domain.store.service.StoreService;
 import com.flowre.server.domain.user.entity.User;
@@ -59,6 +61,24 @@ public class StoreController {
             @Valid @RequestBody StoreCreateRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(storeService.createStore(user, request)));
+    }
+
+    /** GET /api/stores/activity - 브랜드 내 전 매장 Activity 현황 (HQ 전용) */
+    @GetMapping("/activity")
+    public ResponseEntity<ApiResponse<List<StoreActivityResponse>>> getStoreActivity(
+            @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(storeService.getStoreActivity(user)));
+    }
+
+    /** PATCH /api/stores/{storeId}/operation-status - 매장 운영 상태 변경 */
+    @PatchMapping("/{storeId}/operation-status")
+    public ResponseEntity<ApiResponse<StoreActivityResponse>> updateOperationStatus(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long storeId,
+            @RequestParam StoreOperationStatus status
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(storeService.updateOperationStatus(user, storeId, status)));
     }
 
     /** PATCH /api/stores/{storeId}/address - 기존 매장의 주소 정보를 수정합니다. */

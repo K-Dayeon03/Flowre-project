@@ -30,6 +30,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /** 특정 매장의 특정 역할·상태 직원 목록을 조회합니다. (승인 요청 알림 대상 = 활성 점장) */
     List<User> findByStoreIdAndRoleAndStatus(Long storeId, UserRole role, UserStatus status);
 
+    long countByStoreIdAndStatus(Long storeId, UserStatus status);
+
+    /** 같은 매장 활성 직원 목록 (본인 제외) — 채팅 대상 후보 조회용 */
+    List<User> findByStoreIdAndStatusAndIdNot(Long storeId, UserStatus status, Long excludeId);
+
+    /** 특정 브랜드의 특정 역할 활성 직원 목록 (본인 제외) — 브랜드 내 HQ 직원 조회용 */
+    List<User> findByBrandIdAndRoleAndStatusAndIdNot(Long brandId, UserRole role, UserStatus status, Long excludeId);
+
+    /** 특정 브랜드 전체 활성 직원 목록 (본인 제외) — HQ 직원의 채팅 대상 후보 조회용 */
+    List<User> findByBrandIdAndStatusAndIdNot(Long brandId, UserStatus status, Long excludeId);
+
     /**
      * 코드 로테이션 대상 계정을 조회합니다.
      * ADMIN 역할은 제외하고, 마지막 로테이션이 기준일 이전이거나 한 번도 로테이션되지 않은 활성 계정을 반환합니다.
