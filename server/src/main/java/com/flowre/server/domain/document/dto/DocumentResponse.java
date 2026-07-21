@@ -14,6 +14,7 @@ public class DocumentResponse {
     private String fileType;
     private String size;       // 사람이 읽기 좋은 포맷 (예: "2.3 MB")
     private String s3Url;      // CloudFront 또는 S3 공개 URL
+    private Long uploaderId;
     private String uploader;
     private Long brandId;
     private String description;
@@ -27,6 +28,7 @@ public class DocumentResponse {
                 .fileType(d.getFileType())
                 .size(formatSize(d.getFileSize()))
                 .s3Url(s3BaseUrl + "/" + d.getS3Key())
+                .uploaderId(d.getUploaderId())
                 .uploader(d.getUploader())
                 .brandId(d.getBrandId())
                 .description(d.getDescription())

@@ -41,6 +41,11 @@ public enum ErrorCode {
     // Favorite
     FAVORITE_NOT_FOUND(HttpStatus.NOT_FOUND, "FAVORITE_001", "즐겨찾기를 찾을 수 없습니다."),
 
+    // Support
+    INQUIRY_NOT_FOUND(HttpStatus.NOT_FOUND, "SUPPORT_001", "문의를 찾을 수 없습니다."),
+    AS_TICKET_NOT_FOUND(HttpStatus.NOT_FOUND, "SUPPORT_002", "AS 접수 티켓을 찾을 수 없습니다."),
+    SUPPORT_FORBIDDEN(HttpStatus.FORBIDDEN, "SUPPORT_003", "문의 또는 AS 접수에 대한 권한이 없습니다."),
+
     // Schedule
     SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE_001", "스케줄을 찾을 수 없습니다."),
     SCHEDULE_ALREADY_DONE(HttpStatus.BAD_REQUEST, "SCHEDULE_002", "이미 완료된 스케줄입니다."),
