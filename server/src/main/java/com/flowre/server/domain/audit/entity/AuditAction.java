@@ -9,5 +9,7 @@ public enum AuditAction {
     INVENTORY_DEDUCTED,   // 본사 재고 차감
     INVENTORY_ADJUSTED,   // 매장 재고 증감
     EMPLOYEE_APPROVED,    // 직원 계정 승인
-    EMPLOYEE_REJECTED     // 직원 계정 거절
+    EMPLOYEE_REJECTED,    // 직원 계정 거절
+    EMPLOYEE_UPDATED,     // 직원 정보 수정·비밀번호 초기화·코드 로테이션
+    EMPLOYEE_DELETED      // 직원 계정 비활성화
 }

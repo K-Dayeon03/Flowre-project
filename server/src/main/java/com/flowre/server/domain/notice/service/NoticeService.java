@@ -8,7 +8,6 @@ import com.flowre.server.domain.notice.entity.NoticeRead;
 import com.flowre.server.domain.notice.repository.NoticeReadRepository;
 import com.flowre.server.domain.notice.repository.NoticeRepository;
 import com.flowre.server.domain.user.entity.User;
-import com.flowre.server.domain.user.entity.UserRole;
 import com.flowre.server.global.exception.CustomException;
 import com.flowre.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -112,8 +111,42 @@ public class NoticeService {
         return new UnreadCountResponse(noticeIds.size() - readCount);
     }
 
+    /**
+     * 공지를 수정합니다. 작성자 본인 또는 canCreateNotice 권한자가 가능합니다.
+     */
+    @Transactional
+    public NoticeResponse update(User user, Long id, NoticeCreateRequest request) {
+        Notice notice = noticeRepository.findByIdAndBrandId(id, user.getBrandId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOTICE_NOT_FOUND));
+        assertCanModifyNotice(user, notice);
+        notice.update(request.getTitle(), request.getContent(), request.isPinned());
+        log.info("[Notice] updated id={} brandId={} userId={}", id, user.getBrandId(), user.getId());
+        boolean read = noticeReadRepository.existsByNoticeIdAndUserId(id, user.getId());
+        return NoticeResponse.from(notice, read);
+    }
+
+    /**
+     * 공지를 삭제합니다. 작성자 본인 또는 canCreateNotice 권한자가 가능합니다.
+     */
+    @Transactional
+    public void delete(User user, Long id) {
+        Notice notice = noticeRepository.findByIdAndBrandId(id, user.getBrandId())
+                .orElseThrow(() -> new CustomException(ErrorCode.NOTICE_NOT_FOUND));
+        assertCanModifyNotice(user, notice);
+        noticeReadRepository.deleteByNoticeId(id);
+        noticeRepository.delete(notice);
+        log.info("[Notice] deleted id={} brandId={} userId={}", id, user.getBrandId(), user.getId());
+    }
+
     private void assertCanCreateNotice(User user) {
         if (!user.getRole().canCreateNotice()) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private void assertCanModifyNotice(User user, Notice notice) {
+        boolean isAuthor = java.util.Objects.equals(notice.getAuthorId(), user.getId());
+        if (!isAuthor && !user.getRole().canCreateNotice()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

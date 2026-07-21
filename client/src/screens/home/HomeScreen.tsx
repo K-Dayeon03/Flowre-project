@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -16,6 +18,7 @@ import { useNoticeStore } from '../../store/useNoticeStore';
 import { useFavoriteStore } from '../../store/useFavoriteStore';
 import { useStoreContextStore } from '../../store/useStoreContextStore';
 import { canApproveEmployees, canCreateNotices, canManageStores, canRegisterEmployees } from './homePermissions';
+import { storeApi, OperationStatus, StoreActivity } from '../../api/storeApi';
 import Badge from '../../components/Badge';
 import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
@@ -53,18 +56,18 @@ const MENU_LABEL: Record<string, string> = {
 };
 
 const DashboardColors = {
-  page: '#F1F3F4',
-  surface: 'rgba(255, 255, 255, 0.68)',
-  surfaceSoft: 'rgba(247, 248, 248, 0.72)',
-  ink: '#2D3135',
-  muted: '#6E747B',
-  faint: '#90979F',
-  line: 'rgba(196, 202, 207, 0.58)',
-  lineStrong: 'rgba(168, 176, 183, 0.5)',
-  gray: '#6B737C',
-  grayDark: '#42484F',
-  graySoft: 'rgba(226, 230, 233, 0.76)',
-  shadow: 'rgba(45, 49, 53, 0.12)',
+  page: '#F0F4FF',
+  surface: '#FFFFFF',
+  surfaceSoft: '#F5F8FF',
+  ink: '#0F172A',
+  muted: '#64748B',
+  faint: '#94A3B8',
+  line: '#DBEAFE',
+  lineStrong: '#93C5FD',
+  gray: '#3B82F6',
+  grayDark: '#1E3A8A',
+  graySoft: '#EFF6FF',
+  shadow: 'rgba(30, 58, 138, 0.12)',
 };
 
 export default function HomeScreen() {
@@ -97,6 +100,45 @@ export default function HomeScreen() {
   const inProgressCount = todaySchedules.filter((s) => s.status === 'IN_PROGRESS').length;
   const totalUnread = rooms.reduce((sum, r) => sum + r.unread, 0);
   const headlineNotice = useMemo(() => notices.find((n) => n.pinned) ?? notices[0], [notices]);
+
+  const isHq = user?.role === 'HQ_STAFF' || user?.role === 'ADMIN';
+  const isManager = user?.role === 'STORE_MANAGER';
+
+  const [myStoreActivity, setMyStoreActivity] = useState<StoreActivity | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const loadMyStoreStatus = useCallback(async () => {
+    if (!isManager) return;
+    try {
+      const list = await storeApi.getActivity();
+      if (list.length > 0) setMyStoreActivity(list[0]);
+    } catch { /* silent */ }
+  }, [isManager]);
+
+  useEffect(() => { loadMyStoreStatus(); }, [loadMyStoreStatus]);
+
+  const handleToggleMyStore = async () => {
+    if (!myStoreActivity) return;
+    const next: OperationStatus = myStoreActivity.operationStatus === 'OPEN' ? 'CLOSED' : 'OPEN';
+    const label = next === 'OPEN' ? '운영 시작' : '영업 종료';
+    Alert.alert('운영 상태 변경', `${label}으로 변경하시겠습니까?`, [
+      { text: '취소', style: 'cancel' },
+      {
+        text: label,
+        onPress: async () => {
+          setUpdatingStatus(true);
+          try {
+            await storeApi.updateOperationStatus(myStoreActivity.storeId, next);
+            setMyStoreActivity((prev) => prev ? { ...prev, operationStatus: next } : prev);
+          } catch {
+            Alert.alert('오류', '상태를 변경하지 못했습니다.');
+          } finally {
+            setUpdatingStatus(false);
+          }
+        },
+      },
+    ]);
+  };
 
   const displayStoreName = selectedStore?.storeName ?? user?.storeName ?? '매장 미지정';
   const canShowStoreManage = canManageStores(user?.role);
@@ -260,6 +302,47 @@ export default function HomeScreen() {
                 )}
               </View>
             </View>
+
+            {isHq && (
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={() => navigation.navigate('StoreActivity')}
+                style={[styles.panel, styles.activityBanner]}
+              >
+                <View style={styles.activityBannerRow}>
+                  <View>
+                    <Text style={styles.activityBannerKicker}>STORE ACTIVITY</Text>
+                    <Text style={styles.activityBannerTitle}>매장 현황 보기</Text>
+                    <Text style={styles.activityBannerSub}>운영 상태 · 스케줄 · 직원 수</Text>
+                  </View>
+                  <Text style={styles.activityBannerArrow}>›</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {isManager && (
+              <View style={[styles.panel, myStoreActivity?.operationStatus === 'OPEN' && styles.panelOpen]}>
+                <Text style={styles.activityBannerKicker}>내 매장 운영 상태</Text>
+                <View style={styles.managerStatusRow}>
+                  <View style={[styles.statusPill, myStoreActivity?.operationStatus === 'OPEN' ? styles.pillOpen : styles.pillClosed]}>
+                    <Text style={[styles.statusPillText, myStoreActivity?.operationStatus === 'OPEN' ? styles.pillTextOpen : styles.pillTextClosed]}>
+                      {myStoreActivity ? (myStoreActivity.operationStatus === 'OPEN' ? '운영 중' : '영업 종료') : '—'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.managerToggleBtn, myStoreActivity?.operationStatus === 'OPEN' ? styles.toggleClose : styles.toggleOpen, updatingStatus && styles.toggleDisabled]}
+                    onPress={handleToggleMyStore}
+                    disabled={updatingStatus || !myStoreActivity}
+                    activeOpacity={0.8}
+                  >
+                    {updatingStatus
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Text style={styles.managerToggleText}>{myStoreActivity?.operationStatus === 'OPEN' ? '영업 종료' : '운영 시작'}</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {(canShowStoreManage || canShowEmployeeManage || canShowEmployeeApproval || canCreateNotices(user?.role)) && (
               <View style={styles.panel}>
@@ -702,4 +785,70 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: '900',
   },
+
+  activityBanner: {
+    backgroundColor: DashboardColors.grayDark,
+    borderColor: DashboardColors.grayDark,
+  },
+  activityBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  activityBannerKicker: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    color: '#93C5FD',
+    letterSpacing: 0.5,
+  },
+  activityBannerTitle: {
+    marginTop: 4,
+    fontSize: FontSize.lg,
+    fontWeight: '900',
+    color: '#fff',
+  },
+  activityBannerSub: {
+    marginTop: 2,
+    fontSize: FontSize.xs,
+    color: '#93C5FD',
+    fontWeight: '600',
+  },
+  activityBannerArrow: {
+    fontSize: 32,
+    color: '#93C5FD',
+    fontWeight: '900',
+    lineHeight: 36,
+  },
+
+  panelOpen: {
+    borderColor: '#86EFAC',
+    backgroundColor: '#F0FDF4',
+  },
+  managerStatusRow: {
+    marginTop: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  statusPill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  pillOpen: { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' },
+  pillClosed: { backgroundColor: DashboardColors.surfaceSoft, borderColor: DashboardColors.line },
+  statusPillText: { fontSize: FontSize.sm, fontWeight: '700' },
+  pillTextOpen: { color: '#16A34A' },
+  pillTextClosed: { color: DashboardColors.muted },
+  managerToggleBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+  },
+  toggleOpen: { backgroundColor: DashboardColors.grayDark },
+  toggleClose: { backgroundColor: '#EF4444' },
+  toggleDisabled: { opacity: 0.5 },
+  managerToggleText: { fontSize: FontSize.sm, fontWeight: '700', color: '#fff' },
 });

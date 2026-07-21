@@ -52,6 +52,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     long countByRoomIdAndSentAtAfter(Long roomId, LocalDateTime sentAt);
 
+    void deleteByRoomId(Long roomId);
+
     // 커서 기반 첫 페이지 — 최신 메시지를 limit개 조회 (커서 키 id와 정렬 키를 일치시켜 누락 방지)
     List<Message> findByRoomIdOrderByIdDesc(Long roomId, Pageable pageable);
 

@@ -25,4 +25,5 @@ export type MainStackParamList = {
   DocumentUpload: { documentId?: number } | undefined;
   ChatRoomList: undefined;
   ChatRoom: { roomId: number; roomName: string; roomType: 'GROUP' | 'DIRECT' };
+  StoreActivity: undefined;
 };

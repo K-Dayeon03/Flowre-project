@@ -60,4 +60,24 @@ public class NoticeController {
         noticeService.markRead(user, id);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
+
+    /** PUT /api/notices/{id} */
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<NoticeResponse>> update(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id,
+            @Valid @RequestBody NoticeCreateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(noticeService.update(user, id, request)));
+    }
+
+    /** DELETE /api/notices/{id} */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id
+    ) {
+        noticeService.delete(user, id);
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
 }

@@ -1,16 +1,19 @@
 package com.flowre.server.domain.chat.service;
 
+import com.flowre.server.domain.chat.dto.ChatMemberResponse;
 import com.flowre.server.domain.chat.dto.ChatRoomResponse;
 import com.flowre.server.domain.chat.dto.CreateDirectRoomRequest;
 import com.flowre.server.domain.chat.dto.CreateRoomRequest;
 import com.flowre.server.domain.chat.dto.MessageResponse;
 import com.flowre.server.domain.chat.dto.SendMessageRequest;
+import com.flowre.server.domain.chat.dto.UpdateRoomRequest;
 import com.flowre.server.domain.chat.entity.*;
 import com.flowre.server.domain.chat.repository.ChatRoomMemberRepository;
 import com.flowre.server.domain.chat.repository.ChatRoomRepository;
 import com.flowre.server.domain.chat.repository.MessageRepository;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.domain.user.entity.UserRole;
+import com.flowre.server.domain.user.entity.UserStatus;
 import com.flowre.server.domain.user.repository.UserRepository;
 import com.flowre.server.global.exception.CustomException;
 import com.flowre.server.global.exception.ErrorCode;
@@ -20,6 +23,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.LinkedHashSet;
@@ -186,6 +190,40 @@ public class ChatService {
     }
 
     /**
+     * 그룹 채팅방 이름 수정 — 멤버라면 누구나 변경 가능, DIRECT 방은 불가
+     */
+    @Transactional
+    public ChatRoomResponse updateRoom(User user, Long roomId, UpdateRoomRequest request) {
+        ChatRoom room = getMemberRoom(roomId, user);
+        if (room.getType() == RoomType.DIRECT) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+        room.updateName(request.getName().trim());
+        ChatRoom saved = chatRoomRepository.saveAndFlush(room);
+        return ChatRoomResponse.of(saved, null, 0);
+    }
+
+    /**
+     * 채팅방 나가기 — 본인 멤버십만 제거.
+     * 마지막 멤버가 나가면 메시지 → 멤버 → 방 순서로 직접 삭제해 cascade 충돌을 방지한다.
+     */
+    @Transactional
+    public void leaveRoom(User user, Long roomId) {
+        getMemberRoom(roomId, user);
+
+        chatRoomMemberRepository.deleteByChatRoomIdAndUserId(roomId, user.getId());
+        chatRoomMemberRepository.flush();
+
+        if (!chatRoomMemberRepository.existsByChatRoomId(roomId)) {
+            messageRepository.deleteByRoomId(roomId);
+            messageRepository.flush();
+            chatRoomMemberRepository.deleteByChatRoomId(roomId);
+            chatRoomMemberRepository.flush();
+            chatRoomRepository.deleteByIdDirect(roomId);
+        }
+    }
+
+    /**
      * 채팅방 읽음 처리
      */
     @Transactional
@@ -221,29 +259,57 @@ public class ChatService {
         chatRoomMemberRepository.save(member);
     }
 
+    /**
+     * 채팅 가능한 대상 목록 조회
+     * - HQ_STAFF/ADMIN: 브랜드 내 전 직원 (본인 제외)
+     * - STORE_STAFF/STORE_MANAGER: 같은 매장 직원 + 같은 브랜드 HQ_STAFF (본인 제외)
+     */
+    @Transactional(readOnly = true)
+    public List<ChatMemberResponse> getChatCandidates(User me) {
+        if (me.getRole().isHeadquarters()) {
+            return userRepository
+                    .findByBrandIdAndStatusAndIdNot(me.getBrandId(), UserStatus.ACTIVE, me.getId())
+                    .stream().map(ChatMemberResponse::of).toList();
+        }
+        List<ChatMemberResponse> result = new ArrayList<>();
+        userRepository.findByStoreIdAndStatusAndIdNot(me.getStoreId(), UserStatus.ACTIVE, me.getId())
+                .stream().map(ChatMemberResponse::of).forEach(result::add);
+        userRepository.findByBrandIdAndRoleAndStatusAndIdNot(
+                me.getBrandId(), UserRole.HQ_STAFF, UserStatus.ACTIVE, me.getId())
+                .stream().map(ChatMemberResponse::of).forEach(result::add);
+        return result;
+    }
+
+    /**
+     * 1:1 채팅 권한 검증
+     * - HQ 역할(발신자 or 수신자): 같은 브랜드이면 허용
+     * - 매장 직원끼리: 같은 매장만 허용
+     */
     private void validateDirectRoomPermission(User me, User target) {
         if (!Objects.equals(me.getBrandId(), target.getBrandId())) {
             throw new CustomException(ErrorCode.DIRECT_ROOM_NOT_ALLOWED);
         }
-        if (me.getRole() == UserRole.STORE_STAFF) {
-            // 일반 직원: 같은 매장 직원끼리만
-            if (!Objects.equals(me.getStoreId(), target.getStoreId())) {
-                throw new CustomException(ErrorCode.DIRECT_ROOM_NOT_ALLOWED);
-            }
-        } else if (me.getRole() == UserRole.STORE_MANAGER) {
-            // 점장: 같은 매장 직원 or 본사 직원
-            boolean sameStore = Objects.equals(me.getStoreId(), target.getStoreId());
-            boolean isHq = target.getRole() == UserRole.HQ_STAFF;
-            if (!sameStore && !isHq) {
-                throw new CustomException(ErrorCode.DIRECT_ROOM_NOT_ALLOWED);
-            }
+        if (me.getRole().isHeadquarters() || target.getRole().isHeadquarters()) {
+            return;
         }
-        // HQ_STAFF, ADMIN은 제한 없음
+        if (!Objects.equals(me.getStoreId(), target.getStoreId())) {
+            throw new CustomException(ErrorCode.DIRECT_ROOM_NOT_ALLOWED);
+        }
     }
 
+    /**
+     * 그룹 채팅 멤버 권한 검증
+     * - HQ 역할이 포함되면 storeId 체크 없이 브랜드 격리만 적용
+     * - 매장 직원끼리는 같은 매장만 허용
+     */
     private void validateGroupRoomMember(User me, User member) {
-        if (!Objects.equals(me.getBrandId(), member.getBrandId())
-                || !Objects.equals(me.getStoreId(), member.getStoreId())) {
+        if (!Objects.equals(me.getBrandId(), member.getBrandId())) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+        if (me.getRole().isHeadquarters() || member.getRole().isHeadquarters()) {
+            return;
+        }
+        if (!Objects.equals(me.getStoreId(), member.getStoreId())) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

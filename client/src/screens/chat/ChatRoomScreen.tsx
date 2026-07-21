@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   Alert,
+  Modal,
   View,
   Text,
   FlatList,
@@ -18,7 +19,7 @@ import { MainStackParamList } from '../../navigation/types';
 import { useStompChat } from '../../hooks/useStompChat';
 import { useChatStore } from '../../store/useChatStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { Message } from '../../api/chatApi';
+import { chatApi, Message } from '../../api/chatApi';
 import FavoriteToggle from '../../components/FavoriteToggle';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'ChatRoom'>;
@@ -37,6 +38,9 @@ function DateSeparator({ date }: { date: string }) {
 export default function ChatRoomScreen({ route, navigation }: Props) {
   const { roomId, roomName, roomType } = route.params;
   const [input, setInput] = useState('');
+  const [showMenu, setShowMenu] = useState(false);
+  const [showRename, setShowRename] = useState(false);
+  const [newName, setNewName] = useState('');
   const flatListRef = useRef<FlatList>(null);
 
   const user = useAuthStore((s) => s.user);
@@ -46,12 +50,57 @@ export default function ChatRoomScreen({ route, navigation }: Props) {
   const isInitialized = roomId in messagesMap;
   const fetchMessages = useChatStore((s) => s.fetchMessages);
   const markRoomRead = useChatStore((s) => s.markRoomRead);
+  const removeRoom = useChatStore((s) => s.removeRoom);
+  const renameRoom = useChatStore((s) => s.renameRoom);
   const { sendMessage, connected } = useStompChat(roomId);
+
+  const handleLeave = () => {
+    setShowMenu(false);
+    Alert.alert('채팅방 나가기', '나가면 이 채팅방의 모든 기록이 사라질 수 있습니다.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '나가기',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await chatApi.leaveRoom(roomId);
+            removeRoom(roomId);
+            navigation.goBack();
+          } catch {
+            Alert.alert('오류', '채팅방을 나가지 못했습니다.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const openRename = () => {
+    setNewName(roomName);
+    setShowMenu(false);
+    setShowRename(true);
+  };
+
+  const handleRename = async () => {
+    if (!newName.trim()) return;
+    try {
+      await chatApi.updateRoom(roomId, newName.trim());
+      renameRoom(roomId, newName.trim());
+      navigation.setOptions({ title: newName.trim() });
+      setShowRename(false);
+    } catch {
+      Alert.alert('오류', '이름을 변경하지 못했습니다.');
+    }
+  };
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <FavoriteToggle targetType="CHAT_ROOM" targetId={roomId} label={roomName} />
+        <View style={styles.headerRight}>
+          <FavoriteToggle targetType="CHAT_ROOM" targetId={roomId} label={roomName} />
+          <TouchableOpacity onPress={() => setShowMenu(true)} style={styles.menuBtn}>
+            <Text style={styles.menuIcon}>⋮</Text>
+          </TouchableOpacity>
+        </View>
       ),
     });
   }, [navigation, roomId, roomName]);
@@ -90,6 +139,52 @@ export default function ChatRoomScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* 액션 메뉴 모달 */}
+      <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowMenu(false)}>
+          <View style={styles.menuSheet}>
+            {roomType === 'GROUP' && (
+              <TouchableOpacity style={styles.menuItem} onPress={openRename}>
+                <Text style={styles.menuItemText}>방 이름 수정</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.menuItem} onPress={handleLeave}>
+              <Text style={[styles.menuItemText, styles.menuItemDanger]}>나가기</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 이름 수정 모달 */}
+      <Modal visible={showRename} transparent animationType="slide" onRequestClose={() => setShowRename(false)}>
+        <View style={styles.renameOverlay}>
+          <View style={styles.renameSheet}>
+            <Text style={styles.renameTitle}>방 이름 수정</Text>
+            <TextInput
+              style={styles.renameInput}
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="새 채팅방 이름"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+              maxLength={50}
+            />
+            <View style={styles.renameBtns}>
+              <TouchableOpacity style={styles.renameCancelBtn} onPress={() => setShowRename(false)}>
+                <Text style={styles.renameCancelText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.renameConfirmBtn, !newName.trim() && styles.renameConfirmBtnDisabled]}
+                onPress={handleRename}
+                disabled={!newName.trim()}
+              >
+                <Text style={styles.renameConfirmText}>변경</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -277,4 +372,67 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: { backgroundColor: Colors.textMuted },
   sendIcon: { color: Colors.surface, fontSize: 14 },
+
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  menuBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 4 },
+  menuIcon: { fontSize: 22, color: Colors.textPrimary, fontWeight: '700' },
+
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-start', alignItems: 'flex-end' },
+  menuSheet: {
+    marginTop: 56,
+    marginRight: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    minWidth: 140,
+  },
+  menuItem: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  menuItemText: { fontSize: FontSize.md, color: Colors.textPrimary },
+  menuItemDanger: { color: Colors.error },
+
+  renameOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  renameSheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radius.lg,
+    borderTopRightRadius: Radius.lg,
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  renameTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.textPrimary },
+  renameInput: {
+    backgroundColor: Colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 4,
+    fontSize: FontSize.lg,
+    color: Colors.textPrimary,
+  },
+  renameBtns: { flexDirection: 'row', gap: Spacing.sm },
+  renameCancelBtn: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  renameCancelText: { fontSize: FontSize.md, color: Colors.textSecondary },
+  renameConfirmBtn: {
+    flex: 2,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+  },
+  renameConfirmBtnDisabled: { opacity: 0.5 },
+  renameConfirmText: { fontSize: FontSize.md, color: Colors.surface, fontWeight: '700' },
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Colors, FontSize, Spacing } from '../constants/theme';
+import { Colors, FontSize, Radius, Spacing } from '../constants/theme';
 
 interface EmptyStateProps {
   icon?: string;
@@ -12,7 +12,9 @@ interface EmptyStateProps {
 export default function EmptyState({ icon = '•', title, description }: EmptyStateProps) {
   return (
     <View style={styles.wrap}>
-      <Text style={styles.icon}>{icon}</Text>
+      <View style={styles.iconWrap}>
+        <Text style={styles.icon}>{icon}</Text>
+      </View>
       <Text style={styles.title}>{title}</Text>
       {description ? <Text style={styles.description}>{description}</Text> : null}
     </View>
@@ -26,9 +28,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.md,
   },
+  iconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.accentLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
   icon: {
-    fontSize: 26,
-    marginBottom: Spacing.xs,
+    fontSize: 22,
   },
   title: {
     fontSize: FontSize.md,
@@ -39,7 +51,7 @@ const styles = StyleSheet.create({
   description: {
     marginTop: Spacing.xs,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: Colors.textMuted,
     textAlign: 'center',
     lineHeight: 19,
   },

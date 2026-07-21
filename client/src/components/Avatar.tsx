@@ -8,11 +8,16 @@ interface AvatarProps {
   size?: number;
 }
 
-/** 이름 이니셜을 그라데이션 원형으로 표시합니다. */
+/** 이름 이니셜을 딥 네이비 그라데이션 원형으로 표시합니다. */
 export default function Avatar({ name, size = 42 }: AvatarProps) {
   const initial = name?.trim()?.[0] ?? '?';
   return (
-    <LinearGradient colors={Gradients.brand} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
+    <LinearGradient
+      colors={Gradients.brand}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
+    >
       <Text style={[styles.text, { fontSize: size >= 48 ? FontSize.lg : FontSize.md }]}>{initial}</Text>
     </LinearGradient>
   );
@@ -23,7 +28,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: `${Colors.surface}66`,
+    borderColor: `${Colors.accent}55`,
   },
   text: {
     color: Colors.surface,

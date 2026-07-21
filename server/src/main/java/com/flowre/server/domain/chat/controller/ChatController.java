@@ -1,10 +1,12 @@
 package com.flowre.server.domain.chat.controller;
 
+import com.flowre.server.domain.chat.dto.ChatMemberResponse;
 import com.flowre.server.domain.chat.dto.ChatRoomResponse;
 import com.flowre.server.domain.chat.dto.CreateDirectRoomRequest;
 import com.flowre.server.domain.chat.dto.CreateRoomRequest;
 import com.flowre.server.domain.chat.dto.MessageResponse;
 import com.flowre.server.domain.chat.dto.SendMessageRequest;
+import com.flowre.server.domain.chat.dto.UpdateRoomRequest;
 import com.flowre.server.domain.chat.service.ChatService;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.global.response.ApiResponse;
@@ -22,6 +24,14 @@ import java.util.List;
 public class ChatController {
 
     private final ChatService chatService;
+
+    /** GET /api/chat/members/candidates — role별 채팅 가능 대상 목록 */
+    @GetMapping("/members/candidates")
+    public ResponseEntity<ApiResponse<List<ChatMemberResponse>>> getChatCandidates(
+            @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(chatService.getChatCandidates(user)));
+    }
 
     /** GET /api/chat/rooms */
     @GetMapping("/rooms")
@@ -68,6 +78,26 @@ public class ChatController {
             @Valid @RequestBody SendMessageRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(chatService.sendMessage(user, request)));
+    }
+
+    /** PUT /api/chat/rooms/{roomId} — 그룹 채팅방 이름 수정 */
+    @PutMapping("/rooms/{roomId}")
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> updateRoom(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long roomId,
+            @Valid @RequestBody UpdateRoomRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(chatService.updateRoom(user, roomId, request)));
+    }
+
+    /** DELETE /api/chat/rooms/{roomId} — 채팅방 나가기 */
+    @DeleteMapping("/rooms/{roomId}")
+    public ResponseEntity<ApiResponse<Void>> leaveRoom(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long roomId
+    ) {
+        chatService.leaveRoom(user, roomId);
+        return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
     /** POST /api/chat/rooms/{roomId}/read */

@@ -2,6 +2,8 @@ package com.flowre.server.domain.inventory.repository;
 
 import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.ProductCategory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -49,15 +51,15 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 or lower(i.colorName) like lower(concat('%', :query, '%'))
                 or lower(i.sizeName) like lower(concat('%', :query, '%'))
               )
-            order by i.updatedAt desc, i.id desc
             """)
-    List<InventoryItem> search(
+    Page<InventoryItem> search(
             @Param("brandId") Long brandId,
             @Param("storeId") Long storeId,
             @Param("query") String query,
             @Param("archived") Boolean archived,
             @Param("labelName") String labelName,
-            @Param("category") ProductCategory category
+            @Param("category") ProductCategory category,
+            Pageable pageable
     );
 
     /**

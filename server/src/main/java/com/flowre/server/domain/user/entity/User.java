@@ -79,6 +79,9 @@ public class User {
 
     private String fcmToken;
 
+    /** 직원 코드 마지막 로테이션 시각 — null이면 최초 발급 이후 한 번도 순환되지 않은 상태 */
+    private LocalDateTime codeRotatedAt;
+
     @CreatedDate
     private LocalDateTime createdAt;
 
@@ -98,6 +101,33 @@ public class User {
     /** 승인 대기(PENDING) 상태인지 여부를 반환합니다. */
     public boolean isPending() {
         return this.status == UserStatus.PENDING;
+    }
+
+    /** ADMIN 계정(부트스트랩)인지 여부를 반환합니다. ADMIN은 코드 로테이션 대상에서 제외됩니다. */
+    public boolean isAdmin() {
+        return this.role == UserRole.ADMIN;
+    }
+
+    /** 이름·이메일을 수정합니다. */
+    public void updateInfo(String name, String email) {
+        this.name = name;
+        this.email = email;
+    }
+
+    /** 비밀번호를 변경합니다 (BCrypt 암호화 후 전달해야 합니다). */
+    public void resetPassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
+    /** 직원 코드를 새 코드로 교체하고 로테이션 시각을 기록합니다. */
+    public void rotateCode(String newEmployeeCode) {
+        this.employeeCode = newEmployeeCode;
+        this.codeRotatedAt = LocalDateTime.now();
+    }
+
+    /** 계정을 비활성화합니다. ADMIN 계정은 비활성화할 수 없습니다. */
+    public void deactivate() {
+        this.status = UserStatus.REJECTED;
     }
 
     /** 점장(또는 관리자)이 직원 계정을 승인해 활성화합니다. */

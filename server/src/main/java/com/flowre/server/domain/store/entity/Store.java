@@ -59,6 +59,11 @@ public class Store {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private StoreOperationStatus operationStatus = StoreOperationStatus.CLOSED;
+
     @CreatedDate
     private LocalDateTime createdAt;
 
@@ -77,5 +82,16 @@ public class Store {
     public void updateCoordinates(Double latitude, Double longitude) {
         this.latitude = latitude;
         this.longitude = longitude;
+    }
+
+    /** 매장 운영 상태를 토글합니다. */
+    public void toggleOperationStatus() {
+        this.operationStatus = (this.operationStatus == StoreOperationStatus.OPEN)
+                ? StoreOperationStatus.CLOSED
+                : StoreOperationStatus.OPEN;
+    }
+
+    public void updateOperationStatus(StoreOperationStatus status) {
+        this.operationStatus = status;
     }
 }

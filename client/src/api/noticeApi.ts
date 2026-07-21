@@ -50,4 +50,15 @@ export const noticeApi = {
   markRead: async (id: number): Promise<void> => {
     await apiClient.post(`/api/notices/${id}/read`);
   },
+
+  /** 공지를 수정합니다. */
+  updateNotice: async (id: number, body: NoticeCreateRequest): Promise<Notice> => {
+    const res = await apiClient.put(`/api/notices/${id}`, body);
+    return unwrap(res);
+  },
+
+  /** 공지를 삭제합니다. */
+  deleteNotice: async (id: number): Promise<void> => {
+    await apiClient.delete(`/api/notices/${id}`);
+  },
 };

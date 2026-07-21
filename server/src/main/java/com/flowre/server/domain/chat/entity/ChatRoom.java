@@ -49,4 +49,8 @@ public class ChatRoom {
 
     @CreatedDate
     private LocalDateTime createdAt;
+
+    public void updateName(String name) {
+        this.name = name;
+    }
 }

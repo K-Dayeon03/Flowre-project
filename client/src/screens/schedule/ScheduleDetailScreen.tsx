@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,26 +7,18 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, Radius, Shadow } from '../../constants/theme';
 import { MainStackParamList } from '../../navigation/types';
+import { Schedule, scheduleApi } from '../../api/scheduleApi';
+import { useScheduleStore } from '../../store/useScheduleStore';
 import FavoriteToggle from '../../components/FavoriteToggle';
+import ConfirmModal from '../../components/ConfirmModal';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'ScheduleDetail'>;
-
-const MOCK_DETAIL = {
-  id: 1,
-  title: '봄 시즌 마네킹 교체',
-  type: 'MANNEQUIN',
-  status: 'IN_PROGRESS',
-  dueDate: '2025-03-11 18:00',
-  assignee: '김민지',
-  store: '강남점',
-  description: '봄 시즌 신상품 착장으로 1층~2층 전체 마네킹 교체. 본사에서 배포된 SS 2025 VM 가이드라인 참고.',
-  createdAt: '2025-03-08',
-  createdBy: '이수진 (VMD팀)',
-};
 
 const TYPE_LABEL: Record<string, string> = {
   MANNEQUIN: '마네킹 교체',
@@ -35,90 +27,172 @@ const TYPE_LABEL: Record<string, string> = {
   OTHER: '기타',
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: '대기',
+  IN_PROGRESS: '진행 중',
+  DONE: '완료',
+};
+
+function formatDate(value?: string) {
+  if (!value) return '-';
+  return value.split('T')[0];
+}
+
 export default function ScheduleDetailScreen({ route, navigation }: Props) {
   const { scheduleId } = route.params;
-  const [status, setStatus] = useState(MOCK_DETAIL.status);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [completeModalVisible, setCompleteModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const completeSchedule = useScheduleStore((s) => s.completeSchedule);
+  const deleteSchedule = useScheduleStore((s) => s.deleteSchedule);
 
   useLayoutEffect(() => {
+    if (!schedule) return;
     navigation.setOptions({
+      title: schedule.title,
       headerRight: () => (
-        <FavoriteToggle targetType="SCHEDULE" targetId={scheduleId} label={MOCK_DETAIL.title} />
+        <FavoriteToggle targetType="SCHEDULE" targetId={scheduleId} label={schedule.title} />
       ),
     });
-  }, [navigation, scheduleId]);
+  }, [navigation, scheduleId, schedule]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      setLoading(true);
+      scheduleApi.getById(scheduleId)
+        .then((data) => { if (mounted) setSchedule(data); })
+        .catch(() => Alert.alert('오류', '스케줄을 불러오지 못했습니다.'))
+        .finally(() => { if (mounted) setLoading(false); });
+      return () => { mounted = false; };
+    }, [scheduleId])
+  );
 
   const handleComplete = () => {
-    Alert.alert('완료 처리', '이 스케줄을 완료 처리할까요?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '완료',
-        onPress: () => {
-          setStatus('DONE');
-          // TODO: API 호출 scheduleApi.complete(scheduleId)
-        },
-      },
-    ]);
+    if (!schedule || schedule.status === 'DONE') return;
+    setCompleteModalVisible(true);
   };
 
-  const isDone = status === 'DONE';
+  const confirmComplete = async () => {
+    setCompleteModalVisible(false);
+    try {
+      await completeSchedule(scheduleId);
+      setSchedule((prev) => prev ? { ...prev, status: 'DONE' } : prev);
+    } catch {
+      Alert.alert('오류', '완료 처리에 실패했습니다.');
+    }
+  };
+
+  const handleDelete = () => {
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDelete = async () => {
+    setDeleteModalVisible(false);
+    try {
+      await deleteSchedule(scheduleId);
+      navigation.goBack();
+    } catch {
+      Alert.alert('오류', '삭제에 실패했습니다.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.accent} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!schedule) return null;
+
+  const typeColor = Colors.scheduleType[schedule.type as keyof typeof Colors.scheduleType] ?? Colors.textMuted;
+  const statusColor = Colors.statusBadge[schedule.status as keyof typeof Colors.statusBadge] ?? Colors.textMuted;
+  const isDone = schedule.status === 'DONE';
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* 상단 상태 배너 카드 */}
+        {/* 상단 배너 */}
         <View style={styles.bannerCard}>
-          <View style={[styles.typeBar, { backgroundColor: Colors.scheduleType[MOCK_DETAIL.type as keyof typeof Colors.scheduleType] }]} />
+          <View style={[styles.typeBar, { backgroundColor: typeColor }]} />
           <View style={styles.bannerContent}>
             <View style={styles.bannerTop}>
-              <View style={[styles.typeChip, { backgroundColor: Colors.scheduleType[MOCK_DETAIL.type as keyof typeof Colors.scheduleType] + '20' }]}>
-                <Text style={[styles.typeText, { color: Colors.scheduleType[MOCK_DETAIL.type as keyof typeof Colors.scheduleType] }]}>
-                  {TYPE_LABEL[MOCK_DETAIL.type]}
+              <View style={[styles.typeChip, { backgroundColor: typeColor + '20' }]}>
+                <Text style={[styles.typeText, { color: typeColor }]}>
+                  {TYPE_LABEL[schedule.type] ?? schedule.type}
                 </Text>
               </View>
-              <View style={[styles.statusChip, { backgroundColor: Colors.statusBadge[status as keyof typeof Colors.statusBadge] + '18' }]}>
-                <View style={[styles.statusDot, { backgroundColor: Colors.statusBadge[status as keyof typeof Colors.statusBadge] }]} />
-                <Text style={[styles.statusText, { color: Colors.statusBadge[status as keyof typeof Colors.statusBadge] }]}>
-                  {status === 'PENDING' ? '대기' : status === 'IN_PROGRESS' ? '진행 중' : '완료'}
+              <View style={[styles.statusChip, { backgroundColor: statusColor + '18' }]}>
+                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                <Text style={[styles.statusText, { color: statusColor }]}>
+                  {STATUS_LABEL[schedule.status] ?? schedule.status}
                 </Text>
               </View>
             </View>
-            <Text style={styles.title}>{MOCK_DETAIL.title}</Text>
-            <Text style={styles.dueText}>마감 {MOCK_DETAIL.dueDate}</Text>
+            <Text style={styles.title}>{schedule.title}</Text>
+            <Text style={styles.dueText}>마감 {formatDate(schedule.dueDate)}</Text>
           </View>
         </View>
 
         {/* 메타 정보 */}
         <View style={styles.metaCard}>
-          <MetaRow icon="📅" label="마감일" value={MOCK_DETAIL.dueDate} />
-          <MetaRow icon="👤" label="담당자" value={MOCK_DETAIL.assignee} />
-          <MetaRow icon="🏪" label="매장" value={MOCK_DETAIL.store} />
-          <MetaRow icon="📝" label="등록일" value={MOCK_DETAIL.createdAt} />
-          <MetaRow icon="👤" label="등록자" value={MOCK_DETAIL.createdBy} last />
+          <MetaRow icon="📅" label="마감일" value={formatDate(schedule.dueDate)} />
+          <MetaRow icon="👤" label="담당자" value={schedule.assignee ?? '-'} />
+          <MetaRow icon="📝" label="등록일" value={formatDate(schedule.createdAt)} />
+          <MetaRow icon="👤" label="등록자" value={schedule.createdBy ?? '-'} last />
         </View>
 
         {/* 내용 */}
-        <View style={styles.descCard}>
-          <Text style={styles.descLabel}>내용</Text>
-          <Text style={styles.descText}>{MOCK_DETAIL.description}</Text>
-        </View>
+        {schedule.description ? (
+          <View style={styles.descCard}>
+            <Text style={styles.descLabel}>내용</Text>
+            <Text style={styles.descText}>{schedule.description}</Text>
+          </View>
+        ) : null}
+
+        {/* 삭제 버튼 */}
+        <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.85}>
+          <Text style={styles.deleteBtnText}>스케줄 삭제</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: Spacing.xl * 3 }} />
       </ScrollView>
 
       {/* 완료 버튼 */}
-      {!isDone && (
-        <View style={styles.footer}>
+      <View style={styles.footer}>
+        {!isDone ? (
           <TouchableOpacity style={styles.completeBtn} onPress={handleComplete} activeOpacity={0.85}>
             <Text style={styles.completeBtnText}>완료 처리</Text>
           </TouchableOpacity>
-        </View>
-      )}
-
-      {isDone && (
-        <View style={styles.footer}>
+        ) : (
           <View style={styles.doneLabel}>
             <Text style={styles.doneLabelText}>✓ 완료된 스케줄입니다</Text>
           </View>
-        </View>
-      )}
+        )}
+      </View>
+
+      <ConfirmModal
+        visible={completeModalVisible}
+        title="완료 처리"
+        message="이 스케줄을 완료 처리할까요?"
+        confirmLabel="완료"
+        onConfirm={confirmComplete}
+        onCancel={() => setCompleteModalVisible(false)}
+      />
+      <ConfirmModal
+        visible={deleteModalVisible}
+        title="스케줄 삭제"
+        message="이 스케줄을 삭제할까요? 삭제 후 복구할 수 없습니다."
+        confirmLabel="삭제"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -135,6 +209,7 @@ function MetaRow({ icon, label, value, last }: { icon: string; label: string; va
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   container: { flex: 1, padding: Spacing.md },
   bannerCard: {
     backgroundColor: Colors.surface,
@@ -191,11 +266,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.md,
-    marginBottom: Spacing.xl * 2,
+    marginBottom: Spacing.md,
     ...Shadow.card,
   },
   descLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.sm },
   descText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 24 },
+  deleteBtn: {
+    height: 44,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.error + '10',
+    borderWidth: 1,
+    borderColor: Colors.error + '35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  deleteBtnText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.error },
   footer: {
     padding: Spacing.md,
     backgroundColor: Colors.surface,

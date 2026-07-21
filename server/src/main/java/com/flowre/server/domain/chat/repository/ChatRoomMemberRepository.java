@@ -12,6 +12,12 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
 
     boolean existsByChatRoomIdAndUserId(Long chatRoomId, Long userId);
 
+    boolean existsByChatRoomId(Long chatRoomId);
+
+    void deleteByChatRoomIdAndUserId(Long chatRoomId, Long userId);
+
+    void deleteByChatRoomId(Long chatRoomId);
+
     /** 사용자의 여러 방 멤버십을 한 번에 조회한다 (채팅방 목록 N+1 제거용). */
     List<ChatRoomMember> findByUserIdAndChatRoom_IdIn(Long userId, List<Long> chatRoomIds);
 }
