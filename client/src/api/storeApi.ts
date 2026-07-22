@@ -11,6 +11,7 @@ export interface Store {
   detailAddress?: string;
   latitude?: number;
   longitude?: number;
+  operationStatus?: OperationStatus;
   active: boolean;
 }
 
@@ -56,6 +57,7 @@ export interface StoreActivity {
   todayScheduleTotal: number;
   todayScheduleDone: number;
   activeStaffCount: number;
+  dailySales?: number;
 }
 
 export const storeApi = {

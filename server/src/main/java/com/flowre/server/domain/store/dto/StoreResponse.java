@@ -1,6 +1,7 @@
 package com.flowre.server.domain.store.dto;
 
 import com.flowre.server.domain.store.entity.Store;
+import com.flowre.server.domain.store.entity.StoreOperationStatus;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -17,6 +18,7 @@ public class StoreResponse {
     private String detailAddress;
     private Double latitude;
     private Double longitude;
+    private StoreOperationStatus operationStatus;
     private boolean active;
 
     /** 매장 엔티티를 API 응답 DTO로 변환합니다. */
@@ -32,6 +34,7 @@ public class StoreResponse {
                 .detailAddress(store.getDetailAddress())
                 .latitude(store.getLatitude())
                 .longitude(store.getLongitude())
+                .operationStatus(store.getOperationStatus())
                 .active(store.isActive())
                 .build();
     }

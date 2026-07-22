@@ -9,6 +9,7 @@ export interface Document {
   fileType: string;
   size: string;
   s3Url: string;
+  uploaderId?: number;
   uploader: string;
   brandId: number;
   description?: string;
