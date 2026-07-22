@@ -37,14 +37,15 @@ public class FavoriteService {
      */
     @Transactional
     public FavoriteResponse add(User user, FavoriteCreateRequest request) {
+        String targetKey = normalizeNullable(request.getTargetKey());
         return favoriteRepository.findByUserIdAndTargetTypeAndTargetIdAndTargetKey(
                         user.getId(),
                         request.getTargetType(),
                         request.getTargetId(),
-                        request.getTargetKey()
+                        targetKey
                 )
                 .map(FavoriteResponse::from)
-                .orElseGet(() -> createFavorite(user, request));
+                .orElseGet(() -> createFavorite(user, request, targetKey));
     }
 
     /**
@@ -58,17 +59,24 @@ public class FavoriteService {
         log.info("[Favorite] deleted id={} userId={}", id, user.getId());
     }
 
-    private FavoriteResponse createFavorite(User user, FavoriteCreateRequest request) {
+    private FavoriteResponse createFavorite(User user, FavoriteCreateRequest request, String targetKey) {
         Favorite favorite = Favorite.builder()
                 .userId(user.getId())
                 .targetType(request.getTargetType())
                 .targetId(request.getTargetId())
-                .targetKey(request.getTargetKey())
-                .label(request.getLabel())
+                .targetKey(targetKey)
+                .label(normalizeNullable(request.getLabel()))
                 .build();
         Favorite saved = favoriteRepository.save(favorite);
         log.info("[Favorite] created id={} userId={} targetType={}",
                 saved.getId(), saved.getUserId(), saved.getTargetType());
         return FavoriteResponse.from(saved);
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 }

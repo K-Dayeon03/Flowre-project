@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { FontSize, Radius, Spacing } from '../../constants/theme';
+import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { useChatStore } from '../../store/useChatStore';
@@ -18,6 +18,9 @@ import { useNoticeStore } from '../../store/useNoticeStore';
 import { useFavoriteStore } from '../../store/useFavoriteStore';
 import { useStoreContextStore } from '../../store/useStoreContextStore';
 import { canApproveEmployees, canCreateNotices, canManageStores, canRegisterEmployees } from './homePermissions';
+import { dashboardApi, HomeDashboardResponse } from '../../api/dashboardApi';
+import { Employee, employeeApi } from '../../api/employeeApi';
+import { AsTicket, InquiryTicket, supportApi } from '../../api/supportApi';
 import { storeApi, OperationStatus, StoreActivity } from '../../api/storeApi';
 import Badge from '../../components/Badge';
 import Card from '../../components/Card';
@@ -37,9 +40,51 @@ function getTodayKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
+function toDateKey(value?: string | null) {
+  if (!value) return '';
+  return value.split('T')[0];
+}
+
+function getRecentDateKeys(days: number) {
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (days - 1 - index));
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  });
+}
+
+function countByDate<T>(items: T[], keys: string[], getDate: (item: T) => string | undefined | null) {
+  const counts = keys.reduce<Record<string, number>>((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {});
+  items.forEach((item) => {
+    const key = toDateKey(getDate(item));
+    if (key in counts) counts[key] += 1;
+  });
+  return keys.map((key) => counts[key]);
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
+
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '대기',
   IN_PROGRESS: '진행 중',
+  DONE: '완료',
+};
+
+const INQUIRY_STATUS_LABEL: Record<string, string> = {
+  PENDING: '대기',
+  IN_PROGRESS: '답변중',
+  DONE: '완료',
+};
+
+const AS_STATUS_LABEL: Record<string, string> = {
+  NEW: '신규',
+  IN_PROGRESS: '처리중',
   DONE: '완료',
 };
 
@@ -55,19 +100,45 @@ const MENU_LABEL: Record<string, string> = {
   NOTICE: '공지',
 };
 
+type QueueFilter = 'ALL' | 'URGENT' | 'APPROVAL' | 'AS' | 'DUE_TODAY';
+
+type QueueItem = {
+  id: string;
+  filter: QueueFilter;
+  urgent: boolean;
+  title: string;
+  meta: string;
+  value: string;
+  tone: 'warning' | 'primary' | 'danger' | 'muted';
+  onPress?: () => void;
+};
+
+type StoreIssue = {
+  storeName: string;
+  count: number;
+};
+
+const QUEUE_FILTERS: Array<{ label: string; value: QueueFilter }> = [
+  { label: '전체', value: 'ALL' },
+  { label: '긴급', value: 'URGENT' },
+  { label: '승인', value: 'APPROVAL' },
+  { label: 'AS', value: 'AS' },
+  { label: '금일마감', value: 'DUE_TODAY' },
+];
+
 const DashboardColors = {
-  page: '#F0F4FF',
-  surface: '#FFFFFF',
-  surfaceSoft: '#F5F8FF',
-  ink: '#0F172A',
-  muted: '#64748B',
-  faint: '#94A3B8',
-  line: '#DBEAFE',
-  lineStrong: '#93C5FD',
-  gray: '#3B82F6',
-  grayDark: '#1E3A8A',
-  graySoft: '#EFF6FF',
-  shadow: 'rgba(30, 58, 138, 0.12)',
+  page: Colors.background,
+  surface: Colors.surface,
+  surfaceSoft: Colors.surfaceMuted,
+  ink: Colors.textPrimary,
+  muted: Colors.textSecondary,
+  faint: Colors.textMuted,
+  line: Colors.border,
+  lineStrong: Colors.borderStrong,
+  gray: Colors.accent,
+  grayDark: Colors.primary,
+  graySoft: Colors.accentLight,
+  shadow: 'rgba(34, 52, 55, 0.09)',
 };
 
 export default function HomeScreen() {
@@ -105,17 +176,54 @@ export default function HomeScreen() {
   const isManager = user?.role === 'STORE_MANAGER';
 
   const [myStoreActivity, setMyStoreActivity] = useState<StoreActivity | null>(null);
+  const [storeActivities, setStoreActivities] = useState<StoreActivity[]>([]);
+  const [pendingEmployees, setPendingEmployees] = useState<Employee[]>([]);
+  const [inquiries, setInquiries] = useState<InquiryTicket[]>([]);
+  const [asTickets, setAsTickets] = useState<AsTicket[]>([]);
+  const [homeSummary, setHomeSummary] = useState<HomeDashboardResponse | null>(null);
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>('ALL');
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const loadMyStoreStatus = useCallback(async () => {
-    if (!isManager) return;
+    if (!isManager && !isHq) {
+      setStoreActivities([]);
+      setMyStoreActivity(null);
+      return;
+    }
     try {
       const list = await storeApi.getActivity();
-      if (list.length > 0) setMyStoreActivity(list[0]);
+      setStoreActivities(list);
+      setMyStoreActivity(isManager && list.length > 0 ? list[0] : null);
     } catch { /* silent */ }
-  }, [isManager]);
+  }, [isHq, isManager]);
 
   useEffect(() => { loadMyStoreStatus(); }, [loadMyStoreStatus]);
+
+  useEffect(() => {
+    dashboardApi.getHome(3)
+      .then(setHomeSummary)
+      .catch(() => setHomeSummary(null));
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      supportApi.getInquiries({ limit: 50 }).catch(() => [] as InquiryTicket[]),
+      supportApi.getAsTickets({ limit: 50 }).catch(() => [] as AsTicket[]),
+    ]).then(([nextInquiries, nextAsTickets]) => {
+      setInquiries(nextInquiries);
+      setAsTickets(nextAsTickets);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!canApproveEmployees(user?.role)) {
+      setPendingEmployees([]);
+      return;
+    }
+    employeeApi.getPending()
+      .then(setPendingEmployees)
+      .catch(() => setPendingEmployees([]));
+  }, [user?.role]);
 
   const handleToggleMyStore = async () => {
     if (!myStoreActivity) return;
@@ -130,6 +238,9 @@ export default function HomeScreen() {
           try {
             await storeApi.updateOperationStatus(myStoreActivity.storeId, next);
             setMyStoreActivity((prev) => prev ? { ...prev, operationStatus: next } : prev);
+            setStoreActivities((prev) => prev.map((activity) =>
+              activity.storeId === myStoreActivity.storeId ? { ...activity, operationStatus: next } : activity
+            ));
           } catch {
             Alert.alert('오류', '상태를 변경하지 못했습니다.');
           } finally {
@@ -146,8 +257,122 @@ export default function HomeScreen() {
   const canShowEmployeeApproval = canApproveEmployees(user?.role);
   const pendingCount = schedules.filter((s) => s.status === 'PENDING').length;
   const doneCount = schedules.filter((s) => s.status === 'DONE').length;
-  const scheduleTotal = pendingCount + inProgressCount + doneCount;
-  const completionRate = scheduleTotal > 0 ? Math.round((doneCount / scheduleTotal) * 100) : 0;
+  const asSummary = homeSummary?.asStatus ?? {
+    newCount: 0,
+    inProgressCount: 0,
+    doneCount: 0,
+    urgentCount: 0,
+    completionRate: 0,
+    updatedAt: '',
+  };
+  const recentInquiry = homeSummary?.recentInquiries?.[0];
+  const approvalPendingCount = pendingEmployees.length;
+  const unresolvedAsCount = asSummary.newCount + asSummary.inProgressCount;
+  const openStoreCount = storeActivities.filter((activity) => activity.operationStatus === 'OPEN').length;
+  const totalStoreCount = storeActivities.length;
+  const asCompletionRate = clampPercent(asSummary.completionRate);
+  const slaTargetRate = 80;
+  const slaGap = asCompletionRate - slaTargetRate;
+  const last7DateKeys = useMemo(() => getRecentDateKeys(7), []);
+  const last14DateKeys = useMemo(() => getRecentDateKeys(14), []);
+  const approvalTrend = useMemo(
+    () => countByDate(pendingEmployees, last7DateKeys, (employee) => employee.createdAt),
+    [last7DateKeys, pendingEmployees]
+  );
+  const asTrend = useMemo(
+    () => countByDate(asTickets.filter((ticket) => ticket.status !== 'DONE'), last7DateKeys, (ticket) => ticket.createdAt),
+    [asTickets, last7DateKeys]
+  );
+  const urgentTrend = useMemo(
+    () => countByDate(asTickets.filter((ticket) => ticket.priority === 'URGENT'), last7DateKeys, (ticket) => ticket.createdAt),
+    [asTickets, last7DateKeys]
+  );
+  const scheduleTrend = useMemo(
+    () => countByDate(schedules, last7DateKeys, (schedule) => schedule.dueDate),
+    [schedules, last7DateKeys]
+  );
+  const supportTrend = useMemo(
+    () => countByDate([...inquiries, ...asTickets], last14DateKeys, (ticket) => ticket.createdAt),
+    [asTickets, inquiries, last14DateKeys]
+  );
+  const topStoreIssues = useMemo<StoreIssue[]>(() => {
+    const counts = new Map<string, number>();
+    const addIssue = (storeName?: string) => {
+      const key = storeName?.trim() || '매장 미지정';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    };
+
+    inquiries
+      .filter((inquiry) => inquiry.status !== 'DONE')
+      .forEach((inquiry) => addIssue(inquiry.storeName));
+    asTickets
+      .filter((ticket) => ticket.status !== 'DONE')
+      .forEach((ticket) => addIssue(ticket.storeName));
+
+    return Array.from(counts.entries())
+      .map(([storeName, count]) => ({ storeName, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [asTickets, inquiries]);
+  const queueItems = useMemo<QueueItem[]>(() => {
+    const approvalItems = pendingEmployees.slice(0, 3).map((employee) => ({
+      id: `employee-${employee.id}`,
+      filter: 'APPROVAL' as const,
+      urgent: false,
+      title: `${employee.name} 계정 승인 요청`,
+      meta: `${employee.storeName} · ${employee.employeeCode}`,
+      value: '승인',
+      tone: 'warning' as const,
+      onPress: canShowEmployeeApproval ? () => navigation.navigate('EmployeeApproval') : undefined,
+    }));
+
+    const asItems = asTickets
+      .filter((ticket) => ticket.status !== 'DONE')
+      .slice(0, 4)
+      .map((ticket) => ({
+        id: `as-${ticket.id}`,
+        filter: 'AS' as const,
+        urgent: ticket.priority === 'URGENT',
+        title: ticket.title,
+        meta: `${ticket.storeName} · ${ticket.requesterName} · ${AS_STATUS_LABEL[ticket.status]}`,
+        value: ticket.priority === 'URGENT' ? '긴급' : AS_STATUS_LABEL[ticket.status],
+        tone: ticket.priority === 'URGENT' ? 'danger' as const : ticket.status === 'NEW' ? 'warning' as const : 'primary' as const,
+        onPress: () => navigation.navigate('Support', { initialTab: 'as-tickets' }),
+      }));
+
+    const inquiryItems = inquiries
+      .filter((inquiry) => inquiry.status !== 'DONE')
+      .slice(0, 3)
+      .map((inquiry) => ({
+        id: `inquiry-${inquiry.id}`,
+        filter: 'AS' as const,
+        urgent: false,
+        title: inquiry.title,
+        meta: `${inquiry.storeName} · ${inquiry.requesterName} · ${INQUIRY_STATUS_LABEL[inquiry.status]}`,
+        value: INQUIRY_STATUS_LABEL[inquiry.status],
+        tone: inquiry.status === 'PENDING' ? 'warning' as const : 'primary' as const,
+        onPress: () => navigation.navigate('Support', { initialTab: 'inquiries' }),
+      }));
+
+    const dueItems = todaySchedules
+      .filter((schedule) => schedule.status !== 'DONE')
+      .slice(0, 3)
+      .map((schedule) => ({
+        id: `schedule-${schedule.id}`,
+        filter: 'DUE_TODAY' as const,
+        urgent: false,
+        title: schedule.title,
+        meta: `${schedule.assignee || '미배정'} · ${STATUS_LABEL[schedule.status]}`,
+        value: '오늘',
+        tone: schedule.status === 'PENDING' ? 'warning' as const : 'primary' as const,
+        onPress: () => navigation.navigate('ScheduleDetail', { scheduleId: schedule.id }),
+      }));
+
+    return [...asItems.filter((item) => item.urgent), ...approvalItems, ...asItems.filter((item) => !item.urgent), ...inquiryItems, ...dueItems];
+  }, [asTickets, canShowEmployeeApproval, inquiries, navigation, pendingEmployees, todaySchedules]);
+  const filteredQueueItems = queueItems
+    .filter((item) => queueFilter === 'ALL' || (queueFilter === 'URGENT' ? item.urgent : item.filter === queueFilter))
+    .slice(0, 6);
 
   const navigateFavorite = (favorite: Favorite) => {
     if (favorite.targetType === 'MENU') {
@@ -193,168 +418,244 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.summaryRow}>
-          <DashboardMetric label="오늘 스케줄" value={String(todaySchedules.length)} sub={inProgressCount > 0 ? `진행 중 ${inProgressCount}` : '진행 없음'} />
-          <DashboardMetric label="완료율" value={`${completionRate}%`} sub={scheduleTotal > 0 ? `${doneCount}/${scheduleTotal} 완료` : '업무 없음'} />
-          <DashboardMetric label="안읽은 채팅" value={String(totalUnread)} sub="메시지" />
-          <DashboardMetric label="안읽은 공지" value={String(unreadNoticeCount)} sub="새 공지" />
+          <DashboardMetric label="승인 대기" value={`${approvalPendingCount}건`} sub="직원 확인" trend={approvalTrend} />
+          <DashboardMetric label="미처리 AS" value={`${unresolvedAsCount}건`} sub={`완료 ${asSummary.doneCount}건`} trend={asTrend} />
+          <DashboardMetric label="긴급 문의" value={`${asSummary.urgentCount}건`} sub="즉시 확인" trend={urgentTrend} />
+          <DashboardMetric label="오늘 일정" value={`${todaySchedules.length}건`} sub={inProgressCount > 0 ? `진행 중 ${inProgressCount}건` : '진행 없음'} trend={scheduleTrend} />
+          <DashboardMetric label="운영 매장" value={totalStoreCount > 0 ? `${openStoreCount}/${totalStoreCount}` : '0'} sub="현재 선택 범위" />
         </View>
+
+        {(isHq || isManager || favorites.length > 0 || canShowStoreManage || canShowEmployeeManage || canShowEmployeeApproval || canCreateNotices(user?.role)) && (
+          <View style={styles.quickDock}>
+            {isHq && (
+              <QuickAction
+                title="매장 현황"
+                sub="운영 상태"
+                onPress={() => navigation.navigate('StoreActivity')}
+              />
+            )}
+            {canShowStoreManage && <QuickAction title="매장 등록" sub="코드 관리" onPress={() => navigation.navigate('StoreManage')} />}
+            {canShowEmployeeManage && <QuickAction title="직원 등록" sub="아이디 발급" onPress={() => navigation.navigate('EmployeeManage')} />}
+            {canShowEmployeeApproval && <QuickAction title="직원 승인" sub="대기 확인" onPress={() => navigation.navigate('EmployeeApproval')} />}
+            {canCreateNotices(user?.role) && <QuickAction title="공지 작성" sub="공지 등록" onPress={() => navigation.navigate('NoticeCreate')} />}
+
+            {isManager && (
+              <View style={[styles.managerMini, myStoreActivity?.operationStatus === 'OPEN' && styles.managerMiniOpen]}>
+                <View style={styles.managerMiniCopy}>
+                  <Text style={styles.managerMiniLabel}>내 매장</Text>
+                  <Text style={[styles.managerMiniValue, myStoreActivity?.operationStatus === 'OPEN' && styles.managerMiniValueOpen]}>
+                    {myStoreActivity ? (myStoreActivity.operationStatus === 'OPEN' ? '운영 중' : '영업 종료') : '상태 없음'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.managerMiniButton, myStoreActivity?.operationStatus === 'OPEN' ? styles.managerMiniButtonClose : styles.managerMiniButtonOpen, updatingStatus && styles.toggleDisabled]}
+                  onPress={handleToggleMyStore}
+                  disabled={updatingStatus || !myStoreActivity}
+                  activeOpacity={0.8}
+                >
+                  {updatingStatus
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={styles.managerMiniButtonText}>{myStoreActivity?.operationStatus === 'OPEN' ? '종료' : '시작'}</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {favorites.length > 0 && (
+              <View style={styles.favoriteDock}>
+                <Text style={styles.favoriteDockTitle}>즐겨찾기</Text>
+                <View style={styles.favoriteDockList}>
+                  {favorites.slice(0, 3).map((favorite) => (
+                    <TouchableOpacity
+                      key={favorite.id}
+                      style={styles.favoriteDockChip}
+                      onPress={() => navigateFavorite(favorite)}
+                      activeOpacity={0.84}
+                    >
+                      <View style={styles.favoriteMark} />
+                      <Text style={styles.favoriteDockLabel} numberOfLines={1}>
+                        {favorite.label ?? (favorite.targetKey ? MENU_LABEL[favorite.targetKey] : '즐겨찾기')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={[styles.dashboardGrid, responsive.isWide && styles.dashboardGridWide]}>
           <View style={[styles.dashboardMain, responsive.isWide && styles.dashboardMainWide]}>
             <View style={styles.panel}>
-              <SectionHeader title="업무 상태" onAction={() => navigation.navigate('ScheduleList')} />
-              <View style={styles.statusStrip}>
-                <StatusTile label="대기" value={pendingCount} />
-                <StatusTile label="진행 중" value={inProgressCount} />
-                <StatusTile label="완료" value={doneCount} />
-              </View>
-            </View>
-
-            <View style={styles.panel}>
-              <SectionHeader title="오늘 스케줄" onAction={() => navigation.navigate('ScheduleList')} />
-              {todaySchedules.length === 0 ? (
-                <Card style={styles.panelEmptyCard}>
-                  <EmptyState title="오늘 등록된 스케줄이 없습니다." />
-                </Card>
-              ) : (
-                todaySchedules.slice(0, 4).map((s) => (
-                  <TouchableOpacity
-                    key={s.id}
-                    style={styles.scheduleCard}
-                    onPress={() => navigation.navigate('ScheduleDetail', { scheduleId: s.id })}
-                  >
-                    <View style={styles.typeBar} />
-                    <View style={styles.scheduleInfo}>
-                      <Text style={styles.scheduleTitle}>{s.title}</Text>
-                      <Text style={styles.scheduleDue}>{s.dueDate.split('T')[0]}</Text>
-                    </View>
-                    <Badge label={STATUS_LABEL[s.status]} color={DashboardColors.gray} />
-                  </TouchableOpacity>
-                ))
-              )}
-            </View>
-
-            <View style={styles.panel}>
-              <SectionHeader title="최근 채팅" onAction={() => navigation.navigate('ChatRoomList')} />
-              {rooms.length === 0 ? (
-                <Card style={styles.panelEmptyCard}>
-                  <EmptyState title="참여 중인 채팅방이 없습니다." />
-                </Card>
-              ) : (
-                rooms.slice(0, 4).map((r) => (
-                  <TouchableOpacity
-                    key={r.id}
-                    style={styles.chatRow}
-                    onPress={() => navigation.navigate('ChatRoom', { roomId: r.id, roomName: r.name, roomType: r.type })}
-                  >
-                    <View style={styles.chatIcon}>
-                      <Text style={styles.chatIconText}>{r.type === 'GROUP' ? 'G' : '1:1'}</Text>
-                    </View>
-                    <Text style={styles.chatTitle} numberOfLines={1}>{r.name}</Text>
-                    {r.unread > 0 ? <Badge label={r.unread} color={DashboardColors.grayDark} subtle={false} /> : null}
-                  </TouchableOpacity>
-                ))
-              )}
+              <SectionHeader title="최근 14일 문의·AS 추이" />
+              <TrendBars
+                values={supportTrend}
+                labels={last14DateKeys.map((key) => key.slice(5).replace('-', '/'))}
+              />
             </View>
           </View>
 
           <View style={[styles.dashboardSide, responsive.isWide && styles.dashboardSideWide]}>
-            <TouchableOpacity
-              activeOpacity={0.88}
-              onPress={() => headlineNotice && navigation.navigate('NoticeDetail', { noticeId: headlineNotice.id })}
-              disabled={!headlineNotice}
-            >
-              <Card style={styles.noticeBanner}>
-                <View style={styles.noticeBannerTop}>
-                  <Text style={styles.noticeEyebrow}>공지 브리핑</Text>
+            <View style={styles.panel}>
+              <SectionHeader title="문의 상태 분포" />
+              <View style={styles.supportSummaryRow}>
+                <SupportMetric label="신규 AS" value={asSummary.newCount} tone="warning" />
+                <SupportMetric label="처리 중" value={asSummary.inProgressCount} tone="primary" />
+                <SupportMetric label="긴급" value={asSummary.urgentCount} tone="danger" />
+              </View>
+              <AsStackedStatus
+                newCount={asSummary.newCount}
+                inProgressCount={asSummary.inProgressCount}
+                doneCount={asSummary.doneCount}
+              />
+            </View>
+
+            <View style={styles.panel}>
+              <SectionHeader title="SLA 처리율" />
+              <View style={styles.slaHeader}>
+                <Text style={styles.slaValue}>{asCompletionRate}%</Text>
+                <Text style={[styles.slaDelta, slaGap < 0 && styles.slaDeltaDanger]}>
+                  목표 대비 {slaGap >= 0 ? '+' : ''}{slaGap}%p
+                </Text>
+              </View>
+              <View style={styles.supportProgress}>
+                <View style={[styles.supportProgressTarget, { left: `${slaTargetRate}%` as const }]} />
+                <View style={[styles.supportProgressFill, { width: `${asCompletionRate}%` }]} />
+              </View>
+              <Text style={styles.supportMeta}>목표 {slaTargetRate}% · 완료 {asSummary.doneCount}건 · 미처리 {unresolvedAsCount}건</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.chartGrid, responsive.isWide && styles.chartGridWide]}>
+          <View style={[styles.panel, styles.chartPanel]}>
+            <SectionHeader title="매장별 미처리 이슈 TOP 5" />
+            {topStoreIssues.length === 0 ? (
+              <Text style={styles.chartEmpty}>미처리 이슈가 없습니다.</Text>
+            ) : (
+              <View style={styles.storeIssueList}>
+                {topStoreIssues.map((issue) => (
+                  <StoreIssueRow key={issue.storeName} issue={issue} maxCount={topStoreIssues[0]?.count ?? 1} />
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={[styles.panel, styles.chartPanel]}>
+            <SectionHeader
+              title="바로 처리 목록"
+              actionLabel={canShowEmployeeApproval ? '승인 보기' : '문의/AS 보기'}
+              onAction={() => navigation.navigate(canShowEmployeeApproval ? 'EmployeeApproval' : 'Support')}
+            />
+            <View style={styles.queueFilters}>
+              {QUEUE_FILTERS.map((filter) => (
+                <TouchableOpacity
+                  key={filter.value}
+                  style={[styles.queueFilter, queueFilter === filter.value && styles.queueFilterActive]}
+                  onPress={() => setQueueFilter(filter.value)}
+                  activeOpacity={0.82}
+                >
+                  <Text style={[styles.queueFilterText, queueFilter === filter.value && styles.queueFilterTextActive]}>
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {filteredQueueItems.length === 0 ? (
+              <Card style={styles.panelEmptyCard}>
+                <EmptyState title="처리할 큐가 없습니다." />
+              </Card>
+            ) : (
+              <View style={styles.queueList}>
+                {filteredQueueItems.map((item) => (
+                  <QueueRow
+                    key={item.id}
+                    title={item.title}
+                    meta={item.meta}
+                    value={item.value}
+                    tone={item.tone}
+                    onPress={item.onPress}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={[styles.chartGrid, responsive.isWide && styles.chartGridWide]}>
+          <View style={[styles.panel, styles.chartPanel]}>
+            <SectionHeader title="오늘 일정" onAction={() => navigation.navigate('ScheduleList')} />
+            {todaySchedules.length === 0 ? (
+              <Card style={styles.panelEmptyCard}>
+                <EmptyState title="오늘 등록된 일정이 없습니다." />
+              </Card>
+            ) : (
+              todaySchedules.slice(0, 3).map((s) => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={styles.scheduleCard}
+                  onPress={() => navigation.navigate('ScheduleDetail', { scheduleId: s.id })}
+                  activeOpacity={0.84}
+                >
+                  <View style={styles.typeBar} />
+                  <View style={styles.scheduleInfo}>
+                    <Text style={styles.scheduleTitle}>{s.title}</Text>
+                    <Text style={styles.scheduleDue}>{s.dueDate.split('T')[0]}</Text>
+                  </View>
+                  <Badge label={STATUS_LABEL[s.status]} color={DashboardColors.gray} />
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+
+          <View style={[styles.panel, styles.chartPanel]}>
+            <SectionHeader title="공지 및 커뮤니케이션" actionLabel="공지 보기" onAction={() => navigation.navigate('NoticeList')} />
+            <View style={[styles.updateGrid, responsive.isWide && styles.updateGridWide]}>
+              <TouchableOpacity
+                style={styles.updateBlock}
+                activeOpacity={0.86}
+                onPress={() => headlineNotice && navigation.navigate('NoticeDetail', { noticeId: headlineNotice.id })}
+                disabled={!headlineNotice}
+              >
+                <View style={styles.updateHeader}>
+                  <Text style={styles.updateKicker}>공지</Text>
                   {unreadNoticeCount > 0 ? <Badge label={unreadNoticeCount} color={DashboardColors.grayDark} subtle={false} /> : null}
                 </View>
                 {headlineNotice ? (
                   <>
-                    <Text style={styles.noticeTitle} numberOfLines={2}>{headlineNotice.title}</Text>
-                    <Text style={styles.noticeBody} numberOfLines={3}>{headlineNotice.content || '내용 없음'}</Text>
-                    <TouchableOpacity style={styles.noticeMore} onPress={() => navigation.navigate('NoticeList')}>
-                      <Text style={styles.noticeMoreText}>전체 보기</Text>
-                    </TouchableOpacity>
+                    <Text style={styles.updateTitle} numberOfLines={1}>{headlineNotice.title}</Text>
+                    <Text style={styles.updateText} numberOfLines={2}>{headlineNotice.content || '내용 없음'}</Text>
                   </>
                 ) : (
-                  <Text style={styles.noticeBody}>등록된 공지가 없습니다.</Text>
+                  <Text style={styles.updateText}>등록된 공지가 없습니다.</Text>
                 )}
-              </Card>
-            </TouchableOpacity>
+              </TouchableOpacity>
 
-            <View style={styles.panel}>
-              <SectionHeader title="즐겨찾기" />
-              <View style={styles.favoriteGrid}>
-                {favorites.length === 0 ? (
-                  <Card style={styles.favoriteEmpty}>
-                    <EmptyState icon="⭐" title="즐겨찾기가 없습니다" description="상세 화면에서 별표를 눌러 추가하세요." />
-                  </Card>
+              <View style={styles.updateBlock}>
+                <View style={styles.updateHeader}>
+                  <Text style={styles.updateKicker}>채팅</Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('ChatRoomList')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.updateLink}>전체 보기</Text>
+                  </TouchableOpacity>
+                </View>
+                {rooms.length === 0 ? (
+                  <Text style={styles.updateText}>참여 중인 채팅방이 없습니다.</Text>
                 ) : (
-                  favorites.slice(0, 4).map((favorite) => (
-                    <TouchableOpacity key={favorite.id} style={styles.favoriteChip} onPress={() => navigateFavorite(favorite)} activeOpacity={0.84}>
-                      <View style={styles.favoriteMark} />
-                      <Text style={styles.favoriteLabel} numberOfLines={1}>
-                        {favorite.label ?? (favorite.targetKey ? MENU_LABEL[favorite.targetKey] : '즐겨찾기')}
-                      </Text>
+                  rooms.slice(0, 2).map((r) => (
+                    <TouchableOpacity
+                      key={r.id}
+                      style={styles.updateChatRow}
+                      onPress={() => navigation.navigate('ChatRoom', { roomId: r.id, roomName: r.name, roomType: r.type })}
+                      activeOpacity={0.84}
+                    >
+                      <Text style={styles.updateChatType}>{r.type === 'GROUP' ? 'G' : '1:1'}</Text>
+                      <Text style={styles.updateChatName} numberOfLines={1}>{r.name}</Text>
+                      {r.unread > 0 ? <Badge label={r.unread} color={DashboardColors.grayDark} subtle={false} /> : null}
                     </TouchableOpacity>
                   ))
                 )}
               </View>
             </View>
-
-            {isHq && (
-              <TouchableOpacity
-                activeOpacity={0.88}
-                onPress={() => navigation.navigate('StoreActivity')}
-                style={[styles.panel, styles.activityBanner]}
-              >
-                <View style={styles.activityBannerRow}>
-                  <View>
-                    <Text style={styles.activityBannerKicker}>STORE ACTIVITY</Text>
-                    <Text style={styles.activityBannerTitle}>매장 현황 보기</Text>
-                    <Text style={styles.activityBannerSub}>운영 상태 · 스케줄 · 직원 수</Text>
-                  </View>
-                  <Text style={styles.activityBannerArrow}>›</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {isManager && (
-              <View style={[styles.panel, myStoreActivity?.operationStatus === 'OPEN' && styles.panelOpen]}>
-                <Text style={styles.activityBannerKicker}>내 매장 운영 상태</Text>
-                <View style={styles.managerStatusRow}>
-                  <View style={[styles.statusPill, myStoreActivity?.operationStatus === 'OPEN' ? styles.pillOpen : styles.pillClosed]}>
-                    <Text style={[styles.statusPillText, myStoreActivity?.operationStatus === 'OPEN' ? styles.pillTextOpen : styles.pillTextClosed]}>
-                      {myStoreActivity ? (myStoreActivity.operationStatus === 'OPEN' ? '운영 중' : '영업 종료') : '—'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.managerToggleBtn, myStoreActivity?.operationStatus === 'OPEN' ? styles.toggleClose : styles.toggleOpen, updatingStatus && styles.toggleDisabled]}
-                    onPress={handleToggleMyStore}
-                    disabled={updatingStatus || !myStoreActivity}
-                    activeOpacity={0.8}
-                  >
-                    {updatingStatus
-                      ? <ActivityIndicator size="small" color="#fff" />
-                      : <Text style={styles.managerToggleText}>{myStoreActivity?.operationStatus === 'OPEN' ? '영업 종료' : '운영 시작'}</Text>
-                    }
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {(canShowStoreManage || canShowEmployeeManage || canShowEmployeeApproval || canCreateNotices(user?.role)) && (
-              <View style={styles.panel}>
-                <SectionHeader title="관리 바로가기" />
-                <View style={styles.managementGrid}>
-                  {canShowStoreManage && <ManagementCard title="매장 등록" sub="점별 코드·매장명 관리" onPress={() => navigation.navigate('StoreManage')} />}
-                  {canShowEmployeeManage && <ManagementCard title="직원 등록" sub="직원 아이디 발급" onPress={() => navigation.navigate('EmployeeManage')} />}
-                  {canShowEmployeeApproval && <ManagementCard title="직원 승인" sub="승인 대기 확인" onPress={() => navigation.navigate('EmployeeApproval')} />}
-                  {canCreateNotices(user?.role) && <ManagementCard title="공지 작성" sub="매장 공지 등록" onPress={() => navigation.navigate('NoticeCreate')} />}
-                </View>
-              </View>
-            )}
           </View>
         </View>
         <HomeFooterBar
@@ -368,25 +669,51 @@ export default function HomeScreen() {
   );
 }
 
-function DashboardMetric({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+function DashboardMetric({ label, value, sub, trend }: { label: string; value: string | number; sub?: string; trend?: number[] }) {
+  const trendDelta = trend && trend.length >= 2 ? trend[trend.length - 1] - trend[trend.length - 2] : null;
   return (
     <View style={styles.metricCard}>
       <View style={styles.metricAccent} />
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
       {sub != null ? <Text style={styles.metricSub}>{sub}</Text> : null}
+      {trend ? (
+        <View style={styles.metricTrendRow}>
+          <MiniSparkBars values={trend} />
+          {trendDelta != null ? (
+            <Text style={styles.metricDelta}>
+              전일 {trendDelta >= 0 ? '+' : ''}{trendDelta}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
 
-function ManagementCard({ title, sub, onPress }: { title: string; sub: string; onPress: () => void }) {
+function MiniSparkBars({ values }: { values: number[] }) {
+  const max = Math.max(...values, 1);
   return (
-    <TouchableOpacity style={styles.managementCard} onPress={onPress} activeOpacity={0.84}>
-      <View style={styles.managementTop}>
-        <Text style={styles.managementTitle}>{title}</Text>
-        <Text style={styles.managementArrow}>›</Text>
+    <View style={styles.sparkline}>
+      {values.map((value, index) => (
+        <View
+          key={`${index}-${value}`}
+          style={[styles.sparkBar, { height: Math.max(4, Math.round((value / max) * 18)) }]}
+        />
+      ))}
+    </View>
+  );
+}
+
+function QuickAction({ title, sub, onPress }: { title: string; sub: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.84}>
+      <View style={styles.quickActionMark} />
+      <View style={styles.quickActionCopy}>
+        <Text style={styles.quickActionTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.quickActionSub} numberOfLines={1}>{sub}</Text>
       </View>
-      <Text style={styles.managementSub}>{sub}</Text>
+      <Text style={styles.quickActionArrow}>›</Text>
     </TouchableOpacity>
   );
 }
@@ -397,6 +724,138 @@ function StatusTile({ label, value }: { label: string; value: number }) {
       <View style={styles.statusDot} />
       <Text style={styles.statusValue}>{value}</Text>
       <Text style={styles.statusLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function QueueRow({
+  title,
+  meta,
+  value,
+  tone,
+  onPress,
+}: {
+  title: string;
+  meta: string;
+  value: string;
+  tone: 'warning' | 'primary' | 'danger' | 'muted';
+  onPress?: () => void;
+}) {
+  const color = tone === 'warning'
+    ? Colors.warning
+    : tone === 'danger'
+      ? Colors.error
+      : tone === 'primary'
+        ? Colors.primary
+        : Colors.textMuted;
+  const content = (
+    <>
+      <View style={[styles.queueTone, { backgroundColor: color }]} />
+      <View style={styles.queueCopy}>
+        <Text style={styles.queueTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.queueMeta} numberOfLines={1}>{meta}</Text>
+      </View>
+      <Text style={[styles.queueValue, { color }]}>{value}</Text>
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity style={styles.queueRow} onPress={onPress} activeOpacity={0.84}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return <View style={styles.queueRow}>{content}</View>;
+}
+
+function SupportMetric({ label, value, tone }: { label: string; value: number; tone: 'warning' | 'primary' | 'danger' }) {
+  const color = tone === 'warning' ? Colors.warning : tone === 'danger' ? Colors.error : Colors.primary;
+  return (
+    <View style={styles.supportMetric}>
+      <Text style={[styles.supportMetricValue, { color }]}>{value}</Text>
+      <Text style={styles.supportMetricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function AsStackedStatus({
+  newCount,
+  inProgressCount,
+  doneCount,
+}: {
+  newCount: number;
+  inProgressCount: number;
+  doneCount: number;
+}) {
+  const total = Math.max(newCount + inProgressCount + doneCount, 1);
+  const segments = [
+    { label: '신규', value: newCount, style: styles.asSegmentNew },
+    { label: '처리중', value: inProgressCount, style: styles.asSegmentProgress },
+    { label: '완료', value: doneCount, style: styles.asSegmentDone },
+  ];
+
+  return (
+    <View style={styles.asStatusBlock}>
+      <View style={styles.asStackedBar}>
+        {segments.map((segment) => (
+          <View
+            key={segment.label}
+            style={[
+              styles.asSegment,
+              segment.style,
+              { width: `${Math.max((segment.value / total) * 100, segment.value > 0 ? 8 : 0)}%` as const },
+            ]}
+          />
+        ))}
+      </View>
+      <View style={styles.asLegend}>
+        {segments.map((segment) => (
+          <View key={segment.label} style={styles.asLegendItem}>
+            <View style={[styles.asLegendDot, segment.style]} />
+            <Text style={styles.asLegendText}>{segment.label} {segment.value}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function TrendBars({ values, labels }: { values: number[]; labels: string[] }) {
+  const max = Math.max(...values, 1);
+  return (
+    <View style={styles.trendChart}>
+      <View style={styles.trendBars}>
+        {values.map((value, index) => (
+          <View key={`${labels[index]}-${index}`} style={styles.trendColumn}>
+            <Text style={styles.trendValue}>{value > 0 ? value : ''}</Text>
+            <View style={styles.trendTrack}>
+              <View style={[styles.trendFill, { height: Math.max(5, Math.round((value / max) * 82)) }]} />
+            </View>
+            {index % 3 === 0 || index === values.length - 1 ? (
+              <Text style={styles.trendLabel}>{labels[index]}</Text>
+            ) : (
+              <Text style={styles.trendLabel}> </Text>
+            )}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function StoreIssueRow({ issue, maxCount }: { issue: StoreIssue; maxCount: number }) {
+  const width = `${Math.max((issue.count / Math.max(maxCount, 1)) * 100, 8)}%` as const;
+  return (
+    <View style={styles.storeIssueRow}>
+      <View style={styles.storeIssueHeader}>
+        <Text style={styles.storeIssueName} numberOfLines={1}>{issue.storeName}</Text>
+        <Text style={styles.storeIssueCount}>{issue.count}건</Text>
+      </View>
+      <View style={styles.storeIssueTrack}>
+        <View style={[styles.storeIssueFill, { width }]} />
+      </View>
     </View>
   );
 }
@@ -504,6 +963,155 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.sm,
   },
+  quickDock: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+    gap: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surface,
+  },
+  quickAction: {
+    flexGrow: 1,
+    flexBasis: 150,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  quickActionMark: {
+    width: 7,
+    height: 28,
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.gray,
+  },
+  quickActionCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  quickActionTitle: {
+    color: DashboardColors.ink,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
+  },
+  quickActionSub: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  quickActionArrow: {
+    color: DashboardColors.gray,
+    fontSize: FontSize.lg,
+    fontWeight: '900',
+    lineHeight: 20,
+  },
+  managerMini: {
+    flexGrow: 1,
+    flexBasis: 210,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  managerMiniOpen: {
+    borderColor: Colors.success + '50',
+    backgroundColor: Colors.success + '10',
+  },
+  managerMiniCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  managerMiniLabel: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '800',
+  },
+  managerMiniValue: {
+    marginTop: 2,
+    color: DashboardColors.ink,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
+  },
+  managerMiniValueOpen: {
+    color: Colors.success,
+  },
+  managerMiniButton: {
+    minWidth: 52,
+    minHeight: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.sm,
+  },
+  managerMiniButtonOpen: {
+    backgroundColor: DashboardColors.grayDark,
+  },
+  managerMiniButtonClose: {
+    backgroundColor: Colors.error,
+  },
+  managerMiniButtonText: {
+    color: DashboardColors.surface,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  favoriteDock: {
+    flexGrow: 1,
+    flexBasis: 260,
+    minHeight: 56,
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  favoriteDockTitle: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  favoriteDockList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  favoriteDockChip: {
+    flexGrow: 1,
+    flexBasis: 74,
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.surface,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+  },
+  favoriteDockLabel: {
+    flex: 1,
+    minWidth: 0,
+    color: DashboardColors.ink,
+    fontSize: FontSize.xs,
+    fontWeight: '800',
+  },
   metricCard: {
     flex: 1,
     flexBasis: 150,
@@ -546,6 +1154,30 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     marginTop: 1,
   },
+  metricTrendRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  sparkline: {
+    height: 20,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+  sparkBar: {
+    width: 7,
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.lineStrong,
+  },
+  metricDelta: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+    paddingBottom: 1,
+  },
   dashboardGrid: {
     flex: 1,
     gap: Spacing.md,
@@ -587,6 +1219,75 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  queueFilters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  queueFilter: {
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  queueFilterActive: {
+    borderColor: DashboardColors.grayDark,
+    backgroundColor: DashboardColors.grayDark,
+  },
+  queueFilterText: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  queueFilterTextActive: {
+    color: DashboardColors.surface,
+  },
+  queueList: {
+    gap: Spacing.sm,
+  },
+  queueRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  queueTone: {
+    width: 7,
+    height: 32,
+    borderRadius: Radius.full,
+  },
+  queueCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  queueTitle: {
+    color: DashboardColors.ink,
+    fontSize: FontSize.md,
+    fontWeight: '900',
+  },
+  queueMeta: {
+    marginTop: 2,
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+  },
+  queueValue: {
+    minWidth: 58,
+    textAlign: 'right',
+    fontSize: FontSize.md,
+    fontWeight: '900',
+  },
   statusStrip: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -615,56 +1316,223 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: '700',
   },
-  noticeBanner: {
-    borderColor: DashboardColors.line,
-    padding: Spacing.lg,
-    backgroundColor: DashboardColors.surface,
-    borderRadius: Radius.lg,
+  supportSummaryRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
   },
-  noticeBannerTop: {
+  supportMetric: {
+    flex: 1,
+    minWidth: 0,
+    padding: Spacing.sm,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  supportMetricValue: {
+    fontSize: FontSize.xl,
+    fontWeight: '900',
+  },
+  supportMetricLabel: {
+    marginTop: 2,
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '800',
+  },
+  asStatusBlock: {
+    marginTop: Spacing.md,
+    gap: Spacing.xs,
+  },
+  asStackedBar: {
+    height: 12,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  asSegment: {
+    height: 12,
+  },
+  asSegmentNew: {
+    backgroundColor: Colors.warning,
+  },
+  asSegmentProgress: {
+    backgroundColor: Colors.primary,
+  },
+  asSegmentDone: {
+    backgroundColor: Colors.success,
+  },
+  asLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  asLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  asLegendDot: {
+    width: 7,
+    height: 7,
+    borderRadius: Radius.full,
+  },
+  asLegendText: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '800',
+  },
+  supportProgress: {
+    height: 7,
+    marginTop: Spacing.md,
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  supportProgressTarget: {
+    position: 'absolute',
+    top: -3,
+    bottom: -3,
+    width: 2,
+    zIndex: 2,
+    backgroundColor: Colors.error,
+  },
+  supportProgressFill: {
+    height: 7,
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.gray,
+  },
+  slaHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  slaValue: {
+    color: DashboardColors.grayDark,
+    fontSize: FontSize.xxl,
+    fontWeight: '900',
+    lineHeight: 38,
+  },
+  slaDelta: {
+    color: Colors.success,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+    paddingBottom: 6,
+  },
+  slaDeltaDanger: {
+    color: Colors.error,
+  },
+  supportMeta: {
+    marginTop: Spacing.xs,
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+  },
+  inquiryPreview: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: DashboardColors.line,
+  },
+  inquiryPreviewLabel: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+    marginBottom: Spacing.xs,
+  },
+  inquiryPreviewRow: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  inquiryPreviewText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inquiryPreviewTitle: {
+    color: DashboardColors.ink,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
+  },
+  inquiryPreviewMeta: {
+    marginTop: 2,
+    color: DashboardColors.muted,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+  },
+  inquiryEmpty: {
+    color: DashboardColors.muted,
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+  },
+  updateGrid: {
+    gap: Spacing.sm,
+  },
+  updateGridWide: {
+    flexDirection: 'row',
+  },
+  updateBlock: {
+    flex: 1,
+    minWidth: 220,
+    minHeight: 112,
+    padding: Spacing.md,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  updateHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: Spacing.sm,
   },
-  noticeEyebrow: {
+  updateKicker: {
     fontSize: FontSize.xs,
     fontWeight: '900',
     color: DashboardColors.grayDark,
     letterSpacing: 0,
   },
-  noticeTitle: {
-    fontSize: FontSize.lg,
+  updateTitle: {
+    fontSize: FontSize.md,
     color: DashboardColors.ink,
     fontWeight: '900',
   },
-  noticeBody: {
+  updateText: {
     marginTop: Spacing.xs,
     fontSize: FontSize.sm,
     color: DashboardColors.muted,
     lineHeight: 19,
   },
-  noticeMore: { alignSelf: 'flex-start', marginTop: Spacing.sm },
-  noticeMoreText: { color: DashboardColors.grayDark, fontSize: FontSize.sm, fontWeight: '800' },
-  favoriteGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
+  updateLink: {
+    color: DashboardColors.grayDark,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
   },
-  favoriteEmpty: { width: '100%', padding: Spacing.sm },
-  favoriteChip: {
-    flexGrow: 1,
-    flexBasis: '46%',
-    minHeight: 58,
+  updateChatRow: {
+    minHeight: 36,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: DashboardColors.surfaceSoft,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: DashboardColors.line,
-    padding: Spacing.sm,
-    justifyContent: 'center',
+    paddingVertical: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: DashboardColors.line,
+  },
+  updateChatType: {
+    width: 28,
+    color: DashboardColors.grayDark,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  updateChatName: {
+    flex: 1,
+    minWidth: 0,
+    color: DashboardColors.ink,
+    fontSize: FontSize.sm,
+    fontWeight: '800',
   },
   favoriteMark: {
     width: 8,
@@ -672,28 +1540,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     backgroundColor: DashboardColors.gray,
   },
-  favoriteLabel: { flex: 1, fontSize: FontSize.sm, color: DashboardColors.ink, fontWeight: '800' },
-  managementGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  managementCard: {
-    flexGrow: 1,
-    flexBasis: '47%',
-    minHeight: 76,
-    backgroundColor: DashboardColors.surfaceSoft,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: DashboardColors.line,
-    padding: Spacing.md,
-    justifyContent: 'center',
-  },
-  managementTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.sm,
-  },
-  managementTitle: { fontSize: FontSize.md, color: DashboardColors.ink, fontWeight: '900' },
-  managementArrow: { fontSize: FontSize.xl, color: DashboardColors.gray, fontWeight: '900', lineHeight: 22 },
-  managementSub: { fontSize: FontSize.xs, color: DashboardColors.muted, marginTop: 2 },
   scheduleCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -708,32 +1554,101 @@ const styles = StyleSheet.create({
   scheduleInfo: { flex: 1, padding: Spacing.sm + 4 },
   scheduleTitle: { fontSize: FontSize.md, fontWeight: '800', color: DashboardColors.ink },
   scheduleDue: { fontSize: FontSize.xs, color: DashboardColors.muted, marginTop: 2 },
-  chatRow: {
+  chartGrid: {
+    gap: Spacing.md,
+  },
+  chartGridWide: {
+    flexDirection: 'row',
+  },
+  chartPanel: {
+    flex: 1,
+    minWidth: 0,
+  },
+  trendChart: {
+    minHeight: 150,
+  },
+  trendBars: {
+    minHeight: 142,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 5,
+  },
+  trendColumn: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    gap: 4,
+  },
+  trendValue: {
+    height: 16,
+    color: DashboardColors.grayDark,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  trendTrack: {
+    width: '100%',
+    maxWidth: 18,
+    height: 86,
+    justifyContent: 'flex-end',
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  trendFill: {
+    width: '100%',
+    borderTopLeftRadius: Radius.full,
+    borderTopRightRadius: Radius.full,
+    backgroundColor: DashboardColors.gray,
+  },
+  trendLabel: {
+    height: 14,
+    color: DashboardColors.faint,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  chartEmpty: {
+    minHeight: 120,
+    textAlignVertical: 'center',
+    color: DashboardColors.muted,
+    fontSize: FontSize.sm,
+    fontWeight: '800',
+  },
+  storeIssueList: {
+    gap: Spacing.md,
+    paddingTop: Spacing.xs,
+  },
+  storeIssueRow: {
+    gap: Spacing.xs,
+  },
+  storeIssueHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: DashboardColors.surfaceSoft,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 4,
-    borderRadius: Radius.sm,
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: DashboardColors.line,
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
   },
-  chatIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.full,
-    backgroundColor: DashboardColors.graySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.sm,
+  storeIssueName: {
+    flex: 1,
+    minWidth: 0,
+    color: DashboardColors.ink,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
   },
-  chatIconText: {
+  storeIssueCount: {
     color: DashboardColors.grayDark,
     fontSize: FontSize.xs,
     fontWeight: '900',
   },
-  chatTitle: { flex: 1, fontSize: FontSize.md, color: DashboardColors.ink, fontWeight: '700' },
+  storeIssueTrack: {
+    height: 10,
+    overflow: 'hidden',
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.surfaceSoft,
+  },
+  storeIssueFill: {
+    height: 10,
+    borderRadius: Radius.full,
+    backgroundColor: DashboardColors.lineStrong,
+  },
   footerBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -785,70 +1700,5 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: '900',
   },
-
-  activityBanner: {
-    backgroundColor: DashboardColors.grayDark,
-    borderColor: DashboardColors.grayDark,
-  },
-  activityBannerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  activityBannerKicker: {
-    fontSize: FontSize.xs,
-    fontWeight: '700',
-    color: '#93C5FD',
-    letterSpacing: 0.5,
-  },
-  activityBannerTitle: {
-    marginTop: 4,
-    fontSize: FontSize.lg,
-    fontWeight: '900',
-    color: '#fff',
-  },
-  activityBannerSub: {
-    marginTop: 2,
-    fontSize: FontSize.xs,
-    color: '#93C5FD',
-    fontWeight: '600',
-  },
-  activityBannerArrow: {
-    fontSize: 32,
-    color: '#93C5FD',
-    fontWeight: '900',
-    lineHeight: 36,
-  },
-
-  panelOpen: {
-    borderColor: '#86EFAC',
-    backgroundColor: '#F0FDF4',
-  },
-  managerStatusRow: {
-    marginTop: Spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  statusPill: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-  },
-  pillOpen: { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' },
-  pillClosed: { backgroundColor: DashboardColors.surfaceSoft, borderColor: DashboardColors.line },
-  statusPillText: { fontSize: FontSize.sm, fontWeight: '700' },
-  pillTextOpen: { color: '#16A34A' },
-  pillTextClosed: { color: DashboardColors.muted },
-  managerToggleBtn: {
-    flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
-    alignItems: 'center',
-  },
-  toggleOpen: { backgroundColor: DashboardColors.grayDark },
-  toggleClose: { backgroundColor: '#EF4444' },
   toggleDisabled: { opacity: 0.5 },
-  managerToggleText: { fontSize: FontSize.sm, fontWeight: '700', color: '#fff' },
 });

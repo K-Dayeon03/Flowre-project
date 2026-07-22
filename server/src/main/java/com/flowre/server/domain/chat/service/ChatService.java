@@ -77,7 +77,7 @@ public class ChatService {
     @Transactional(readOnly = true)
     public List<MessageResponse> getMessages(User user, Long roomId, Long before, int limit) {
         getMemberRoom(roomId, user);
-        int pageSize = Math.max(1, limit);
+        int pageSize = Math.min(Math.max(1, limit), 100);
 
         List<Message> messages = before != null
                 ? messageRepository.findByRoomIdAndIdLessThanOrderByIdDesc(

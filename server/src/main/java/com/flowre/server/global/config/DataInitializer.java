@@ -7,16 +7,14 @@ import com.flowre.server.domain.inventory.repository.InventoryLabelRepository;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
 import com.flowre.server.domain.user.entity.User;
-import com.flowre.server.domain.user.entity.UserRole;
-import com.flowre.server.domain.user.entity.UserStatus;
 import com.flowre.server.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -25,11 +23,16 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
+    private static final List<String> LEGACY_DEV_EMPLOYEE_CODES = List.of(
+            "0000HQST!",
+            "1001ABCD!",
+            "1001QWER!"
+    );
+
     private final StoreRepository storeRepository;
     private final InventoryItemRepository inventoryItemRepository;
     private final InventoryLabelRepository inventoryLabelRepository;
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
@@ -102,63 +105,25 @@ public class DataInitializer implements CommandLineRunner {
             log.info("[DataInitializer] 재고 샘플 데이터 생성 완료");
         }
 
-        createDevAccounts();
+        removeLegacyDevAccounts();
     }
 
-    /** 개발용 시드 계정을 생성합니다. 이미 존재하는 계정은 건너뜁니다. */
-    private void createDevAccounts() {
-        // 본부(0000) HQ_STAFF — ADMIN이 채팅 상대로 선택 가능
-        storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "0000").ifPresent(hqStore -> {
-            if (!userRepository.existsByEmployeeCode("0000HQST!")) {
-                userRepository.save(User.builder()
-                        .email("hqstaff@flowre.local")
-                        .employeeCode("0000HQST!")
-                        .password(passwordEncoder.encode("Test1234!"))
-                        .name("본사 직원")
-                        .role(UserRole.HQ_STAFF)
-                        .status(UserStatus.ACTIVE)
-                        .brandId(1L)
-                        .storeId(hqStore.getId())
-                        .storeCode(hqStore.getStoreCode())
-                        .storeName(hqStore.getStoreName())
-                        .build());
-                log.info("[DataInitializer] 개발용 HQ_STAFF 계정 생성 — 0000HQST!");
-            }
-        });
-
-        // 강남점(1001) 점장 — 채팅·스케줄 테스트용
-        storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001").ifPresent(store -> {
-            if (!userRepository.existsByEmployeeCode("1001ABCD!")) {
-                userRepository.save(User.builder()
-                        .email("manager@flowre.local")
-                        .employeeCode("1001ABCD!")
-                        .password(passwordEncoder.encode("Test1234!"))
-                        .name("강남점 점장")
-                        .role(UserRole.STORE_MANAGER)
-                        .status(UserStatus.ACTIVE)
-                        .brandId(1L)
-                        .storeId(store.getId())
-                        .storeCode(store.getStoreCode())
-                        .storeName(store.getStoreName())
-                        .build());
-                log.info("[DataInitializer] 개발용 STORE_MANAGER 계정 생성 — 1001ABCD!");
-            }
-
-            if (!userRepository.existsByEmployeeCode("1001QWER!")) {
-                userRepository.save(User.builder()
-                        .email("staff@flowre.local")
-                        .employeeCode("1001QWER!")
-                        .password(passwordEncoder.encode("Test1234!"))
-                        .name("강다연")
-                        .role(UserRole.STORE_STAFF)
-                        .status(UserStatus.ACTIVE)
-                        .brandId(1L)
-                        .storeId(store.getId())
-                        .storeCode(store.getStoreCode())
-                        .storeName(store.getStoreName())
-                        .build());
-                log.info("[DataInitializer] 개발용 STORE_STAFF 계정 생성 — 1001QWER!");
-            }
-        });
+    /**
+     * 시뮬레이터에서는 부트스트랩 ADMIN(0000ADMN!)만 로그인 계정으로 남긴다.
+     * 기존 개발 시드 계정은 삭제하고, 참조 데이터 때문에 삭제가 막히면 로그인 불가 상태로 전환한다.
+     */
+    private void removeLegacyDevAccounts() {
+        LEGACY_DEV_EMPLOYEE_CODES.forEach(employeeCode ->
+                userRepository.findByEmployeeCode(employeeCode).ifPresent(user -> {
+                    try {
+                        userRepository.delete(user);
+                        log.info("[DataInitializer] 개발용 시드 계정 삭제 — {}", employeeCode);
+                    } catch (RuntimeException e) {
+                        user.deactivate();
+                        userRepository.save(user);
+                        log.warn("[DataInitializer] 개발용 시드 계정 삭제 실패, 로그인 불가 처리 — {}", employeeCode);
+                    }
+                })
+        );
     }
 }

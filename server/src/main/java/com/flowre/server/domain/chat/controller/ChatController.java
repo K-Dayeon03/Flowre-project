@@ -11,9 +11,12 @@ import com.flowre.server.domain.chat.service.ChatService;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +24,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
+@Validated
 public class ChatController {
 
     private final ChatService chatService;
@@ -47,6 +51,8 @@ public class ChatController {
             @AuthenticationPrincipal User user,
             @PathVariable Long roomId,
             @RequestParam(required = false) Long before,
+            @Min(value = 1, message = "메시지 조회 개수는 1 이상이어야 합니다.")
+            @Max(value = 100, message = "메시지 조회 개수는 100 이하로 요청해주세요.")
             @RequestParam(defaultValue = "50") int limit
     ) {
         return ResponseEntity.ok(ApiResponse.ok(

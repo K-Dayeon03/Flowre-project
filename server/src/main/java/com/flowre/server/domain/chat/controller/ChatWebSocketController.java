@@ -6,9 +6,11 @@ import com.flowre.server.domain.chat.service.ChatService;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.global.exception.CustomException;
 import com.flowre.server.global.exception.ErrorCode;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -28,7 +30,7 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.send")
     public void sendMessage(
-            SendMessageRequest request,
+            @Valid @Payload SendMessageRequest request,
             @AuthenticationPrincipal User user,
             Principal principal
     ) {

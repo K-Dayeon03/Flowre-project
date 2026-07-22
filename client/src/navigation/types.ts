@@ -26,4 +26,5 @@ export type MainStackParamList = {
   ChatRoomList: undefined;
   ChatRoom: { roomId: number; roomName: string; roomType: 'GROUP' | 'DIRECT' };
   StoreActivity: undefined;
+  Support: { initialTab?: 'inquiries' | 'as-tickets'; query?: string } | undefined;
 };

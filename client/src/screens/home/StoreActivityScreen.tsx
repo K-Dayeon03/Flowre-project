@@ -204,8 +204,8 @@ const styles = StyleSheet.create({
     ...Shadow.card,
   },
   cardOpen: {
-    borderColor: '#22C55E' + '50',
-    backgroundColor: '#F0FDF4',
+    borderColor: Colors.success + '50',
+    backgroundColor: Colors.success + '10',
   },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
@@ -217,10 +217,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     borderWidth: 1,
   },
-  badgeOpen: { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' },
+  badgeOpen: { backgroundColor: Colors.success + '16', borderColor: Colors.success + '50' },
   badgeClosed: { backgroundColor: Colors.surfaceMuted, borderColor: Colors.border },
   statusText: { fontSize: FontSize.xs, fontWeight: '700' },
-  statusTextOpen: { color: '#16A34A' },
+  statusTextOpen: { color: Colors.success },
   statusTextClosed: { color: Colors.textMuted },
 
   metricsRow: {

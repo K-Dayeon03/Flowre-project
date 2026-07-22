@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -14,16 +15,9 @@ import { useStoreContextStore } from '../store/useStoreContextStore';
 import { Store, storeApi } from '../api/storeApi';
 import Avatar from './Avatar';
 import BrandWordmark from './BrandWordmark';
-import { canManageStores } from '../screens/home/homePermissions';
+import { canApproveEmployees, canManageStores, canRegisterEmployees } from '../screens/home/homePermissions';
 
-const TABS: { label: string; route: string; group: string[] }[] = [
-  { label: '대시보드', route: 'Home', group: ['Home'] },
-  { label: '스케줄', route: 'ScheduleList', group: ['ScheduleList', 'ScheduleDetail', 'ScheduleCreate'] },
-  { label: '재고', route: 'InventoryList', group: ['InventoryList'] },
-  { label: '문서', route: 'DocumentList', group: ['DocumentList', 'DocumentDetail', 'DocumentUpload'] },
-  { label: '채팅', route: 'ChatRoomList', group: ['ChatRoomList', 'ChatRoom'] },
-  { label: '공지', route: 'NoticeList', group: ['NoticeList', 'NoticeDetail', 'NoticeCreate'] },
-];
+type HeaderTab = { label: string; route: string; group: string[] };
 
 interface Props {
   currentRoute: string;
@@ -36,9 +30,21 @@ export default function AppHeader({ currentRoute }: Props) {
   const setSelectedStore = useStoreContextStore((s) => s.setSelectedStore);
   const [stores, setStores] = useState<Store[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const canSelectStore = canManageStores(user?.role);
 
   const displayStoreName = selectedStore?.storeName ?? user?.storeName ?? '매장';
+  const employeeRoute = canApproveEmployees(user?.role) && !canRegisterEmployees(user?.role)
+    ? 'EmployeeApproval'
+    : 'EmployeeManage';
+  const tabs: HeaderTab[] = [
+    { label: '대시보드', route: 'Home', group: ['Home'] },
+    { label: '스케줄', route: 'ScheduleList', group: ['ScheduleList', 'ScheduleDetail', 'ScheduleCreate'] },
+    { label: '매장', route: 'StoreActivity', group: ['StoreActivity', 'StoreManage'] },
+    { label: '직원', route: employeeRoute, group: ['EmployeeManage', 'EmployeeApproval'] },
+    { label: '문의/AS', route: 'Support', group: ['Support'] },
+    { label: '공지', route: 'NoticeList', group: ['NoticeList', 'NoticeDetail', 'NoticeCreate'] },
+  ];
 
   const openStoreSelector = async () => {
     if (!canSelectStore) return;
@@ -49,6 +55,12 @@ export default function AppHeader({ currentRoute }: Props) {
       setStores([]);
     }
     setModalVisible(true);
+  };
+
+  const submitSearch = () => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+    navigation.navigate('Support', { query: trimmed });
   };
 
   return (
@@ -70,7 +82,7 @@ export default function AppHeader({ currentRoute }: Props) {
           contentContainerStyle={styles.tabList}
           style={styles.tabScroll}
         >
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const active = tab.group.includes(currentRoute);
             return (
               <TouchableOpacity
@@ -89,6 +101,18 @@ export default function AppHeader({ currentRoute }: Props) {
         </ScrollView>
 
         <View style={styles.rightActions}>
+          <View style={styles.searchBox}>
+            <Text style={styles.searchIcon}>⌕</Text>
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={submitSearch}
+              placeholder="검색"
+              placeholderTextColor={Colors.sidebarText}
+              returnKeyType="search"
+            />
+          </View>
           <TouchableOpacity
             style={styles.storeChip}
             onPress={openStoreSelector}
@@ -194,6 +218,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
+  searchBox: {
+    width: 118,
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.sidebarBorder,
+    backgroundColor: Colors.sidebarMuted,
+  },
+  searchIcon: {
+    color: Colors.sidebarText,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    padding: 0,
+    color: Colors.surface,
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+  },
   storeChip: {
     maxWidth: 130,
     flexDirection: 'row',
@@ -218,7 +267,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 32, 96, 0.45)',
+    backgroundColor: 'rgba(34, 52, 55, 0.45)',
     justifyContent: 'center',
     padding: Spacing.lg,
   },

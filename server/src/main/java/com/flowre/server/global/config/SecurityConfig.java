@@ -56,6 +56,7 @@ public class SecurityConfig {
                 .requestMatchers("/dummy-s3/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .anyRequest().authenticated()
             )
