@@ -49,7 +49,8 @@ public class InventoryService {
         String normalizedQuery = normalizeNullable(query);
         String normalizedLabel = normalizeNullable(labelName);
         ProductCategory parsedCategory = parseCategory(category);
-        PageRequest pageRequest = PageRequest.of(page, 30, Sort.by(Sort.Direction.DESC, "updatedAt", "id"));
+        int pageNumber = Math.max(0, page);
+        PageRequest pageRequest = PageRequest.of(pageNumber, 30, Sort.by(Sort.Direction.DESC, "updatedAt", "id"));
 
         Page<InventoryItem> result = inventoryItemRepository.search(
                 user.getBrandId(), effectiveStoreId, normalizedQuery, archived, normalizedLabel,

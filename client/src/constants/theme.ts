@@ -1,74 +1,74 @@
-// Deep Blue Corporate palette
-// Primary: #1E3A8A (딥 네이비) · Background: #F0F4FF · Surface: #FFFFFF
+// Flowre admin palette
+// Warm canvas with restrained charcoal, teal, and clear operational status colors.
 
 export const Colors = {
   // 브랜드 컬러
-  primary: '#1E3A8A',       // 딥 네이비 (Tailwind blue-900)
-  primaryDark: '#1E2F77',
-  accent: '#3B82F6',        // 브라이트 블루 (blue-500)
-  accentLight: '#EFF6FF',   // blue-50
+  primary: '#1D7E8B',
+  primaryDark: '#223437',
+  accent: '#20808D',
+  accentLight: '#EDF7F5',
 
   // 배경 · 서피스
-  background: '#F0F4FF',    // 연한 블루 캔버스
+  background: '#F9F9F6',
   surface: '#FFFFFF',
-  surfaceMuted: '#F5F8FF',  // 블루 틴트 서피스
+  surfaceMuted: '#F4F6F2',
 
   // 테두리
-  border: '#DBEAFE',        // blue-100
-  borderStrong: '#93C5FD',  // blue-300
+  border: '#E3E5E1',
+  borderStrong: '#B8C5C0',
 
   // 텍스트
-  textPrimary: '#0F172A',   // slate-950
-  textSecondary: '#334155', // slate-700
-  textMuted: '#64748B',     // slate-500
+  textPrimary: '#223437',
+  textSecondary: '#5A6A6D',
+  textMuted: '#7B8785',
 
   // 시스템 색상
-  success: '#059669',
-  warning: '#D97706',
-  error: '#DC2626',
-  info: '#2563EB',
+  success: '#15803D',
+  warning: '#B45309',
+  error: '#B91C1C',
+  info: '#1D7E8B',
 
   // 탭바
-  tabBar: '#1E3A8A',
+  tabBar: '#223437',
 
-  // 앱 헤더 (딥 네이비)
-  sidebar: '#0F2060',
-  sidebarMuted: '#1A2F7A',
-  sidebarText: '#93C5FD',   // blue-300 — 어두운 배경 위 가독성
-  sidebarBorder: '#1E3FAB',
+  // 앱 헤더
+  sidebar: '#223437',
+  sidebarMuted: '#2D4549',
+  sidebarText: '#D6D5D4',
+  sidebarBorder: '#3B595F',
 
   scheduleType: {
-    MANNEQUIN: '#7C3AED',
-    HQ_VISIT: '#1E3A8A',
-    VM_CHECK: '#059669',
-    OTHER: '#D97706',
+    MANNEQUIN: '#6D5A8D',
+    HQ_VISIT: '#1D7E8B',
+    VM_CHECK: '#2F7D61',
+    OTHER: '#A16207',
   },
   statusBadge: {
-    PENDING: '#D97706',
-    IN_PROGRESS: '#1E3A8A',
-    DONE: '#059669',
+    PENDING: '#B45309',
+    IN_PROGRESS: '#1D7E8B',
+    DONE: '#15803D',
   },
 };
 
 export const Gradients = {
-  brand: ['#1E3A8A', '#2563EB'] as const,
-  brandDark: ['#0F172A', '#1E3A8A'] as const,
-  soft: ['#FFFFFF', '#F0F4FF'] as const,
-  success: ['#059669', '#34D399'] as const,
+  brand: ['#223437', '#1D7E8B'] as const,
+  brandDark: ['#171615', '#1E1D1C'] as const,
+  soft: ['#FFFFFF', '#F9F9F6'] as const,
+  success: ['#15803D', '#2F7D61'] as const,
 };
 
 export const Shadow = {
   card: {
-    shadowColor: '#1E3A8A',
+    shadowColor: '#223437',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
+    shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 1,
   },
   raised: {
-    shadowColor: '#1E3A8A',
+    shadowColor: '#223437',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
+    shadowOpacity: 0.11,
     shadowRadius: 10,
     elevation: 3,
   },

@@ -54,7 +54,7 @@ public class ScheduleController {
     public ResponseEntity<ApiResponse<ScheduleResponse>> update(
             @AuthenticationPrincipal User user,
             @PathVariable Long id,
-            @RequestBody ScheduleUpdateRequest request
+            @Valid @RequestBody ScheduleUpdateRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(scheduleService.update(user, id, request)));
     }

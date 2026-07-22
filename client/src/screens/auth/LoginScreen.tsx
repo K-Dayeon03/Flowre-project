@@ -19,19 +19,19 @@ import AppFooter from '../../components/AppFooter';
 import BrandWordmark from '../../components/BrandWordmark';
 
 const LoginColors = {
-  page: '#F0F4FF',
-  surface: '#FFFFFF',
-  surfaceStrong: '#FFFFFF',
-  surfaceSoft: '#F5F8FF',
-  ink: '#0F172A',
-  muted: '#64748B',
-  faint: '#94A3B8',
-  line: '#DBEAFE',
-  lineStrong: '#93C5FD',
-  gray: '#64748B',
-  button: '#1E3A8A',
-  buttonPressed: '#1E2F77',
-  shadow: 'rgba(30, 58, 138, 0.14)',
+  page: Colors.background,
+  surface: Colors.surface,
+  surfaceStrong: Colors.surface,
+  surfaceSoft: Colors.surfaceMuted,
+  ink: Colors.textPrimary,
+  muted: Colors.textSecondary,
+  faint: Colors.textMuted,
+  line: Colors.border,
+  lineStrong: Colors.borderStrong,
+  gray: Colors.textMuted,
+  button: Colors.primary,
+  buttonPressed: Colors.primaryDark,
+  shadow: 'rgba(34, 52, 55, 0.10)',
 };
 
 export default function LoginScreen() {
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     color: LoginColors.ink,
   },
   formSub: {
-    marginTop: -Spacing.sm,
+    marginTop: Spacing.sm,
     fontSize: FontSize.sm,
     color: LoginColors.muted,
   },

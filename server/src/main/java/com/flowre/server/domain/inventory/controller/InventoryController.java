@@ -5,9 +5,11 @@ import com.flowre.server.domain.inventory.service.InventoryService;
 import com.flowre.server.domain.user.entity.User;
 import com.flowre.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,6 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/inventories")
 @RequiredArgsConstructor
+@Validated
 public class InventoryController {
 
     private final InventoryService inventoryService;
@@ -30,6 +33,7 @@ public class InventoryController {
             @RequestParam(required = false) Boolean archived,
             @RequestParam(required = false) String labelName,
             @RequestParam(required = false) String category,
+            @Min(value = 0, message = "페이지 번호는 0 이상이어야 합니다.")
             @RequestParam(defaultValue = "0") int page
     ) {
         return ResponseEntity.ok(ApiResponse.ok(

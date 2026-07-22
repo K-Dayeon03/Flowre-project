@@ -26,6 +26,7 @@ import DocumentUploadScreen from '../screens/document/DocumentUploadScreen';
 import ChatRoomListScreen from '../screens/chat/ChatRoomListScreen';
 import ChatRoomScreen from '../screens/chat/ChatRoomScreen';
 import StoreActivityScreen from '../screens/home/StoreActivityScreen';
+import SupportScreen from '../screens/support/SupportScreen';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -76,6 +77,7 @@ function MainNavigator() {
         options={({ route }) => ({ title: route.params.roomName })}
       />
       <MainStack.Screen name="StoreActivity" component={StoreActivityScreen} options={{ title: '매장 현황' }} />
+      <MainStack.Screen name="Support" component={SupportScreen} options={{ title: '문의/AS' }} />
     </MainStack.Navigator>
   );
 }

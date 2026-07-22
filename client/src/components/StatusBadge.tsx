@@ -28,7 +28,7 @@ const STATUS_COLOR: Record<string, string> = {
   INACTIVE: Colors.textMuted,
   MANUAL: Colors.info,
   NOTICE: Colors.primary,
-  REPORT: '#7C3AED',
+  REPORT: Colors.scheduleType.MANNEQUIN,
 };
 
 const STATUS_LABEL: Record<string, string> = {
