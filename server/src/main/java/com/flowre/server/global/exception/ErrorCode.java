@@ -66,6 +66,7 @@ public enum ErrorCode {
     INVENTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "INVENTORY_001", "재고를 찾을 수 없습니다."),
     INVENTORY_NOT_ENOUGH(HttpStatus.BAD_REQUEST, "INVENTORY_002", "차감할 재고 수량이 부족합니다."),
     INVENTORY_VERSION_CONFLICT(HttpStatus.CONFLICT, "INVENTORY_003", "재고가 다른 사용자에 의해 변경되었습니다. 새로고침 후 다시 시도해주세요."),
+    INVENTORY_UPLOAD_FAILED(HttpStatus.BAD_REQUEST, "INVENTORY_004", "재고 파일을 반영하지 못했습니다. xlsx 또는 csv 파일 형식과 컬럼 순서를 확인해주세요."),
 
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON_001", "입력값이 올바르지 않습니다."),

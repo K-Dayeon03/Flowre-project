@@ -25,6 +25,13 @@ import { useInventoryStore } from '../../store/useInventoryStore';
 // ── 상수 ────────────────────────────────────────────────────────────
 const DEFAULT_LABEL = '추후 필요 재고';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const CSV_MIME = 'text/csv';
+const INVENTORY_UPLOAD_MIME_TYPES = [
+  XLSX_MIME,
+  CSV_MIME,
+  'application/csv',
+  'text/comma-separated-values',
+];
 
 type TabKey = 'live' | 'storage' | 'history';
 type ModalMode = 'archive' | 'adjust' | null;
@@ -200,21 +207,28 @@ export default function InventoryListScreen() {
     );
   }
 
-  /** xlsx 재고 파일을 선택해 업로드합니다. */
+  /** xlsx/csv 재고 파일을 선택해 업로드합니다. */
   async function handleUploadDaily() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
         multiple: false,
-        type: XLSX_MIME,
+        type: INVENTORY_UPLOAD_MIME_TYPES,
       });
       if (result.canceled || result.assets.length === 0) return;
       const asset = result.assets[0];
+      const lowerName = asset.name.toLowerCase();
+      const fallbackType = lowerName.endsWith('.csv') ? CSV_MIME : XLSX_MIME;
       const loaded = await uploadDailyFile({
         uri: asset.uri,
         name: asset.name,
-        type: asset.mimeType ?? XLSX_MIME,
+        type: asset.mimeType ?? fallbackType,
+        file: asset.file,
       });
+      if (loaded.rowCount === 0) {
+        Alert.alert('반영된 행 없음', '파일 형식과 컬럼 순서를 확인해주세요.');
+        return;
+      }
       await fetchCategoryCounts({ archived });
       Alert.alert(
         '반영 완료',

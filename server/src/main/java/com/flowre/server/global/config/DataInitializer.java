@@ -1,9 +1,20 @@
 package com.flowre.server.global.config;
 
-import com.flowre.server.domain.inventory.entity.InventoryItem;
-import com.flowre.server.domain.inventory.entity.InventoryLabel;
+import com.flowre.server.domain.audit.repository.AuditLogRepository;
+import com.flowre.server.domain.chat.repository.ChatRoomMemberRepository;
+import com.flowre.server.domain.chat.repository.ChatRoomRepository;
+import com.flowre.server.domain.chat.repository.MessageRepository;
+import com.flowre.server.domain.dashboard.repository.AsTicketRepository;
+import com.flowre.server.domain.dashboard.repository.InquiryTicketRepository;
+import com.flowre.server.domain.document.repository.DocumentRepository;
+import com.flowre.server.domain.favorite.repository.FavoriteRepository;
 import com.flowre.server.domain.inventory.repository.InventoryItemRepository;
 import com.flowre.server.domain.inventory.repository.InventoryLabelRepository;
+import com.flowre.server.domain.inventory.repository.InventoryTransactionRepository;
+import com.flowre.server.domain.notice.repository.NoticeReadRepository;
+import com.flowre.server.domain.notice.repository.NoticeRepository;
+import com.flowre.server.domain.notification.repository.NotificationRepository;
+import com.flowre.server.domain.schedule.repository.ScheduleRepository;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
 import com.flowre.server.domain.user.entity.User;
@@ -11,10 +22,11 @@ import com.flowre.server.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -23,107 +35,76 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
-    private static final List<String> LEGACY_DEV_EMPLOYEE_CODES = List.of(
-            "0000HQST!",
-            "1001ABCD!",
-            "1001QWER!"
-    );
+    private static final String ADMIN_EMPLOYEE_CODE = "0000ADMN!";
+    private static final String HEADQUARTERS_STORE_CODE = "0000";
 
     private final StoreRepository storeRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final MessageRepository messageRepository;
+    private final ChatRoomMemberRepository chatRoomMemberRepository;
+    private final ChatRoomRepository chatRoomRepository;
+    private final NoticeReadRepository noticeReadRepository;
+    private final NoticeRepository noticeRepository;
+    private final FavoriteRepository favoriteRepository;
+    private final NotificationRepository notificationRepository;
+    private final DocumentRepository documentRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final InquiryTicketRepository inquiryTicketRepository;
+    private final AsTicketRepository asTicketRepository;
+    private final InventoryTransactionRepository inventoryTransactionRepository;
     private final InventoryItemRepository inventoryItemRepository;
     private final InventoryLabelRepository inventoryLabelRepository;
     private final UserRepository userRepository;
 
+    @Value("${flowre.simulation.reset-on-start:true}")
+    private boolean resetOnStart;
+
     @Override
+    @Transactional
     public void run(String... args) {
-        if (!storeRepository.existsByBrandIdAndStoreCode(1L, "1001")) {
-            storeRepository.save(Store.builder()
-                    .brandId(1L)
-                    .storeCode("1001")
-                    .storeName("강남점")
-                    .latitude(37.4979)
-                    .longitude(127.0276)
-                    .active(true)
-                    .build());
-            log.info("[DataInitializer] 개발용 매장 생성 완료 — 1001 강남점");
-        } else {
-            storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "1001")
-                    .ifPresent(store -> {
-                        store.updateCoordinates(37.4979, 127.0276);
-                        storeRepository.save(store);
-                    });
+        if (resetOnStart) {
+            resetSimulationData();
         }
 
-        Optional<Store> headquartersStore = storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, "0000");
+        Optional<Store> headquartersStore = storeRepository.findByBrandIdAndStoreCodeAndActiveTrue(1L, HEADQUARTERS_STORE_CODE);
         headquartersStore.ifPresent(store -> {
             store.updateCoordinates(37.5007, 127.0365);
             storeRepository.save(store);
         });
-
-        if (inventoryLabelRepository.count() == 0) {
-            inventoryLabelRepository.save(InventoryLabel.builder()
-                    .brandId(1L)
-                    .name("추후 필요 재고")
-                    .build());
-        }
-
-        if (inventoryItemRepository.count() == 0) {
-            inventoryItemRepository.save(InventoryItem.builder()
-                    .brandId(1L)
-                    .storeId(1001L)
-                    .storeCode("1001")
-                    .storeName("강남점")
-                    .productCode("J1-0-4-4-01-101")
-                    .colorCode("48")
-                    .colorName("KHAKI")
-                    .sizeName("L")
-                    .productName("남녀공용 라이트 다운필 베스트")
-                    .barcode("8806077980199")
-                    .sourceCode("--")
-                    .packQuantity(1)
-                    .normalPrice(49900)
-                    .retailPrice(29900)
-                    .quantity(0)
-                    .build());
-            inventoryItemRepository.save(InventoryItem.builder()
-                    .brandId(1L)
-                    .storeId(1001L)
-                    .storeCode("1001")
-                    .storeName("강남점")
-                    .productCode("J1-0-4-4-01-102")
-                    .colorCode("48")
-                    .colorName("KHAKI")
-                    .sizeName("M")
-                    .productName("남녀공용 라이트 다운필 베스트")
-                    .barcode("8806077980205")
-                    .sourceCode("--")
-                    .packQuantity(1)
-                    .normalPrice(49900)
-                    .retailPrice(29900)
-                    .quantity(12)
-                    .build());
-            log.info("[DataInitializer] 재고 샘플 데이터 생성 완료");
-        }
-
-        removeLegacyDevAccounts();
     }
 
     /**
-     * 시뮬레이터에서는 부트스트랩 ADMIN(0000ADMN!)만 로그인 계정으로 남긴다.
-     * 기존 개발 시드 계정은 삭제하고, 참조 데이터 때문에 삭제가 막히면 로그인 불가 상태로 전환한다.
+     * 시뮬레이터 초기 상태를 만든다.
+     * 운영 본부 매장(0000)과 부트스트랩 관리자(0000ADMN!)만 남기고 업무 데이터는 모두 비운다.
      */
-    private void removeLegacyDevAccounts() {
-        LEGACY_DEV_EMPLOYEE_CODES.forEach(employeeCode ->
-                userRepository.findByEmployeeCode(employeeCode).ifPresent(user -> {
-                    try {
-                        userRepository.delete(user);
-                        log.info("[DataInitializer] 개발용 시드 계정 삭제 — {}", employeeCode);
-                    } catch (RuntimeException e) {
-                        user.deactivate();
-                        userRepository.save(user);
-                        log.warn("[DataInitializer] 개발용 시드 계정 삭제 실패, 로그인 불가 처리 — {}", employeeCode);
-                    }
-                })
-        );
+    private void resetSimulationData() {
+        noticeReadRepository.deleteAllInBatch();
+        notificationRepository.deleteAllInBatch();
+        favoriteRepository.deleteAllInBatch();
+        messageRepository.deleteAllInBatch();
+        chatRoomMemberRepository.deleteAllInBatch();
+        chatRoomRepository.deleteAllInBatch();
+        documentRepository.deleteAllInBatch();
+        scheduleRepository.deleteAllInBatch();
+        asTicketRepository.deleteAllInBatch();
+        inquiryTicketRepository.deleteAllInBatch();
+        inventoryTransactionRepository.deleteAllInBatch();
+        inventoryItemRepository.deleteAllInBatch();
+        inventoryLabelRepository.deleteAllInBatch();
+        noticeRepository.deleteAllInBatch();
+        auditLogRepository.deleteAllInBatch();
+
+        userRepository.deleteAllInBatch(userRepository.findAll()
+                .stream()
+                .filter(user -> !ADMIN_EMPLOYEE_CODE.equals(user.getEmployeeCode()))
+                .toList());
+
+        storeRepository.deleteAllInBatch(storeRepository.findAll()
+                .stream()
+                .filter(store -> !HEADQUARTERS_STORE_CODE.equals(store.getStoreCode()))
+                .toList());
+
+        log.info("[DataInitializer] 시뮬레이션 데이터 초기화 완료 — keep store={}, employee={}",
+                HEADQUARTERS_STORE_CODE, ADMIN_EMPLOYEE_CODE);
     }
 }

@@ -4,6 +4,8 @@ import com.flowre.server.domain.inventory.dto.InventoryLoadResponse;
 import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.ProductCategory;
 import com.flowre.server.domain.inventory.repository.InventoryItemRepository;
+import com.flowre.server.global.exception.CustomException;
+import com.flowre.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,8 +19,11 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.BufferedReader;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -72,33 +77,41 @@ public class InventoryExcelLoader {
     }
 
     /**
-     * 업로드된 당일 점별 재고 xlsx 파일을 읽어 재고 테이블에 반영합니다(전체 교체).
+     * 업로드된 당일 점별 재고 xlsx/csv 파일을 읽어 재고 테이블에 반영합니다(전체 교체).
      *
      * <p>업로드 파일은 해당 매장의 "당일 완전한 현황"으로 간주한다. 따라서 파일에 등장한
      * 매장에 대해, 파일에 없는 기존 비보관(실시간) 항목의 수량은 0으로 초기화한다.
      * 보관함(archived) 항목은 건드리지 않는다.</p>
      *
-     * @param file           업로드된 xlsx 파일
+     * @param file           업로드된 xlsx/csv 파일
      * @param storeScopeCode null이면 파일 내 모든 매장 반영(본사·관리자),
      *                       값이 있으면 해당 매장 행만 반영(직원·점장의 매장 격리)
      */
     @Transactional
     public InventoryLoadResponse loadUploadedFile(MultipartFile file, String storeScopeCode, long brandId) {
         if (file == null || file.isEmpty()) {
-            return emptyResponse();
+            throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED);
         }
         String fileName = Optional.ofNullable(file.getOriginalFilename()).orElse("inventory.xlsx");
         try {
-            Path temp = Files.createTempFile("flowre-inventory-", ".xlsx");
+            String extension = fileExtension(fileName);
+            Path temp = Files.createTempFile("flowre-inventory-", "." + extension);
             try {
                 file.transferTo(temp);
                 LoadStats stats = new LoadStats();
                 Map<String, Set<String>> seenByStore = new HashMap<>();
                 // 매장코드 → (복합키 → 기존 비보관 항목). 매장별 1회만 조회해 행마다 SELECT 하던 것을 제거한다.
                 Map<String, Map<String, InventoryItem>> existingByStore = new HashMap<>();
-                loadWorkbook(temp, storeScopeCode, brandId, stats, seenByStore, existingByStore);
+                if ("csv".equals(extension)) {
+                    loadCsv(temp, storeScopeCode, brandId, stats, seenByStore, existingByStore);
+                } else {
+                    loadWorkbook(temp, storeScopeCode, brandId, stats, seenByStore, existingByStore);
+                }
                 // 전체 교체: 파일에 없는 기존 비보관 항목 수량을 0으로 초기화 (선조회 맵 재사용)
                 stats.zeroedCount = applyFullReplacement(seenByStore, existingByStore);
+                if (stats.rowCount == 0) {
+                    throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED);
+                }
                 return InventoryLoadResponse.builder()
                         .fileCount(1)
                         .rowCount(stats.rowCount)
@@ -111,17 +124,23 @@ public class InventoryExcelLoader {
             } finally {
                 Files.deleteIfExists(temp);
             }
+        } catch (CustomException e) {
+            throw e;
         } catch (Exception e) {
             log.error("[InventoryExcelLoader] failed to load uploaded file {}", fileName, e);
-            return InventoryLoadResponse.builder()
-                    .fileCount(1)
-                    .rowCount(0)
-                    .createdCount(0)
-                    .updatedCount(0)
-                    .skippedCount(1)
-                    .fileNames(List.of(fileName))
-                    .build();
+            throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED, e);
         }
+    }
+
+    private String fileExtension(String fileName) {
+        String lower = fileName.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".csv")) {
+            return "csv";
+        }
+        if (lower.endsWith(".xlsx")) {
+            return "xlsx";
+        }
+        throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED);
     }
 
     /**
@@ -230,6 +249,65 @@ public class InventoryExcelLoader {
 
             log.info("[InventoryExcelLoader] loaded {} rows from {}", stats.rowCount, file.getFileName());
         }
+    }
+
+    /** CSV 파일을 읽어 행을 upsert 한다. 컬럼 순서는 xlsx 재고 양식과 동일해야 한다. */
+    private void loadCsv(Path file, String storeScopeCode, long brandId, LoadStats stats,
+                         Map<String, Set<String>> seenByStore,
+                         Map<String, Map<String, InventoryItem>> existingByStore) throws Exception {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!StringUtils.hasText(line)) {
+                    continue;
+                }
+
+                List<String> values = readCsvLine(line);
+                Optional<InventoryRow> parsed = InventoryRow.from(values);
+                if (parsed.isEmpty()) {
+                    stats.skippedCount++;
+                    continue;
+                }
+
+                InventoryRow inventoryRow = parsed.get();
+                if (storeScopeCode != null && !storeScopeCode.equals(inventoryRow.storeCode())) {
+                    stats.skippedCount++;
+                    continue;
+                }
+
+                upsert(inventoryRow, brandId, stats, existingByStore);
+                seenByStore
+                        .computeIfAbsent(inventoryRow.storeCode(), k -> new HashSet<>())
+                        .add(compositeKey(inventoryRow.productCode(), inventoryRow.colorCode(),
+                                inventoryRow.sizeName(), inventoryRow.barcode()));
+            }
+
+            log.info("[InventoryExcelLoader] loaded {} rows from {}", stats.rowCount, file.getFileName());
+        }
+    }
+
+    private List<String> readCsvLine(String line) {
+        List<String> values = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (ch == '"') {
+                if (quoted && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    current.append('"');
+                    i++;
+                } else {
+                    quoted = !quoted;
+                }
+            } else if (ch == ',' && !quoted) {
+                values.add(current.toString().trim());
+                current.setLength(0);
+            } else {
+                current.append(ch);
+            }
+        }
+        values.add(current.toString().trim());
+        return values;
     }
 
     /**
@@ -438,7 +516,10 @@ public class InventoryExcelLoader {
             String storeCode = clean(values, 0);
             String productCode = clean(values, 2);
             String productName = clean(values, 6);
-            if (!StringUtils.hasText(storeCode) || !StringUtils.hasText(productCode) || !StringUtils.hasText(productName)) {
+            if (!StringUtils.hasText(storeCode)
+                    || !storeCode.matches("\\d{4}")
+                    || !StringUtils.hasText(productCode)
+                    || !StringUtils.hasText(productName)) {
                 return Optional.empty();
             }
 
@@ -472,7 +553,7 @@ public class InventoryExcelLoader {
             if (index >= values.size()) {
                 return "";
             }
-            return values.get(index) == null ? "" : values.get(index).trim();
+            return values.get(index) == null ? "" : values.get(index).replace("\uFEFF", "").trim();
         }
 
         private static Integer parseInteger(List<String> values, int index) {

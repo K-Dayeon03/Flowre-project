@@ -31,7 +31,7 @@ interface InventoryState {
   unarchiveItem: (id: number) => Promise<void>;
   adjustItem: (item: InventoryItem, quantityChange: number, reason?: string) => Promise<void>;
   deductItem: (item: InventoryItem, quantity: number, reason?: string) => Promise<void>;
-  uploadDailyFile: (file: { uri: string; name: string; type: string }) => Promise<InventoryLoadResult>;
+  uploadDailyFile: (file: { uri: string; name: string; type: string; file?: File }) => Promise<InventoryLoadResult>;
   reloadFromExcel: () => Promise<void>;
 }
 

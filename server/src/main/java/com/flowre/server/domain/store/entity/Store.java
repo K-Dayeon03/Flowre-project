@@ -94,4 +94,10 @@ public class Store {
     public void updateOperationStatus(StoreOperationStatus status) {
         this.operationStatus = status;
     }
+
+    /** 매장을 목록/운영 대상에서 제외합니다. */
+    public void deactivate() {
+        this.active = false;
+        this.operationStatus = StoreOperationStatus.CLOSED;
+    }
 }

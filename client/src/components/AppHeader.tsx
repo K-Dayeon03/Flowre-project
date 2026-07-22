@@ -34,6 +34,8 @@ export default function AppHeader({ currentRoute }: Props) {
   const canSelectStore = canManageStores(user?.role);
 
   const displayStoreName = selectedStore?.storeName ?? user?.storeName ?? '매장';
+  const defaultStoreInList = stores.some((store) => store.storeCode === user?.storeCode);
+  const showDefaultStoreOption = Boolean(user?.storeCode && !defaultStoreInList);
   const employeeRoute = canApproveEmployees(user?.role) && !canRegisterEmployees(user?.role)
     ? 'EmployeeApproval'
     : 'EmployeeManage';
@@ -41,6 +43,7 @@ export default function AppHeader({ currentRoute }: Props) {
     { label: '대시보드', route: 'Home', group: ['Home'] },
     { label: '스케줄', route: 'ScheduleList', group: ['ScheduleList', 'ScheduleDetail', 'ScheduleCreate'] },
     { label: '매장', route: 'StoreActivity', group: ['StoreActivity', 'StoreManage'] },
+    { label: '재고', route: 'InventoryList', group: ['InventoryList'] },
     { label: '직원', route: employeeRoute, group: ['EmployeeManage', 'EmployeeApproval'] },
     { label: '문의/AS', route: 'Support', group: ['Support'] },
     { label: '공지', route: 'NoticeList', group: ['NoticeList', 'NoticeDetail', 'NoticeCreate'] },
@@ -131,22 +134,35 @@ export default function AppHeader({ currentRoute }: Props) {
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>매장 컨텍스트</Text>
-            <TouchableOpacity
-              style={styles.storeOption}
-              onPress={() => { setSelectedStore(null); setModalVisible(false); }}
-            >
-              <Text style={styles.storeOptionName}>내 기본 매장</Text>
-              <Text style={styles.storeOptionCode}>{user?.storeName ?? '-'}</Text>
-            </TouchableOpacity>
+            <Text style={styles.modalTitle}>매장 선택</Text>
+            {showDefaultStoreOption && (
+              <TouchableOpacity
+                style={[styles.storeOption, selectedStore == null && styles.storeOptionActive]}
+                onPress={() => { setSelectedStore(null); setModalVisible(false); }}
+              >
+                <View style={styles.storeOptionCopy}>
+                  <Text style={styles.storeOptionName}>{user?.storeName ?? '내 기본 매장'}</Text>
+                  <Text style={styles.storeOptionCode}>{user?.storeCode ?? '-'}</Text>
+                </View>
+                {selectedStore == null && <Text style={styles.storeSelectedMark}>선택됨</Text>}
+              </TouchableOpacity>
+            )}
             {stores.map((store) => (
               <TouchableOpacity
                 key={store.id}
-                style={styles.storeOption}
+                style={[
+                  styles.storeOption,
+                  (selectedStore?.id === store.id || (selectedStore == null && store.storeCode === user?.storeCode)) && styles.storeOptionActive,
+                ]}
                 onPress={() => { setSelectedStore(store); setModalVisible(false); }}
               >
-                <Text style={styles.storeOptionName}>{store.storeName}</Text>
-                <Text style={styles.storeOptionCode}>{store.storeCode}</Text>
+                <View style={styles.storeOptionCopy}>
+                  <Text style={styles.storeOptionName}>{store.storeName}</Text>
+                  <Text style={styles.storeOptionCode}>{store.storeCode}</Text>
+                </View>
+                {(selectedStore?.id === store.id || (selectedStore == null && store.storeCode === user?.storeCode)) && (
+                  <Text style={styles.storeSelectedMark}>선택됨</Text>
+                )}
               </TouchableOpacity>
             ))}
             {stores.length === 0 && (
@@ -287,12 +303,32 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   storeOption: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 2,
+    borderRadius: 8,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
+  storeOptionActive: {
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.accentLight,
+  },
+  storeOptionCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   storeOptionName: { fontSize: FontSize.md, fontWeight: '800', color: Colors.textPrimary },
   storeOptionCode: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  storeSelectedMark: {
+    color: Colors.primary,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
   storeEmptyText: { color: Colors.textMuted, fontSize: FontSize.sm, marginTop: Spacing.sm },
   modalClose: {
     marginTop: Spacing.md,

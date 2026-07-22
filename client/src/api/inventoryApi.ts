@@ -158,12 +158,14 @@ export const inventoryApi = {
     return unwrap(res);
   },
 
-  uploadDaily: async (file: { uri: string; name: string; type: string }): Promise<InventoryLoadResult> => {
+  uploadDaily: async (file: { uri: string; name: string; type: string; file?: File }): Promise<InventoryLoadResult> => {
     const formData = new FormData();
-    formData.append('file', file as unknown as Blob);
-    const res = await apiClient.post('/api/inventories/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    if (file.file) {
+      formData.append('file', file.file, file.name);
+    } else {
+      formData.append('file', file as unknown as Blob);
+    }
+    const res = await apiClient.post('/api/inventories/upload', formData);
     return unwrap(res);
   },
 };
