@@ -38,6 +38,9 @@ public class User {
     @Column(nullable = false)
     private String name;
 
+    /** 가입 완료 문자 안내에 사용할 휴대폰 번호. 미입력 시 문자 안내를 생략합니다. */
+    private String phoneNumber;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role;

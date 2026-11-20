@@ -11,6 +11,7 @@ export interface Employee {
   id: number;
   name: string;
   email: string;
+  phoneNumber?: string;
   employeeCode: string;
   role: UserRole;
   status: EmployeeStatus;
@@ -27,6 +28,7 @@ export interface Employee {
 export interface EmployeeCreateRequest {
   name: string;
   email: string;
+  phoneNumber?: string;
   storeCode: string;
   employeeCode: string;
   password: string;

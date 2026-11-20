@@ -40,7 +40,7 @@ class UserServiceTest {
         passwordEncoder = mock(PasswordEncoder.class);
         approvalNotificationService = mock(ApprovalNotificationService.class);
         userService = new UserService(userRepository, storeRepository, passwordEncoder,
-                approvalNotificationService, mock(AuditLogService.class));
+                approvalNotificationService, mock(SignupSmsNotificationService.class), mock(AuditLogService.class));
     }
 
     @Test

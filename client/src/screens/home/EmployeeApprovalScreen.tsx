@@ -166,7 +166,7 @@ export default function EmployeeApprovalScreen() {
                   activeOpacity={0.8}
                 >
                   {processingId === item.id ? (
-                    <ActivityIndicator color={Colors.surface} />
+                    <ActivityIndicator color={Colors.textPrimary} />
                   ) : (
                     <Text style={styles.approveText}>승인</Text>
                   )}
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warning,
     alignItems: 'center',
   },
-  codeText: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '700' },
+  codeText: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '700' },
   info: { marginLeft: Spacing.md, flex: 1 },
   name: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '700' },
   meta: { color: Colors.textSecondary, fontSize: FontSize.xs, marginTop: 2 },
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   rejectButton: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.error },
   rejectText: { color: Colors.error, fontSize: FontSize.md, fontWeight: '700' },
   approveButton: { backgroundColor: Colors.primary },
-  approveText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '700' },
+  approveText: { color: '#FFFFFF', fontSize: FontSize.md, fontWeight: '700' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -338,5 +338,5 @@ const styles = StyleSheet.create({
   modalCancelText: { color: Colors.textSecondary, fontSize: FontSize.md, fontWeight: '600' },
   modalConfirm: { backgroundColor: Colors.error },
   modalApprove: { backgroundColor: Colors.primary },
-  modalConfirmText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '700' },
+  modalConfirmText: { color: '#FFFFFF', fontSize: FontSize.md, fontWeight: '700' },
 });

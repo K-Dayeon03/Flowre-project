@@ -24,6 +24,9 @@ public class EmployeeCreateRequest {
     @Email(message = "이메일 형식이 올바르지 않습니다.")
     private String email;
 
+    @Pattern(regexp = "^$|^01[016789]-?\\d{3,4}-?\\d{4}$", message = "휴대폰 번호 형식이 올바르지 않습니다.")
+    private String phoneNumber;
+
     @NotBlank(message = "점별 코드를 입력해주세요.")
     @Pattern(regexp = "^\\d{4}$", message = "점별 코드는 숫자 4자리여야 합니다.")
     private String storeCode;

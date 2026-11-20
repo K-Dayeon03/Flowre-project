@@ -87,6 +87,7 @@ export default function EmployeeManageScreen() {
   // 신규 발급 폼
   const [createName, setCreateName] = useState('');
   const [createEmail, setCreateEmail] = useState('');
+  const [createPhoneNumber, setCreatePhoneNumber] = useState('');
   const [createStoreCode, setCreateStoreCode] = useState('');
   const [createCode, setCreateCode] = useState('');
   const [createPassword, setCreatePassword] = useState('');
@@ -154,13 +155,13 @@ export default function EmployeeManageScreen() {
     setFormError('');
     try {
       const created = await employeeApi.create({
-        name: createName.trim(), email: createEmail.trim(),
+        name: createName.trim(), email: createEmail.trim(), phoneNumber: createPhoneNumber.trim() || undefined,
         storeCode: createStoreCode, employeeCode: code,
         password: createPassword, role: createRole,
       });
       setEmployees((prev) => [created, ...prev]);
       setCreateName(''); setCreateEmail(''); setCreateStoreCode('');
-      setCreateCode(''); setCreatePassword(''); setCreateRole('STORE_STAFF');
+      setCreatePhoneNumber(''); setCreateCode(''); setCreatePassword(''); setCreateRole('STORE_STAFF');
       closeModal();
     } catch (e: any) {
       setFormError(e?.response?.data?.error?.message ?? '계정 발급에 실패했습니다.');
@@ -410,6 +411,9 @@ export default function EmployeeManageScreen() {
               <Text style={styles.fieldLabel}>이메일 *</Text>
               <TextInput style={styles.input} value={createEmail} onChangeText={setCreateEmail} placeholder="hong@flowre.com" placeholderTextColor={Colors.textMuted} keyboardType="email-address" autoCapitalize="none" />
 
+              <Text style={styles.fieldLabel}>휴대폰 번호</Text>
+              <TextInput style={styles.input} value={createPhoneNumber} onChangeText={setCreatePhoneNumber} placeholder="01012345678" placeholderTextColor={Colors.textMuted} keyboardType="phone-pad" />
+
               <Text style={styles.fieldLabel}>점별 코드 *</Text>
               <TextInput style={styles.input} value={createStoreCode} onChangeText={setCreateStoreCode} placeholder="1001" placeholderTextColor={Colors.textMuted} keyboardType="number-pad" maxLength={4} />
 
@@ -443,7 +447,7 @@ export default function EmployeeManageScreen() {
                   <Text style={styles.cancelBtnText}>취소</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.submitBtn} onPress={handleCreate} disabled={saving}>
-                  {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>발급</Text>}
+                  {saving ? <ActivityIndicator color={Colors.textPrimary} /> : <Text style={styles.submitBtnText}>발급</Text>}
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -488,7 +492,7 @@ export default function EmployeeManageScreen() {
                 <Text style={styles.cancelBtnText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.submitBtn} onPress={handleUpdate} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>저장</Text>}
+                {saving ? <ActivityIndicator color={Colors.textPrimary} /> : <Text style={styles.submitBtnText}>저장</Text>}
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -516,7 +520,7 @@ export default function EmployeeManageScreen() {
                 <Text style={styles.cancelBtnText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.submitBtn} onPress={handlePasswordReset} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>초기화</Text>}
+                {saving ? <ActivityIndicator color={Colors.textPrimary} /> : <Text style={styles.submitBtnText}>초기화</Text>}
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -570,7 +574,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  createFabText: { color: '#fff', fontWeight: '700', fontSize: FontSize.sm },
+  createFabText: { color: '#FFFFFF', fontWeight: '700', fontSize: FontSize.sm },
 
   searchWrap: { paddingHorizontal: Spacing.md, marginBottom: Spacing.xs },
   searchInput: {
@@ -620,7 +624,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
   },
-  codePillText: { color: '#fff', fontSize: FontSize.sm, fontWeight: '700', fontFamily: 'monospace' },
+  codePillText: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '700', fontFamily: 'monospace' },
   rolePill: {
     backgroundColor: Colors.surfaceMuted,
     borderRadius: Radius.sm,
@@ -749,7 +753,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.primary,
   },
-  submitBtnText: { color: '#fff', fontSize: FontSize.md, fontWeight: '700' },
+  submitBtnText: { color: '#FFFFFF', fontSize: FontSize.md, fontWeight: '700' },
 
   // 로테이션 결과 패널
   resultPanel: {

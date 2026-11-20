@@ -42,6 +42,7 @@ public class UserService {
     private final StoreRepository storeRepository;
     private final PasswordEncoder passwordEncoder;
     private final ApprovalNotificationService approvalNotificationService;
+    private final SignupSmsNotificationService signupSmsNotificationService;
     private final AuditLogService auditLogService;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -106,6 +107,7 @@ public class UserService {
                 .employeeCode(request.getEmployeeCode())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .name(request.getName().trim())
+                .phoneNumber(normalizePhoneNumber(request.getPhoneNumber()))
                 .role(request.getRole())
                 .status(status)
                 .registeredById(requester.getId())
@@ -123,6 +125,8 @@ public class UserService {
             List<User> managers = userRepository.findByStoreIdAndRoleAndStatus(
                     store.getId(), UserRole.STORE_MANAGER, UserStatus.ACTIVE);
             approvalNotificationService.notifyManagersOfPendingEmployee(managers, saved);
+        } else {
+            signupSmsNotificationService.notifySignupCompleted(saved);
         }
 
         return UserResponse.from(saved);
@@ -269,6 +273,7 @@ public class UserService {
                 requester.getEmployeeCode(), employee.getEmployeeCode());
         auditLogService.record(requester, AuditAction.EMPLOYEE_APPROVED, "EMPLOYEE", employee.getId(),
                 "직원 승인: " + employee.getEmployeeCode());
+        signupSmsNotificationService.notifySignupCompleted(employee);
         return UserResponse.from(employee);
     }
 
@@ -305,6 +310,13 @@ public class UserService {
         }
         buf[4] = SPECIAL_CHARS.charAt(secureRandom.nextInt(SPECIAL_CHARS.length()));
         return new String(buf);
+    }
+
+    private String normalizePhoneNumber(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            return null;
+        }
+        return phoneNumber.replaceAll("\\D", "");
     }
 
     private User findInBrand(User requester, Long id) {
