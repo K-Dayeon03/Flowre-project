@@ -20,6 +20,17 @@ export type MainStackParamList = {
   ScheduleDetail: { scheduleId: number };
   ScheduleCreate: undefined;
   InventoryList: undefined;
+  OrderList: {
+    initialItem?: {
+      inventoryItemId: number;
+      productCode: string;
+      productName: string;
+      currentQuantity: number;
+      minQuantity: number;
+      unitPrice?: number;
+      storeName?: string;
+    };
+  } | undefined;
   DocumentList: undefined;
   DocumentDetail: { documentId: number; title: string };
   DocumentUpload: { documentId?: number } | undefined;

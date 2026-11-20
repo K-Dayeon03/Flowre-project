@@ -70,6 +70,10 @@ public enum ErrorCode {
     INVENTORY_VERSION_CONFLICT(HttpStatus.CONFLICT, "INVENTORY_003", "재고가 다른 사용자에 의해 변경되었습니다. 새로고침 후 다시 시도해주세요."),
     INVENTORY_UPLOAD_FAILED(HttpStatus.BAD_REQUEST, "INVENTORY_004", "재고 파일을 반영하지 못했습니다. xlsx 또는 csv 파일 형식, 컬럼 순서, 점별 코드를 확인해주세요."),
 
+    // Order
+    ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "ORDER_001", "발주를 찾을 수 없습니다."),
+    ORDER_FORBIDDEN(HttpStatus.FORBIDDEN, "ORDER_002", "발주에 대한 권한이 없습니다."),
+
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON_001", "입력값이 올바르지 않습니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_002", "서버 내부 오류가 발생했습니다."),

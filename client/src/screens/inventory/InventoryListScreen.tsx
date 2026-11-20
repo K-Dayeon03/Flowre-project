@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
 import { InventoryItem } from '../../api/inventoryApi';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -34,7 +35,7 @@ const INVENTORY_UPLOAD_MIME_TYPES = [
 ];
 
 type TabKey = 'live' | 'storage' | 'history';
-type ModalMode = 'archive' | 'adjust' | null;
+type ModalMode = 'archive' | 'adjust' | 'minQuantity' | null;
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: 'live', label: '실시간 재고' },
@@ -53,8 +54,25 @@ function isHQ(role?: string) {
   return role === 'HQ_STAFF' || role === 'ADMIN';
 }
 
+/** 점장·본사 권한이면 재고 기준 수량을 수정할 수 있습니다. */
+function canEditInventorySettings(role?: string) {
+  return role === 'STORE_MANAGER' || isHQ(role);
+}
+
+/** 재고 상태별 화면 표시 정보를 반환합니다. */
+function getStockDisplay(item: InventoryItem) {
+  if (item.stockStatus === 'OUT_OF_STOCK' || item.quantity <= 0) {
+    return { label: '소진', tone: 'danger' as const };
+  }
+  if (item.stockStatus === 'LOW' || item.quantity < (item.minQuantity ?? 5)) {
+    return { label: '부족', tone: 'warning' as const };
+  }
+  return { label: '정상', tone: 'safe' as const };
+}
+
 // ── 메인 컴포넌트 ────────────────────────────────────────────────────
 export default function InventoryListScreen() {
+  const navigation = useNavigation<any>();
   const user = useAuthStore((s) => s.user);
   const items = useInventoryStore((s) => s.items);
   const labels = useInventoryStore((s) => s.labels);
@@ -68,6 +86,7 @@ export default function InventoryListScreen() {
   const archiveItem = useInventoryStore((s) => s.archiveItem);
   const unarchiveItem = useInventoryStore((s) => s.unarchiveItem);
   const adjustItem = useInventoryStore((s) => s.adjustItem);
+  const updateMinQuantity = useInventoryStore((s) => s.updateMinQuantity);
   const uploadDailyFile = useInventoryStore((s) => s.uploadDailyFile);
   const reloadFromExcel = useInventoryStore((s) => s.reloadFromExcel);
   const categoryCounts = useInventoryStore((s) => s.categoryCounts);
@@ -77,6 +96,7 @@ export default function InventoryListScreen() {
   const [query, setQuery] = useState('');
   const [selectedLabel, setSelectedLabel] = useState<string | undefined>();
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
+  const [alertsOnly, setAlertsOnly] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
 
@@ -89,6 +109,7 @@ export default function InventoryListScreen() {
   const [adjustQty, setAdjustQty] = useState(1);
   const [adjustSign, setAdjustSign] = useState<1 | -1>(-1);
   const [adjustReason, setAdjustReason] = useState('');
+  const [minQuantityValue, setMinQuantityValue] = useState('5');
 
   const archived = tab === 'storage';
 
@@ -106,8 +127,9 @@ export default function InventoryListScreen() {
   useEffect(() => {
     setSelectedLabel(undefined);
     setSelectedCategory(undefined);
+    setAlertsOnly(false);
     setQuery('');
-    fetchItems({ archived, labelName: undefined, category: undefined, query: undefined });
+    fetchItems({ archived, labelName: undefined, category: undefined, alertsOnly: false, query: undefined });
     fetchCategoryCounts({ archived });
   }, [tab]);
 
@@ -119,10 +141,16 @@ export default function InventoryListScreen() {
   // 검색어·필터 변경 시 디바운스 재조회
   useEffect(() => {
     const handle = setTimeout(() => {
-      fetchItems({ query: query || undefined, archived, labelName: selectedLabel, category: selectedCategory });
+      fetchItems({
+        query: query || undefined,
+        archived,
+        labelName: selectedLabel,
+        category: selectedCategory,
+        alertsOnly: tab === 'live' ? alertsOnly : false,
+      });
     }, 300);
     return () => clearTimeout(handle);
-  }, [query, selectedLabel, selectedCategory]);
+  }, [query, selectedLabel, selectedCategory, alertsOnly]);
 
   /** 보관 모달을 열기 전에 폼 초기화. */
   function openArchiveModal(item: InventoryItem) {
@@ -140,6 +168,28 @@ export default function InventoryListScreen() {
     setAdjustSign(-1);
     setAdjustReason('');
     setModalMode('adjust');
+  }
+
+  /** 최소 보유 수량 수정 모달을 엽니다. */
+  function openMinQuantityModal(item: InventoryItem) {
+    setSelectedItem(item);
+    setMinQuantityValue(String(item.minQuantity ?? 5));
+    setModalMode('minQuantity');
+  }
+
+  /** 부족/소진 재고 항목으로 발주 화면을 엽니다. */
+  function openOrderScreen(item: InventoryItem) {
+    navigation.navigate('OrderList', {
+      initialItem: {
+        inventoryItemId: item.id,
+        productCode: item.productCode,
+        productName: item.productName,
+        currentQuantity: item.quantity,
+        minQuantity: item.minQuantity ?? 5,
+        unitPrice: item.retailPrice ?? item.normalPrice ?? 0,
+        storeName: item.storeName,
+      },
+    });
   }
 
   function closeModal() {
@@ -179,6 +229,15 @@ export default function InventoryListScreen() {
           return;
         }
         await adjustItem(selectedItem, adjustQty * adjustSign, adjustReason.trim() || undefined);
+      }
+      if (modalMode === 'minQuantity') {
+        const minQuantity = Number(minQuantityValue);
+        if (!Number.isInteger(minQuantity) || minQuantity < 0) {
+          Alert.alert('입력 필요', '최소 보유 수량은 0개 이상이어야 합니다.');
+          return;
+        }
+        await updateMinQuantity(selectedItem, minQuantity);
+        Alert.alert('저장 완료', `최소 보유 수량을 ${minQuantity}개로 변경했습니다.`);
       }
       closeModal();
     } catch (e: any) {
@@ -229,7 +288,12 @@ export default function InventoryListScreen() {
         Alert.alert('반영된 행 없음', '파일 형식과 컬럼 순서를 확인해주세요.');
         return;
       }
-      await fetchCategoryCounts({ archived });
+      setTab('live');
+      setSelectedLabel(undefined);
+      setSelectedCategory(undefined);
+      setQuery('');
+      await fetchItems({ archived: false, labelName: undefined, category: undefined, query: undefined });
+      await fetchCategoryCounts({ archived: false });
       Alert.alert(
         '반영 완료',
         `신규 ${loaded.createdCount} · 갱신 ${loaded.updatedCount} · 수량0 처리 ${loaded.zeroedCount}건`
@@ -241,14 +305,33 @@ export default function InventoryListScreen() {
 
   // ── 카드 렌더러 ──────────────────────────────────────────────────
   const renderLiveCard = useCallback(({ item }: { item: InventoryItem }) => (
-    <View style={styles.card}>
+    <View style={[
+      styles.card,
+      getStockDisplay(item).tone === 'danger' && styles.cardDanger,
+      getStockDisplay(item).tone === 'warning' && styles.cardWarning,
+    ]}>
       <View style={styles.cardTop}>
         <View style={styles.cardTitleBlock}>
-          {item.categoryLabel ? (
-            <View style={styles.categoryTag}>
-              <Text style={styles.categoryTagText}>{item.categoryLabel}</Text>
-            </View>
-          ) : null}
+          <View style={styles.badgeRow}>
+            {item.categoryLabel ? (
+              <View style={styles.categoryTag}>
+                <Text style={styles.categoryTagText}>{item.categoryLabel}</Text>
+              </View>
+            ) : null}
+            {getStockDisplay(item).tone !== 'safe' ? (
+              <View style={[
+                styles.stockBadge,
+                getStockDisplay(item).tone === 'danger' ? styles.stockBadgeDanger : styles.stockBadgeWarning,
+              ]}>
+                <Text style={[
+                  styles.stockBadgeText,
+                  getStockDisplay(item).tone === 'danger' ? styles.stockBadgeTextDanger : styles.stockBadgeTextWarning,
+                ]}>
+                  {getStockDisplay(item).label}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={styles.productName} numberOfLines={1}>{item.productName}</Text>
           <Text style={styles.productCode}>{item.productCode}</Text>
         </View>
@@ -266,8 +349,16 @@ export default function InventoryListScreen() {
           >
             <Text style={styles.stepBtnText}>−</Text>
           </TouchableOpacity>
-          <View style={[styles.qtyBox, item.quantity <= 0 && styles.qtyBoxEmpty]}>
-            <Text style={[styles.qtyNum, item.quantity <= 0 && styles.qtyNumEmpty]}>
+          <View style={[
+            styles.qtyBox,
+            getStockDisplay(item).tone === 'danger' && styles.qtyBoxEmpty,
+            getStockDisplay(item).tone === 'warning' && styles.qtyBoxLow,
+          ]}>
+            <Text style={[
+              styles.qtyNum,
+              getStockDisplay(item).tone === 'danger' && styles.qtyNumEmpty,
+              getStockDisplay(item).tone === 'warning' && styles.qtyNumLow,
+            ]}>
               {item.quantity}
             </Text>
           </View>
@@ -290,6 +381,14 @@ export default function InventoryListScreen() {
         <Text style={styles.meta}>{item.storeName}</Text>
         <Text style={styles.metaDot}>·</Text>
         <Text style={styles.meta}>{item.colorName ?? '-'} / {item.sizeName ?? '-'}</Text>
+        <Text style={styles.metaDot}>·</Text>
+        <Text style={[
+          styles.meta,
+          getStockDisplay(item).tone === 'danger' && styles.stockMetaDanger,
+          getStockDisplay(item).tone === 'warning' && styles.stockMetaWarning,
+        ]}>
+          최소 {item.minQuantity ?? 5}개
+        </Text>
         {item.retailPrice ? (
           <>
             <Text style={styles.metaDot}>·</Text>
@@ -299,6 +398,16 @@ export default function InventoryListScreen() {
       </View>
 
       <View style={styles.cardActions}>
+        {getStockDisplay(item).tone !== 'safe' ? (
+          <TouchableOpacity style={styles.orderBtn} onPress={() => openOrderScreen(item)}>
+            <Text style={styles.orderBtnText}>발주</Text>
+          </TouchableOpacity>
+        ) : null}
+        {canEditInventorySettings(user?.role) ? (
+          <TouchableOpacity style={styles.minQtyBtn} onPress={() => openMinQuantityModal(item)}>
+            <Text style={styles.minQtyBtnText}>기준 수정</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity style={styles.archiveBtn} onPress={() => openArchiveModal(item)}>
           <Text style={styles.archiveBtnText}>보관함으로 이동</Text>
         </TouchableOpacity>
@@ -307,7 +416,7 @@ export default function InventoryListScreen() {
         </TouchableOpacity>
       </View>
     </View>
-  ), []);
+  ), [navigation, user?.role]);
 
   const renderStorageCard = useCallback(({ item }: { item: InventoryItem }) => (
     <View style={styles.storageCard}>
@@ -429,6 +538,16 @@ export default function InventoryListScreen() {
             />
           </View>
           {tab === 'live' ? <CategoryChips /> : <LabelChips />}
+          {tab === 'live' ? (
+            <TouchableOpacity
+              style={[styles.alertFilter, alertsOnly && styles.alertFilterActive]}
+              onPress={() => setAlertsOnly((value) => !value)}
+            >
+              <Text style={[styles.alertFilterText, alertsOnly && styles.alertFilterTextActive]}>
+                부족/소진만 보기
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           {/* 업로드 버튼 */}
           <View style={styles.uploadRow}>
             {isHQ(user?.role) ? (
@@ -470,7 +589,13 @@ export default function InventoryListScreen() {
             <RefreshControl
               refreshing={loading}
               onRefresh={() =>
-                fetchItems({ query: query || undefined, archived, labelName: selectedLabel, category: selectedCategory })
+                fetchItems({
+                  query: query || undefined,
+                  archived,
+                  labelName: selectedLabel,
+                  category: selectedCategory,
+                  alertsOnly: tab === 'live' ? alertsOnly : false,
+                })
               }
               tintColor={Colors.primary}
             />
@@ -658,6 +783,44 @@ export default function InventoryListScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* ── 최소 보유 수량 수정 모달 ── */}
+      <Modal
+        transparent
+        visible={modalMode === 'minQuantity'}
+        animationType="slide"
+        onRequestClose={closeModal}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={closeModal}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>최소 보유 수량</Text>
+            <Text style={styles.modalSubtitle}>{selectedItem?.productName}</Text>
+            <Text style={styles.modalHint}>
+              현재 재고 <Text style={styles.modalHintBold}>{selectedItem?.quantity ?? 0}개</Text>
+            </Text>
+
+            <Text style={styles.fieldLabel}>알림 기준 수량</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={minQuantityValue}
+              onChangeText={setMinQuantityValue}
+              placeholder="예: 5"
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="number-pad"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closeModal}>
+                <Text style={styles.cancelBtnText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.submitBtn} onPress={submitModal}>
+                <Text style={styles.submitBtnText}>저장</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -816,8 +979,23 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '600' },
-  chipTextActive: { color: '#fff', fontWeight: '700' },
+  chipTextActive: { color: Colors.textPrimary, fontWeight: '700' },
   chipCount: { color: Colors.textMuted, fontWeight: '600' },
+  alertFilter: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    backgroundColor: Colors.surfaceMuted,
+  },
+  alertFilterActive: {
+    borderColor: Colors.danger,
+    backgroundColor: Colors.danger50,
+  },
+  alertFilterText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '700' },
+  alertFilterTextActive: { color: Colors.danger700 },
   uploadRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -838,7 +1016,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  uploadBtnText: { color: '#fff', fontSize: FontSize.sm, fontWeight: '700' },
+  uploadBtnText: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '700' },
 
   // 목록
   listContent: { paddingHorizontal: Spacing.md, paddingTop: 4, gap: Spacing.sm },
@@ -853,8 +1031,11 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     ...Shadow.card,
   },
+  cardDanger: { borderColor: Colors.danger + '66' },
+  cardWarning: { borderColor: Colors.warning + '66' },
   cardTop: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
   cardTitleBlock: { flex: 1, gap: 3 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flexWrap: 'wrap' },
   categoryTag: {
     alignSelf: 'flex-start',
     backgroundColor: Colors.primary + '15',
@@ -863,6 +1044,18 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   categoryTagText: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: '700' },
+  stockBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderWidth: 1,
+  },
+  stockBadgeDanger: { backgroundColor: Colors.danger50, borderColor: Colors.danger + '55' },
+  stockBadgeWarning: { backgroundColor: Colors.warning50, borderColor: Colors.warning + '55' },
+  stockBadgeText: { fontSize: FontSize.xs, fontWeight: '800' },
+  stockBadgeTextDanger: { color: Colors.danger700 },
+  stockBadgeTextWarning: { color: Colors.warning700 },
   productName: { fontSize: FontSize.md, fontWeight: '700', color: Colors.textPrimary },
   productCode: { fontSize: FontSize.sm, color: Colors.textMuted },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flexWrap: 'wrap' },
@@ -892,10 +1085,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   qtyBoxEmpty: { backgroundColor: Colors.error + '1A' },
+  qtyBoxLow: { backgroundColor: Colors.warning + '1A' },
   qtyNum: { fontSize: FontSize.sm, fontWeight: '800', color: Colors.success },
   qtyNumEmpty: { color: Colors.error },
+  qtyNumLow: { color: Colors.warning700 },
+  stockMetaDanger: { color: Colors.danger700, fontWeight: '700' },
+  stockMetaWarning: { color: Colors.warning700, fontWeight: '700' },
 
   cardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm },
+  orderBtn: {
+    backgroundColor: Colors.danger,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+  },
+  orderBtnText: { color: Colors.white, fontSize: FontSize.sm, fontWeight: '800' },
+  minQtyBtn: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    backgroundColor: Colors.surfaceMuted,
+  },
+  minQtyBtnText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '700' },
   archiveBtn: {
     borderWidth: 1,
     borderColor: Colors.accent + '88',
@@ -911,7 +1124,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 7,
   },
-  adjustBtnText: { color: '#fff', fontSize: FontSize.sm, fontWeight: '700' },
+  adjustBtnText: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '700' },
 
   // 보관함 카드
   storageCard: {
@@ -1045,7 +1258,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.accent,
   },
   labelPickerText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '600' },
-  labelPickerTextActive: { color: '#fff', fontWeight: '700' },
+  labelPickerTextActive: { color: Colors.textPrimary, fontWeight: '700' },
   modalInput: {
     borderWidth: 1,
     borderColor: Colors.border,
@@ -1135,5 +1348,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.primary,
   },
-  submitBtnText: { color: '#fff', fontSize: FontSize.md, fontWeight: '700' },
+  submitBtnText: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '700' },
 });

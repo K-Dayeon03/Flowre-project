@@ -20,6 +20,7 @@ import ScheduleListScreen from '../screens/schedule/ScheduleListScreen';
 import ScheduleDetailScreen from '../screens/schedule/ScheduleDetailScreen';
 import ScheduleCreateScreen from '../screens/schedule/ScheduleCreateScreen';
 import InventoryListScreen from '../screens/inventory/InventoryListScreen';
+import OrderListScreen from '../screens/order/OrderListScreen';
 import DocumentListScreen from '../screens/document/DocumentListScreen';
 import DocumentDetailScreen from '../screens/document/DocumentDetailScreen';
 import DocumentUploadScreen from '../screens/document/DocumentUploadScreen';
@@ -59,6 +60,7 @@ function MainNavigator() {
       <MainStack.Screen name="ScheduleDetail" component={ScheduleDetailScreen} options={{ title: '스케줄 상세' }} />
       <MainStack.Screen name="ScheduleCreate" component={ScheduleCreateScreen} options={{ title: '스케줄 등록' }} />
       <MainStack.Screen name="InventoryList" component={InventoryListScreen} options={{ title: '재고' }} />
+      <MainStack.Screen name="OrderList" component={OrderListScreen} options={{ title: '원격 발주' }} />
       <MainStack.Screen name="DocumentList" component={DocumentListScreen} options={{ title: '문서' }} />
       <MainStack.Screen
         name="DocumentDetail"
