@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
-  SafeAreaView, ActivityIndicator, Alert, RefreshControl,
+  View, Text, FlatList, StyleSheet,
+  SafeAreaView, Alert, RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Colors, FontSize, Spacing, Radius, Shadow } from '../../constants/theme';
-import { storeApi, StoreActivity, OperationStatus } from '../../api/storeApi';
+import { storeApi, StoreActivity } from '../../api/storeApi';
 import { useAuthStore } from '../../store/useAuthStore';
 
 function formatLastActivity(dateStr: string | null): string {
@@ -26,7 +26,6 @@ export default function StoreActivityScreen() {
 
   const [activities, setActivities] = useState<StoreActivity[]>([]);
   const [loading, setLoading] = useState(false);
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,30 +39,6 @@ export default function StoreActivityScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  const handleToggleStatus = async (item: StoreActivity) => {
-    const next: OperationStatus = item.operationStatus === 'OPEN' ? 'CLOSED' : 'OPEN';
-    const label = next === 'OPEN' ? '운영 시작' : '영업 종료';
-    Alert.alert(`${item.storeName}`, `${label}으로 변경하시겠습니까?`, [
-      { text: '취소', style: 'cancel' },
-      {
-        text: label,
-        onPress: async () => {
-          setUpdatingId(item.storeId);
-          try {
-            await storeApi.updateOperationStatus(item.storeId, next);
-            setActivities((prev) =>
-              prev.map((a) => a.storeId === item.storeId ? { ...a, operationStatus: next } : a)
-            );
-          } catch {
-            Alert.alert('오류', '상태를 변경하지 못했습니다.');
-          } finally {
-            setUpdatingId(null);
-          }
-        },
-      },
-    ]);
-  };
 
   const openCount = activities.filter((a) => a.operationStatus === 'OPEN').length;
 
@@ -96,8 +71,6 @@ export default function StoreActivityScreen() {
           const doneRate = item.todayScheduleTotal > 0
             ? Math.round((item.todayScheduleDone / item.todayScheduleTotal) * 100)
             : null;
-          const isUpdating = updatingId === item.storeId;
-
           return (
             <View style={[styles.card, isOpen && styles.cardOpen]}>
               {/* 상단 행: 매장명 + 상태 배지 */}
@@ -134,18 +107,6 @@ export default function StoreActivityScreen() {
                 </View>
               </View>
 
-              {/* 토글 버튼 */}
-              <TouchableOpacity
-                style={[styles.toggleBtn, isOpen ? styles.toggleClose : styles.toggleOpen, isUpdating && styles.toggleDisabled]}
-                onPress={() => handleToggleStatus(item)}
-                disabled={isUpdating}
-                activeOpacity={0.7}
-              >
-                {isUpdating
-                  ? <ActivityIndicator size="small" color={Colors.surface} />
-                  : <Text style={styles.toggleText}>{isOpen ? '영업 종료로 변경' : '운영 시작으로 변경'}</Text>
-                }
-              </TouchableOpacity>
             </View>
           );
         }}
@@ -236,13 +197,4 @@ const styles = StyleSheet.create({
   metricValue: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: '700' },
   metricDivider: { width: 1, height: 28, backgroundColor: Colors.border },
 
-  toggleBtn: {
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
-    alignItems: 'center',
-  },
-  toggleOpen: { backgroundColor: Colors.primary },
-  toggleClose: { backgroundColor: Colors.error },
-  toggleDisabled: { opacity: 0.5 },
-  toggleText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.surface },
 });

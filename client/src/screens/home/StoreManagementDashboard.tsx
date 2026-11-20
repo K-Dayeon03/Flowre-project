@@ -10,33 +10,70 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  ViewStyle,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
 import { Colors, FontSize, Radius, Shadow, Spacing } from '../../constants/theme';
-import { AddressSearchResult, OperationStatus, Store, StoreActivity, storeApi } from '../../api/storeApi';
+import { AddressSearchResult, Store, StoreActivity, storeApi } from '../../api/storeApi';
 import { Schedule, ScheduleType, scheduleApi } from '../../api/scheduleApi';
 import { Notice, noticeApi } from '../../api/noticeApi';
 import { Document, DocumentCategory, documentApi } from '../../api/documentApi';
 import { ChatRoom, Message, chatApi } from '../../api/chatApi';
-import { InventoryItem, inventoryApi } from '../../api/inventoryApi';
+import { CategoryCount, InventoryItem, inventoryApi } from '../../api/inventoryApi';
 import { AssignableRole, Employee, employeeApi } from '../../api/employeeApi';
 import { dashboardApi, HomeDashboardResponse } from '../../api/dashboardApi';
 import { supportApi, InquiryTicket, AsTicket, InquiryStatus, AsTicketStatus } from '../../api/supportApi';
 import { useAuthStore } from '../../store/useAuthStore';
 import { logger } from '../../utils/logger';
+import OrderListScreen from '../order/OrderListScreen';
+import SalesDashboardScreen from '../sales/SalesDashboardScreen';
+import AttendanceScreen from '../attendance/AttendanceScreen';
+import CommunicationHubScreen from '../hub/CommunicationHubScreen';
 
-type NavId = 'home' | 'stores' | 'employees' | 'documents' | 'chat' | 'notices' | 'inventory' | 'schedule' | 'support' | 'profile' | 'settings';
+type NavId = 'home' | 'hub' | 'stores' | 'employees' | 'approvals' | 'documents' | 'chat' | 'notices' | 'inventory' | 'orders' | 'sales' | 'attendance' | 'schedule' | 'support' | 'profile' | 'settings';
 
 const NAV_ITEMS: { id: NavId; label: string }[] = [
   { id: 'home', label: '홈' },
+  { id: 'hub', label: '허브' },
   { id: 'stores', label: '매장 관리' },
   { id: 'employees', label: '직원 관리' },
+  { id: 'approvals', label: '직원 승인' },
   { id: 'documents', label: '문서' },
   { id: 'chat', label: '채팅' },
   { id: 'notices', label: '공지' },
   { id: 'inventory', label: '재고' },
+  { id: 'orders', label: '발주' },
+  { id: 'sales', label: '매출' },
+  { id: 'attendance', label: '근태' },
   { id: 'schedule', label: '스케줄' },
   { id: 'support', label: '문의·AS' },
+];
+
+const NAV_SECTIONS: Array<{ title: string; items: Array<{ id: NavId; label: string; badge?: (ctx: { unreadNotices: number }) => number }> }> = [
+  { title: '메인', items: [{ id: 'home', label: '대시보드' }, { id: 'hub', label: '허브' }] },
+  {
+    title: '업무관리',
+    items: [
+      { id: 'schedule', label: '스케줄' },
+      { id: 'documents', label: '문서' },
+      { id: 'notices', label: '공지', badge: ({ unreadNotices }) => unreadNotices },
+      { id: 'chat', label: '채팅' },
+      { id: 'support', label: '문의·AS' },
+    ],
+  },
+  {
+    title: '매장관리',
+    items: [
+      { id: 'inventory', label: '재고' },
+      { id: 'orders', label: '발주' },
+      { id: 'sales', label: '매출' },
+      { id: 'attendance', label: '근태' },
+      { id: 'employees', label: '직원관리' },
+      { id: 'approvals', label: '직원승인' },
+      { id: 'stores', label: '매장정보' },
+    ],
+  },
 ];
 
 const ACCOUNT_NAV_ITEMS: { id: NavId; label: string }[] = [
@@ -44,14 +81,31 @@ const ACCOUNT_NAV_ITEMS: { id: NavId; label: string }[] = [
   { id: 'settings', label: '설정' },
 ];
 
+function isOutOfStock(item: InventoryItem) {
+  return item.stockStatus === 'OUT_OF_STOCK' || item.quantity <= 0;
+}
+
+function isLowStock(item: InventoryItem) {
+  return item.stockStatus === 'LOW' || (item.quantity > 0 && item.quantity < (item.minQuantity ?? 5));
+}
+
+function isInventoryAlert(item: InventoryItem) {
+  return isOutOfStock(item) || isLowStock(item);
+}
+
 const SECTION_TITLE: Record<NavId, string> = {
   home: '대시보드',
+  hub: '커뮤니케이션 허브',
   stores: '매장 관리',
   employees: '직원 관리',
+  approvals: '직원 승인',
   documents: '문서 관리',
   chat: '채팅',
   notices: '공지사항',
   inventory: '재고 관리',
+  orders: '원격 발주',
+  sales: '매출 대시보드',
+  attendance: '근태 관리',
   schedule: '스케줄',
   support: '문의 & AS 접수',
   profile: '프로필',
@@ -128,6 +182,12 @@ function formatMonthLabel(date: Date): string {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
 }
 
+/** 상단바에 표시할 오늘 날짜 라벨을 생성합니다. */
+function formatTodayHeader(): string {
+  const now = new Date();
+  return `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일 ${WEEKDAY_LABELS[now.getDay()]}요일`;
+}
+
 /** ISO 일시에서 시간만 표시합니다. */
 function formatScheduleTime(value?: string): string {
   if (!value) return '--:--';
@@ -156,6 +216,8 @@ function inferContentType(fileName: string): string {
   if (lower.endsWith('.pdf')) return 'application/pdf';
   if (lower.endsWith('.png')) return 'image/png';
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.csv')) return 'text/csv';
+  if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
   if (lower.endsWith('.xlsx')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   return 'application/octet-stream';
@@ -187,10 +249,13 @@ export default function StoreManagementDashboard({ initialSection = 'home' }: { 
   const [active, setActive] = useState<NavId>(initialSection);
   const [activities, setActivities] = useState<StoreActivity[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  const [pendingEmployees, setPendingEmployees] = useState<Employee[]>([]);
+  const [inventoryAlerts, setInventoryAlerts] = useState<InventoryItem[]>([]);
   const [unreadNotices, setUnreadNotices] = useState(0);
   const [homeSummary, setHomeSummary] = useState<HomeDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [updatingStoreId, setUpdatingStoreId] = useState<number | null>(null);
   const [supportTab, setSupportTab] = useState<'inquiries' | 'as-tickets'>('inquiries');
 
   const isHq = user?.role === 'HQ_STAFF' || user?.role === 'ADMIN';
@@ -198,14 +263,27 @@ export default function StoreManagementDashboard({ initialSection = 'home' }: { 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const [activityResult, scheduleResult, unreadResult, homeResult] = await Promise.all([
+      const [activityResult, scheduleResult, noticeResult, roomResult, pendingEmployeeResult, inventoryResult, unreadResult, homeResult] = await Promise.all([
         storeApi.getActivity().catch(() => [] as StoreActivity[]),
         scheduleApi.getList().catch(() => [] as Schedule[]),
+        noticeApi.getNotices().catch(() => [] as Notice[]),
+        chatApi.getRooms().catch(() => [] as ChatRoom[]),
+        employeeApi.getPending().catch(() => [] as Employee[]),
+        inventoryApi.search({ archived: false, alertsOnly: true, page: 0 })
+          .then((page) => page.items
+            .filter(isInventoryAlert)
+            .sort((a, b) => a.quantity - b.quantity)
+            .slice(0, 4))
+          .catch(() => [] as InventoryItem[]),
         noticeApi.getUnreadCount().catch(() => 0),
         dashboardApi.getHome(3).catch(() => null),
       ]);
       setActivities(activityResult);
       setSchedules(scheduleResult);
+      setNotices(noticeResult);
+      setChatRooms(roomResult);
+      setPendingEmployees(pendingEmployeeResult);
+      setInventoryAlerts(inventoryResult);
       setUnreadNotices(unreadResult);
       setHomeSummary(homeResult);
     } finally {
@@ -224,39 +302,15 @@ export default function StoreManagementDashboard({ initialSection = 'home' }: { 
   const openStoreCount = activities.filter((activity) => activity.operationStatus === 'OPEN').length;
   const completionRate = totalSchedules > 0 ? Math.round((doneSchedules / totalSchedules) * 100) : 0;
 
-  const chartItems = useMemo(() => {
-    return activities.slice(0, 7).map((activity) => {
-      const rate = activity.todayScheduleTotal > 0
-        ? Math.round((activity.todayScheduleDone / activity.todayScheduleTotal) * 100)
-        : 0;
-      return { ...activity, rate: clampPercent(rate) };
-    });
-  }, [activities]);
-
-  /** 매장 운영 상태를 백엔드에 저장하고 현재 테이블에 반영합니다. */
-  const handleToggleStatus = (activity: StoreActivity) => {
-    const next: OperationStatus = activity.operationStatus === 'OPEN' ? 'CLOSED' : 'OPEN';
-    const label = next === 'OPEN' ? '운영 시작' : '영업 종료';
-    Alert.alert(activity.storeName, `${label}으로 변경하시겠습니까?`, [
-      { text: '취소', style: 'cancel' },
-      {
-        text: label,
-        onPress: async () => {
-          setUpdatingStoreId(activity.storeId);
-          try {
-            await storeApi.updateOperationStatus(activity.storeId, next);
-            setActivities((prev) =>
-              prev.map((item) => item.storeId === activity.storeId ? { ...item, operationStatus: next } : item)
-            );
-          } catch {
-            Alert.alert('오류', '운영 상태를 변경하지 못했습니다.');
-          } finally {
-            setUpdatingStoreId(null);
-          }
-        },
-      },
-    ]);
-  };
+  const approveDashboardEmployee = useCallback(async (employee: Employee) => {
+    try {
+      await employeeApi.approve(employee.id);
+      setPendingEmployees((prev) => prev.filter((item) => item.id !== employee.id));
+      Alert.alert('승인 완료', `${employee.name} 직원 가입을 승인했습니다.`);
+    } catch (e: any) {
+      Alert.alert('오류', e?.response?.data?.error?.message ?? '직원 승인을 처리하지 못했습니다.');
+    }
+  }, []);
 
   /** 현재 선택된 콘솔 섹션을 렌더링합니다. */
   const renderSection = () => {
@@ -268,12 +322,15 @@ export default function StoreManagementDashboard({ initialSection = 'home' }: { 
       ) : (
         <HomeSection
           activities={activities}
-          chartItems={chartItems}
           completionRate={completionRate}
           doneSchedules={doneSchedules}
+          chatRooms={chatRooms}
           inProgressSchedules={inProgressSchedules}
+          inventoryAlerts={inventoryAlerts}
           isHq={isHq}
           openStoreCount={openStoreCount}
+          notices={notices}
+          pendingEmployees={pendingEmployees}
           pendingSchedules={pendingSchedules}
           recentInquiries={homeSummary?.recentInquiries ?? []}
           asStatus={homeSummary?.asStatus ?? null}
@@ -281,20 +338,31 @@ export default function StoreManagementDashboard({ initialSection = 'home' }: { 
           totalSchedules={totalSchedules}
           unreadNotices={unreadNotices}
           isWide={isWide}
+          onViewAllChat={() => setActive('chat')}
+          onViewAllEmployees={() => setActive('approvals')}
+          onViewAllInventory={() => setActive('inventory')}
+          onViewAllNotices={() => setActive('notices')}
+          onViewAllSchedules={() => setActive('schedule')}
           onViewAllStores={() => setActive('stores')}
           onViewAllInquiries={() => { setSupportTab('inquiries'); setActive('support'); }}
           onViewAllAsTickets={() => { setSupportTab('as-tickets'); setActive('support'); }}
+          onApproveEmployee={approveDashboardEmployee}
         />
       );
     }
 
-    if (active === 'stores') return <StoresAdminSection activities={activities} onToggleStatus={handleToggleStatus} onReload={loadDashboard} updatingStoreId={updatingStoreId} />;
+    if (active === 'hub') return <CommunicationHubScreen />;
+    if (active === 'stores') return <StoresAdminSection activities={activities} onReload={loadDashboard} />;
     if (active === 'support') return <SupportSection initialTab={supportTab} />;
     if (active === 'employees') return <EmployeesAdminSection onNavigateToStores={() => setActive('stores')} />;
+    if (active === 'approvals') return <EmployeeApprovalsSection onChanged={loadDashboard} />;
     if (active === 'documents') return <DocumentsSection />;
     if (active === 'chat') return <ChatSection />;
     if (active === 'notices') return <NoticesSection />;
     if (active === 'inventory') return <InventorySection />;
+    if (active === 'orders') return <OrderListScreen />;
+    if (active === 'sales') return <SalesDashboardScreen />;
+    if (active === 'attendance') return <AttendanceScreen />;
     if (active === 'schedule') return <ScheduleSection />;
     if (active === 'profile') return <ProfileSection userName={user?.name ?? ''} role={user?.role ?? ''} storeName={user?.storeName ?? '브랜드'} />;
     return <SettingsSection onRefresh={loadDashboard} onLogout={logout} />;
@@ -306,6 +374,7 @@ export default function StoreManagementDashboard({ initialSection = 'home' }: { 
         {isWide ? (
           <Sidebar
             active={active}
+            unreadNotices={unreadNotices}
             userName={user?.name ?? ''}
             role={user?.role ?? ''}
             storeName={user?.storeName ?? ''}
@@ -327,7 +396,23 @@ export default function StoreManagementDashboard({ initialSection = 'home' }: { 
         )}
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
-          <Text style={styles.sectionTitle}>{SECTION_TITLE[active]}</Text>
+          <View style={styles.topBar}>
+            <View>
+              <Text style={styles.sectionTitle}>{SECTION_TITLE[active]}</Text>
+              <Text style={styles.topBarMeta}>{formatTodayHeader()} · {user?.storeName ?? 'Flowre 운영 본부'}</Text>
+            </View>
+            <View style={styles.topBarActions}>
+              <TouchableOpacity style={styles.searchPill} onPress={() => setActive('schedule')} activeOpacity={0.82}>
+                <Text style={styles.searchIcon}>⌕</Text>
+                <Text style={styles.searchPillText}>검색</Text>
+                <Text style={styles.searchShortcut}>⌘K</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.bellButton} onPress={() => setActive('notices')} activeOpacity={0.82}>
+                <Text style={styles.bellText}>!</Text>
+                {unreadNotices > 0 ? <View style={styles.bellDot} /> : null}
+              </TouchableOpacity>
+            </View>
+          </View>
           {renderSection()}
         </ScrollView>
       </View>
@@ -337,31 +422,43 @@ export default function StoreManagementDashboard({ initialSection = 'home' }: { 
 
 function HomeSection({
   activities,
-  chartItems,
+  chatRooms,
   completionRate,
   doneSchedules,
   inProgressSchedules,
+  inventoryAlerts,
   isHq,
   isWide,
+  notices,
   openStoreCount,
+  pendingEmployees,
   pendingSchedules,
   recentInquiries,
   asStatus,
   schedules,
   totalSchedules,
   unreadNotices,
+  onViewAllChat,
+  onViewAllEmployees,
+  onViewAllInventory,
+  onViewAllNotices,
+  onViewAllSchedules,
   onViewAllStores,
   onViewAllInquiries,
   onViewAllAsTickets,
+  onApproveEmployee,
 }: {
   activities: Array<StoreActivity>;
-  chartItems: Array<StoreActivity & { rate: number }>;
+  chatRooms: ChatRoom[];
   completionRate: number;
   doneSchedules: number;
   inProgressSchedules: number;
+  inventoryAlerts: InventoryItem[];
   isHq: boolean;
   isWide: boolean;
+  notices: Notice[];
   openStoreCount: number;
+  pendingEmployees: Employee[];
   pendingSchedules: number;
   recentInquiries: Array<{ id: number; storeName: string; requesterName: string; title: string; status: 'PENDING' | 'IN_PROGRESS' | 'DONE'; createdAt: string }>;
   asStatus: {
@@ -375,17 +472,22 @@ function HomeSection({
   schedules: Schedule[];
   totalSchedules: number;
   unreadNotices: number;
+  onViewAllChat: () => void;
+  onViewAllEmployees: () => void;
+  onViewAllInventory: () => void;
+  onViewAllNotices: () => void;
+  onViewAllSchedules: () => void;
   onViewAllStores: () => void;
   onViewAllInquiries: () => void;
   onViewAllAsTickets: () => void;
+  onApproveEmployee: (employee: Employee) => Promise<void>;
 }) {
-  const openActivities = activities.filter((a) => a.operationStatus === 'OPEN');
-
-  const inquiryStatusLabel: Record<'PENDING' | 'IN_PROGRESS' | 'DONE', string> = {
-    PENDING: '대기',
-    IN_PROGRESS: '답변중',
-    DONE: '완료',
-  };
+  const navigation = useNavigation<any>();
+  const [scheduleTab, setScheduleTab] = useState<'list' | 'chart'>('chart');
+  const [approvingEmployeeId, setApprovingEmployeeId] = useState<number | null>(null);
+  const todayKey = toDateKey(new Date());
+  const todaySchedules = schedules.filter((schedule) => schedule.dueDate.startsWith(todayKey));
+  const visibleSchedules = (todaySchedules.length > 0 ? todaySchedules : schedules).slice(0, 5);
   const asSummary = asStatus ?? {
     newCount: 0,
     inProgressCount: 0,
@@ -394,153 +496,279 @@ function HomeSection({
     completionRate: 0,
     updatedAt: new Date().toISOString(),
   };
+  const unresolvedAsCount = asSummary.newCount + asSummary.inProgressCount;
+  const totalUnreadChat = chatRooms.reduce((sum, room) => sum + room.unread, 0);
+  const weeklyScheduleItems = useMemo(() => {
+    const today = new Date();
+    const start = new Date(today);
+    const day = start.getDay();
+    start.setDate(today.getDate() + (day === 0 ? -6 : 1 - day));
+    start.setHours(0, 0, 0, 0);
+
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      const key = toDateKey(date);
+      const daySchedules = schedules.filter((schedule) => schedule.dueDate.startsWith(key));
+      return {
+        key,
+        label: WEEKDAY_LABELS[date.getDay()],
+        total: daySchedules.length,
+        done: daySchedules.filter((schedule) => schedule.status === 'DONE').length,
+      };
+    });
+  }, [schedules]);
+  const weeklyMax = Math.max(...weeklyScheduleItems.map((item) => item.total), 8);
+  const secondaryNoticeCount = recentInquiries.filter((item) => item.status !== 'DONE').length;
+  const inventoryAlertCount = inventoryAlerts.length;
+  const criticalInventoryCount = inventoryAlerts.filter(isOutOfStock).length;
+  const lowInventoryCount = Math.max(inventoryAlertCount - criticalInventoryCount, 0);
+
+  const approveEmployee = async (employee: Employee) => {
+    setApprovingEmployeeId(employee.id);
+    try {
+      await onApproveEmployee(employee);
+    } finally {
+      setApprovingEmployeeId(null);
+    }
+  };
 
   return (
     <>
       <View style={[styles.kpiGrid, isWide && styles.kpiGridWide]}>
-        <KpiCard label="전체 스케줄" value={String(totalSchedules)} unit={`완료율 ${completionRate}%`} tone="info" />
-        <KpiCard label="미완료 스케줄" value={String(pendingSchedules + inProgressSchedules)} unit="건" tone="warning" />
-        <KpiCard label="미확인 공지" value={String(unreadNotices)} unit="건" tone="primary" />
+        <KpiCard label="오늘의 스케줄" value={`${visibleSchedules.length}건`} unit={`완료 ${doneSchedules} · 진행 ${inProgressSchedules}`} tone="primary" onPress={onViewAllSchedules} />
+        <KpiCard label="승인 대기 직원" value={`${pendingEmployees.length}명`} unit="즉시 처리 필요" tone="warning" onPress={onViewAllEmployees} />
+        <KpiCard label="미확인 공지" value={String(unreadNotices)} unit="필독 공지 포함" tone="info" onPress={onViewAllNotices} />
+        <KpiCard label="재고 부족 알림" value={`${inventoryAlertCount}개`} unit={`CRITICAL ${criticalInventoryCount} · LOW ${lowInventoryCount}`} tone="danger" onPress={onViewAllInventory} />
       </View>
 
-      {isHq ? (
-        <View style={styles.panel}>
+      <View style={[styles.figmaMiddleGrid, isWide && styles.figmaMiddleGridWide]}>
+        <View style={[styles.panel, styles.figmaSchedulePanel]}>
           <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>운영 중 매장</Text>
-            <TouchableOpacity onPress={onViewAllStores} style={styles.smallOutlineAction} activeOpacity={0.8}>
-              <Text style={styles.smallOutlineActionText}>전체 보기</Text>
-            </TouchableOpacity>
+            <Text style={styles.panelTitle}>오늘의 스케줄</Text>
+            <View style={styles.segmentedControl}>
+              {(['list', 'chart'] as const).map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.segmentedItem, scheduleTab === tab && styles.segmentedItemActive]}
+                  onPress={() => setScheduleTab(tab)}
+                  activeOpacity={0.82}
+                >
+                  <Text style={[styles.segmentedText, scheduleTab === tab && styles.segmentedTextActive]}>
+                    {tab === 'list' ? '목록' : '주간 현황'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-          {openActivities.length === 0 ? (
-            <Text style={styles.emptyText}>운영 중인 매장이 없습니다.</Text>
+
+          {scheduleTab === 'list' ? (
+            visibleSchedules.length === 0 ? (
+              <Text style={styles.emptyText}>스케줄이 없습니다.</Text>
+            ) : visibleSchedules.map((schedule) => (
+              <TouchableOpacity
+                key={schedule.id}
+                style={styles.figmaScheduleRow}
+                activeOpacity={0.82}
+                onPress={() => navigation.navigate('ScheduleDetail', { scheduleId: schedule.id })}
+              >
+                <View style={[styles.scheduleTypeAccent, { backgroundColor: Colors.scheduleType[schedule.type] }]} />
+                <View style={styles.figmaScheduleMain}>
+                  <Text style={styles.figmaRowTitle} numberOfLines={1}>{schedule.title}</Text>
+                  <Text style={styles.figmaRowMeta}>{TYPE_LABEL[schedule.type]} · 담당: {schedule.assignee || '미배정'}</Text>
+                </View>
+                <BadgeText label={STATUS_LABEL[schedule.status]} tone={schedule.status === 'PENDING' ? 'warning' : undefined} />
+                <Text style={styles.figmaTimeText}>{formatScheduleTime(schedule.dueDate)}</Text>
+              </TouchableOpacity>
+            ))
           ) : (
-            openActivities.slice(0, 3).map((activity) => {
-              const rate = activity.todayScheduleTotal > 0
-                ? Math.round((activity.todayScheduleDone / activity.todayScheduleTotal) * 100)
-                : 0;
-              return (
-                <View key={activity.storeId} style={styles.storeRow}>
-                  <View style={styles.storeMain}>
-                    <Text style={styles.storeName}>{activity.storeName}</Text>
-                    <Text style={styles.storeCode}>{activity.storeCode}</Text>
-                  </View>
-                  <View style={[styles.statusPill, styles.statusOpen]}>
-                    <Text style={[styles.statusText, styles.statusOpenText]}>운영 중</Text>
-                  </View>
-                  <Text style={styles.tableText}>{timeAgo(activity.lastActivityAt)}</Text>
-                  <Text style={styles.tableText}>{activity.todayScheduleDone}/{activity.todayScheduleTotal}건</Text>
-                  <View style={styles.rateCell}>
-                    <View style={styles.rateTrack}>
-                      <View style={[styles.rateFill, { width: `${clampPercent(rate)}%` }]} />
+            <View style={styles.weeklyChartBlock}>
+              <Text style={styles.weeklyChartTitle}>이번 주 스케줄 완료 현황</Text>
+              <View style={styles.weeklyChartArea}>
+                <View style={styles.weeklyAxis}>
+                  {[8, 6, 4, 2, 0].map((tick) => (
+                    <Text key={tick} style={styles.weeklyAxisText}>{tick}</Text>
+                  ))}
+                </View>
+                <View style={styles.weeklyBars}>
+                  {weeklyScheduleItems.map((item) => (
+                    <View key={item.key} style={styles.weeklyBarColumn}>
+                      <View style={styles.weeklyBarTrack}>
+                        <View style={[styles.weeklyBarTotal, { height: `${Math.max((item.total / weeklyMax) * 100, item.total > 0 ? 8 : 0)}%` as const }]} />
+                        <View style={[styles.weeklyBarDone, { height: `${Math.max((item.done / weeklyMax) * 100, item.done > 0 ? 8 : 0)}%` as const }]} />
+                      </View>
+                      <Text style={styles.weeklyBarLabel}>{item.label}</Text>
                     </View>
-                    <Text style={styles.rateText}>{rate}%</Text>
-                  </View>
-                  <Text style={styles.tableText}>{activity.activeStaffCount}명</Text>
+                  ))}
                 </View>
-              );
-            })
+              </View>
+              <View style={styles.weeklyLegend}>
+                <View style={styles.weeklyLegendItem}>
+                  <View style={styles.weeklyLegendTotal} />
+                  <Text style={styles.weeklyLegendText}>전체</Text>
+                </View>
+                <View style={styles.weeklyLegendItem}>
+                  <View style={styles.weeklyLegendDone} />
+                  <Text style={styles.weeklyLegendText}>완료</Text>
+                </View>
+              </View>
+            </View>
           )}
+
+          <TouchableOpacity onPress={onViewAllSchedules} style={styles.panelFooterAction} activeOpacity={0.82}>
+            <Text style={styles.panelFooterText}>전체 보기 ›</Text>
+          </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.panel}>
-          <Text style={styles.panelTitle}>업무 상태</Text>
-          <View style={styles.statusGrid}>
-            <StatusCount label="대기" value={pendingSchedules} color={Colors.textMuted} />
-            <StatusCount label="진행 중" value={inProgressSchedules} color={Colors.info} />
-            <StatusCount label="완료" value={doneSchedules} color={Colors.success} />
+
+        <View style={styles.figmaRightColumn}>
+          <View style={[styles.panel, styles.figmaSidePanel]}>
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelTitle}>공지사항</Text>
+              {unreadNotices > 0 ? <BadgeText label={`미확인 ${unreadNotices}`} tone="warning" /> : null}
+            </View>
+            {notices.length === 0 ? (
+              <Text style={styles.emptyText}>등록된 공지가 없습니다.</Text>
+            ) : notices.slice(0, 3).map((notice) => (
+              <TouchableOpacity
+                key={notice.id}
+                style={styles.figmaNoticeRow}
+                activeOpacity={0.82}
+                onPress={() => navigation.navigate('NoticeDetail', { noticeId: notice.id })}
+              >
+                <View style={[styles.noticeDot, notice.read ? styles.noticeDotRead : null]} />
+                <View style={styles.figmaNoticeCopy}>
+                  <Text style={[styles.figmaRowTitle, !notice.read && styles.figmaUnreadTitle]} numberOfLines={1}>{notice.title}</Text>
+                  <Text style={styles.figmaRowMeta}>{notice.authorName} · {dateOnly(notice.createdAt).slice(5).replace('-', '.')}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={onViewAllNotices} style={styles.panelFooterAction} activeOpacity={0.82}>
+              <Text style={styles.panelFooterText}>전체 보기 ›</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-      )}
 
-      <View style={[styles.lowerGrid, isWide && styles.lowerGridWide]}>
-        <View style={[styles.panel, isWide && styles.chartPanel]}>
-          <Text style={styles.panelTitle}>매장별 오늘 스케줄 현황</Text>
-          <Text style={styles.panelMeta}>완료 vs 전체</Text>
-          {chartItems.length === 0 ? (
-            <Text style={styles.emptyText}>데이터가 없습니다.</Text>
-          ) : (
-            chartItems.map((activity) => (
-              <View key={activity.storeId} style={styles.chartRow}>
-                <Text style={styles.chartLabel} numberOfLines={1}>{activity.storeName.replace('점', '')}</Text>
-                <View style={styles.chartTrack}>
-                  <View style={[styles.chartDone, { width: `${activity.rate}%` }]} />
+          <View style={[styles.panel, styles.figmaSidePanel]}>
+            <View style={styles.panelHeader}>
+              <Text style={styles.panelTitle}>채팅</Text>
+              {totalUnreadChat > 0 ? <BadgeText label={`${totalUnreadChat} 안읽음`} /> : null}
+            </View>
+            {chatRooms.length === 0 ? (
+              <Text style={styles.emptyText}>참여 중인 채팅방이 없습니다.</Text>
+            ) : chatRooms.slice(0, 3).map((room) => (
+              <TouchableOpacity
+                key={room.id}
+                style={styles.figmaChatRow}
+                activeOpacity={0.82}
+                onPress={() => navigation.navigate('ChatRoom', { roomId: room.id, roomName: room.name, roomType: room.type })}
+              >
+                <View style={[styles.chatAvatar, room.type === 'GROUP' && styles.chatAvatarGroup]}>
+                  <Text style={styles.chatAvatarText}>{room.type === 'GROUP' ? '#' : room.name.slice(0, 1)}</Text>
                 </View>
-                <Text style={styles.chartValue}>{activity.todayScheduleDone}/{activity.todayScheduleTotal}</Text>
-              </View>
-            ))
-          )}
-        </View>
-
-        <View style={[styles.panel, isWide && styles.recentPanel]}>
-          <Text style={styles.panelTitle}>최근 스케줄</Text>
-          {schedules.length === 0 ? (
-            <Text style={styles.emptyText}>스케줄이 없습니다.</Text>
-          ) : (
-            schedules.slice(0, 6).map((schedule) => (
-              <View key={schedule.id} style={styles.scheduleRow}>
-                <View style={styles.scheduleInfo}>
-                  <Text style={[styles.scheduleTitle, schedule.status === 'DONE' && styles.doneSchedule]} numberOfLines={1}>
-                    {schedule.title}
-                  </Text>
-                  <Text style={styles.scheduleMeta}>
-                    {TYPE_LABEL[schedule.type]} · {schedule.assignee || '미배정'}
-                  </Text>
+                <View style={styles.figmaChatCopy}>
+                  <Text style={styles.figmaRowTitle} numberOfLines={1}>{room.name}</Text>
+                  <Text style={styles.figmaRowMeta} numberOfLines={1}>{room.lastMessage || '최근 메시지 없음'}</Text>
                 </View>
-                <View style={styles.scheduleBadge}>
-                  <Text style={styles.scheduleBadgeText}>{STATUS_LABEL[schedule.status]}</Text>
-                </View>
-              </View>
-            ))
-          )}
+                {room.unread > 0 ? <Text style={styles.chatUnread}>{room.unread}</Text> : null}
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
 
-      <View style={[styles.lowerGrid, isWide && styles.lowerGridWide]}>
-        <View style={[styles.panel, isWide && styles.recentPanel]}>
+      <View style={[styles.figmaBottomGrid, isWide && styles.figmaBottomGridWide]}>
+        <View style={[styles.panel, styles.figmaInlinePanel]}>
           <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>최근 문의</Text>
-            <TouchableOpacity onPress={onViewAllInquiries} style={styles.smallOutlineAction} activeOpacity={0.8}>
-              <Text style={styles.smallOutlineActionText}>전체 보기</Text>
-            </TouchableOpacity>
+            <Text style={styles.panelTitle}>승인 대기 직원</Text>
+            <BadgeText label={`${pendingEmployees.length}명 대기중`} tone={pendingEmployees.length > 0 ? 'warning' : undefined} />
           </View>
-          {recentInquiries.length === 0 ? (
-            <Text style={styles.emptyText}>문의가 없습니다.</Text>
-          ) : recentInquiries.map((item) => (
-            <View key={item.id} style={styles.supportRow}>
-              <View style={styles.supportMain}>
-                <Text style={styles.supportTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.supportMeta}>{item.storeName} · {item.requesterName} · {timeAgo(item.createdAt)}</Text>
+          {pendingEmployees.length === 0 ? (
+            <Text style={styles.emptyText}>승인 대기 직원이 없습니다.</Text>
+          ) : pendingEmployees.slice(0, 3).map((employee) => (
+            <View key={employee.id} style={styles.employeePreviewRow}>
+              <View style={styles.employeeAvatar}>
+                <Text style={styles.employeeAvatarText}>{employee.name.slice(0, 1)}</Text>
               </View>
-              <BadgeText label={inquiryStatusLabel[item.status]} tone={item.status === 'PENDING' ? 'warning' : undefined} />
+              <View style={styles.figmaRowMain}>
+                <Text style={styles.figmaRowTitle}>{employee.name}</Text>
+                <Text style={styles.figmaRowMeta}>{employee.employeeCode} · {dateOnly(employee.createdAt).slice(5).replace('-', '.')} 신청</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.inlinePrimaryMini, approvingEmployeeId === employee.id && styles.disabled]}
+                onPress={() => approveEmployee(employee)}
+                disabled={approvingEmployeeId === employee.id}
+                activeOpacity={0.82}
+              >
+                <Text style={styles.inlinePrimaryMiniText}>{approvingEmployeeId === employee.id ? '처리중' : '승인'}</Text>
+              </TouchableOpacity>
             </View>
           ))}
         </View>
 
-        <View style={[styles.panel, isWide && styles.chartPanel]}>
+        <View style={[styles.panel, styles.figmaInlinePanel]}>
           <View style={styles.panelHeader}>
-            <Text style={styles.panelTitle}>AS 접수 현황</Text>
-            <TouchableOpacity onPress={onViewAllAsTickets} style={styles.smallOutlineAction} activeOpacity={0.8}>
-              <Text style={styles.smallOutlineActionText}>전체 보기</Text>
+            <Text style={styles.panelTitle}>재고 부족 알림</Text>
+            <BadgeText label={inventoryAlertCount > 0 ? '즉시 보충 필요' : '정상'} tone={inventoryAlertCount > 0 ? 'warning' : undefined} />
+          </View>
+          <View style={styles.inventoryTableHeader}>
+            <Text style={[styles.inventoryHeaderText, styles.inventoryNameCell]}>상품명</Text>
+            <Text style={styles.inventoryHeaderText}>SKU</Text>
+            <Text style={[styles.inventoryHeaderText, styles.inventoryQtyCell]}>재고</Text>
+          </View>
+          {inventoryAlerts.length === 0 ? (
+            <Text style={styles.emptyText}>재고 부족 알림이 없습니다.</Text>
+          ) : inventoryAlerts.map((item) => (
+            <TouchableOpacity key={item.id} style={styles.inventoryPreviewRow} activeOpacity={0.82} onPress={onViewAllInventory}>
+              <View style={styles.inventoryNameCell}>
+                <Text style={styles.figmaRowTitle} numberOfLines={1}>{item.productName}</Text>
+                <Text style={styles.figmaRowMeta}>{item.colorName || item.colorCode || '-'} · {item.sizeName || '-'}</Text>
+              </View>
+              <Text style={styles.inventorySku} numberOfLines={1}>{item.productCode}</Text>
+              <View style={styles.inventoryQtyWrap}>
+                <Text style={styles.inventoryQty}>{item.quantity}</Text>
+                <Text style={[styles.inventoryStatus, isOutOfStock(item) && styles.inventoryStatusDanger]}>
+                  {isOutOfStock(item) ? '소진' : '부족'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={[styles.panel, styles.figmaInlinePanel]}>
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>운영 중 매장</Text>
+            <TouchableOpacity onPress={onViewAllStores} style={styles.panelTextAction} activeOpacity={0.82}>
+              <Text style={styles.panelFooterText}>전체 보기 ›</Text>
+            </TouchableOpacity>
+          </View>
+          {activities.length === 0 ? (
+            <Text style={styles.emptyText}>매장 현황 데이터가 없습니다.</Text>
+          ) : activities.slice(0, 4).map((activity) => (
+            <View key={activity.storeId} style={styles.storeCompactRow}>
+              <View style={styles.figmaRowMain}>
+                <Text style={styles.figmaRowTitle} numberOfLines={1}>{activity.storeName}</Text>
+                <Text style={styles.figmaRowMeta}>{activity.storeCode} · {timeAgo(activity.lastActivityAt)}</Text>
+              </View>
+              <BadgeText label={activity.operationStatus === 'OPEN' ? '운영 중' : '영업 종료'} tone={activity.operationStatus === 'OPEN' ? undefined : 'warning'} />
+            </View>
+          ))}
+        </View>
+
+        <View style={[styles.panel, styles.figmaInlinePanel]}>
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>문의·AS 요약</Text>
+            <TouchableOpacity onPress={unresolvedAsCount > 0 ? onViewAllAsTickets : onViewAllInquiries} style={styles.panelTextAction} activeOpacity={0.82}>
+              <Text style={styles.panelFooterText}>전체 보기 ›</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.asStatusGrid}>
-            <View style={styles.asStatusCard}>
-              <Text style={styles.asStatusLabel}>신규 접수</Text>
-              <Text style={[styles.asStatusValue, { color: Colors.warning }]}>{asSummary.newCount}</Text>
-            </View>
-            <View style={styles.asStatusCard}>
-              <Text style={styles.asStatusLabel}>처리 중</Text>
-              <Text style={[styles.asStatusValue, { color: Colors.primary }]}>{asSummary.inProgressCount}</Text>
-            </View>
-            <View style={styles.asStatusCard}>
-              <Text style={styles.asStatusLabel}>완료</Text>
-              <Text style={[styles.asStatusValue, { color: Colors.accent }]}>{asSummary.doneCount}</Text>
-            </View>
+            <StatusCount label="신규 AS" value={asSummary.newCount} color={Colors.warning} />
+            <StatusCount label="처리 중" value={asSummary.inProgressCount} color={Colors.primary} />
+            <StatusCount label="긴급" value={asSummary.urgentCount + secondaryNoticeCount} color={Colors.error} />
           </View>
           <View style={styles.asProgressTrack}>
             <View style={[styles.asProgressFill, { width: `${asSummary.completionRate}%` }]} />
           </View>
-          <Text style={styles.panelMeta}>평균 처리율 {asSummary.completionRate}% · 긴급 {asSummary.urgentCount}건</Text>
+          <Text style={styles.panelMeta}>평균 처리율 {asSummary.completionRate}% · 완료 {asSummary.doneCount}건</Text>
         </View>
       </View>
     </>
@@ -550,14 +778,12 @@ function HomeSection({
 function StoresAdminSection({
   activities,
   onReload,
-  onToggleStatus,
-  updatingStoreId,
 }: {
   activities: StoreActivity[];
   onReload: () => void;
-  onToggleStatus: (activity: StoreActivity) => void;
-  updatingStoreId: number | null;
 }) {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1100;
   const [stores, setStores] = useState<Store[]>([]);
   const [storeName, setStoreName] = useState('');
   const [addressQuery, setAddressQuery] = useState('');
@@ -640,98 +866,99 @@ function StoresAdminSection({
 
   return (
     <View style={styles.sectionStack}>
-      <View style={styles.panel}>
-        <Text style={styles.panelTitle}>매장 등록</Text>
-        <View style={styles.formGrid}>
-          <TextInput style={styles.formInputWide} value={storeName} onChangeText={setStoreName} placeholder="매장명" placeholderTextColor={Colors.textMuted} />
-        </View>
-        <View style={styles.addressSearchRow}>
-          <TextInput
-            style={[styles.formInputWide, styles.addressSearchInput]}
-            value={addressQuery}
-            onChangeText={(text) => {
-              setAddressQuery(text);
-              if (selectedAddress && text !== selectedAddress.roadAddress) setSelectedAddress(null);
-            }}
-            placeholder="도로명·지번 주소 검색"
-            placeholderTextColor={Colors.textMuted}
-            onSubmitEditing={searchAddress}
-            returnKeyType="search"
-          />
-          <TouchableOpacity
-            style={[styles.searchBtn, searchingAddress && styles.disabled]}
-            onPress={searchAddress}
-            disabled={searchingAddress}
-            activeOpacity={0.82}
-          >
-            <Text style={styles.searchBtnText}>{searchingAddress ? '...' : '검색'}</Text>
-          </TouchableOpacity>
-        </View>
-        {addressResults.length > 0 ? (
-          <View style={styles.addressDropdown}>
-            {addressResults.map((result, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.addressItem}
-                onPress={() => selectAddress(result)}
-                activeOpacity={0.82}
-              >
-                <Text style={styles.addressItemRoad}>{result.roadAddress}</Text>
-                <Text style={styles.addressItemMeta}>{result.postalCode} · {result.jibunAddress}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : selectedAddress ? (
-          <View style={styles.addressFilledRow}>
-            <View style={styles.addressFilledInfo}>
-              <Text style={styles.addressFilledRoad}>{selectedAddress.roadAddress}</Text>
-              <Text style={styles.addressFilledMeta}>{selectedAddress.postalCode}</Text>
-            </View>
-            <TouchableOpacity onPress={() => { setSelectedAddress(null); setAddressQuery(''); }}>
-              <Text style={styles.addressClearBtn}>변경</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-        <View style={styles.formGrid}>
-          <TextInput style={styles.formInputWide} value={detailAddress} onChangeText={setDetailAddress} placeholder="상세 주소 (동·호수 등)" placeholderTextColor={Colors.textMuted} />
-        </View>
-        <TouchableOpacity style={[styles.primaryAction, saving && styles.disabled]} onPress={handleCreateStore} disabled={saving}>
-          <Text style={styles.primaryActionText}>{saving ? '등록 중...' : '매장 등록'}</Text>
-        </TouchableOpacity>
+      <View style={styles.summaryStrip}>
+        <StatusCount label="전체 매장" value={stores.length} color={Colors.primary} />
+        <StatusCount label="운영 중" value={activities.filter((activity) => activity.operationStatus === 'OPEN').length} color={Colors.success} />
+        <StatusCount label="영업 종료" value={activities.filter((activity) => activity.operationStatus !== 'OPEN').length} color={Colors.textMuted} />
       </View>
 
-      <DataPanel loading={loading} empty={stores.length === 0} emptyText="등록된 매장이 없습니다.">
-        {stores.map((store) => {
-          const activity = activities.find((item) => item.storeId === store.id);
-          const isOpen = (activity?.operationStatus ?? store.operationStatus) === 'OPEN';
-          return (
-            <View key={store.id} style={styles.dataRow}>
-              <View style={styles.dataMain}>
-                <Text style={styles.dataTitle}>{store.storeName}</Text>
-                <Text style={styles.dataMeta}>{store.storeCode} · {store.roadAddress ?? '주소 없음'}</Text>
-              </View>
-              <BadgeText label={isOpen ? '운영 중' : '영업 종료'} tone={isOpen ? undefined : 'warning'} />
-              <Text style={styles.tableText}>
-                {activity?.dailySales != null ? `₩${activity.dailySales.toLocaleString()}` : '—'}
-              </Text>
-              {activity ? (
+      <View style={[styles.managementGrid, !isDesktop && styles.managementGridStack]}>
+        <View style={[styles.panel, styles.managementFormPanel]}>
+          <Text style={styles.panelTitle}>매장 등록</Text>
+          <View style={styles.formGrid}>
+            <TextInput style={styles.formInputWide} value={storeName} onChangeText={setStoreName} placeholder="매장명" placeholderTextColor={Colors.textMuted} />
+          </View>
+          <View style={styles.addressSearchRow}>
+            <TextInput
+              style={[styles.formInputWide, styles.addressSearchInput]}
+              value={addressQuery}
+              onChangeText={(text) => {
+                setAddressQuery(text);
+                if (selectedAddress && text !== selectedAddress.roadAddress) setSelectedAddress(null);
+              }}
+              placeholder="도로명·지번 주소 검색"
+              placeholderTextColor={Colors.textMuted}
+              onSubmitEditing={searchAddress}
+              returnKeyType="search"
+            />
+            <TouchableOpacity
+              style={[styles.searchBtn, searchingAddress && styles.disabled]}
+              onPress={searchAddress}
+              disabled={searchingAddress}
+              activeOpacity={0.82}
+            >
+              <Text style={styles.searchBtnText}>{searchingAddress ? '...' : '검색'}</Text>
+            </TouchableOpacity>
+          </View>
+          {addressResults.length > 0 ? (
+            <View style={styles.addressDropdown}>
+              {addressResults.map((result, index) => (
                 <TouchableOpacity
-                  style={[styles.smallAction, isOpen ? styles.closeAction : styles.openAction, updatingStoreId === store.id && styles.disabled]}
-                  onPress={() => onToggleStatus(activity)}
-                  disabled={updatingStoreId === store.id}
+                  key={index}
+                  style={styles.addressItem}
+                  onPress={() => selectAddress(result)}
+                  activeOpacity={0.82}
                 >
-                  <Text style={styles.smallActionText}>{isOpen ? '종료' : '시작'}</Text>
+                  <Text style={styles.addressItemRoad}>{result.roadAddress}</Text>
+                  <Text style={styles.addressItemMeta}>{result.postalCode} · {result.jibunAddress}</Text>
                 </TouchableOpacity>
-              ) : null}
+              ))}
             </View>
-          );
-        })}
-      </DataPanel>
+          ) : selectedAddress ? (
+            <View style={styles.addressFilledRow}>
+              <View style={styles.addressFilledInfo}>
+                <Text style={styles.addressFilledRoad}>{selectedAddress.roadAddress}</Text>
+                <Text style={styles.addressFilledMeta}>{selectedAddress.postalCode}</Text>
+              </View>
+              <TouchableOpacity onPress={() => { setSelectedAddress(null); setAddressQuery(''); }}>
+                <Text style={styles.addressClearBtn}>변경</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          <View style={styles.formGrid}>
+            <TextInput style={styles.formInputWide} value={detailAddress} onChangeText={setDetailAddress} placeholder="상세 주소 (동·호수 등)" placeholderTextColor={Colors.textMuted} />
+          </View>
+          <TouchableOpacity style={[styles.primaryAction, saving && styles.disabled]} onPress={handleCreateStore} disabled={saving}>
+            <Text style={styles.primaryActionText}>{saving ? '등록 중...' : '매장 등록'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <DataPanel loading={loading} empty={stores.length === 0} emptyText="등록된 매장이 없습니다." style={styles.managementListPanel}>
+          {stores.map((store) => {
+            const activity = activities.find((item) => item.storeId === store.id);
+            const isOpen = (activity?.operationStatus ?? store.operationStatus) === 'OPEN';
+            return (
+              <View key={store.id} style={styles.dataRow}>
+                <View style={styles.dataMain}>
+                  <Text style={styles.dataTitle}>{store.storeName}</Text>
+                  <Text style={styles.dataMeta}>{store.storeCode} · {store.roadAddress ?? '주소 없음'}</Text>
+                </View>
+                <BadgeText label={isOpen ? '운영 중' : '영업 종료'} tone={isOpen ? undefined : 'warning'} />
+                <Text style={styles.tableText}>
+                  {activity?.dailySales != null ? `₩${activity.dailySales.toLocaleString()}` : '—'}
+                </Text>
+              </View>
+            );
+          })}
+        </DataPanel>
+      </View>
     </View>
   );
 }
 
 function EmployeesAdminSection({ onNavigateToStores }: { onNavigateToStores?: () => void }) {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1180;
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [storePickerOpen, setStorePickerOpen] = useState(false);
@@ -740,6 +967,7 @@ function EmployeesAdminSection({ onNavigateToStores }: { onNavigateToStores?: ()
   const [editing, setEditing] = useState<Employee | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [storeCode, setStoreCode] = useState('');
   const [employeeCode, setEmployeeCode] = useState('');
   const [password, setPassword] = useState('');
@@ -780,6 +1008,7 @@ function EmployeesAdminSection({ onNavigateToStores }: { onNavigateToStores?: ()
       await employeeApi.create({
         name: name.trim(),
         email: email.trim(),
+        phoneNumber: phoneNumber.trim() || undefined,
         storeCode: storeCode.trim(),
         employeeCode: employeeCode.trim(),
         password,
@@ -787,6 +1016,7 @@ function EmployeesAdminSection({ onNavigateToStores }: { onNavigateToStores?: ()
       });
       setName('');
       setEmail('');
+      setPhoneNumber('');
       setStoreCode('');
       setEmployeeCode('');
       setPassword('');
@@ -883,132 +1113,143 @@ function EmployeesAdminSection({ onNavigateToStores }: { onNavigateToStores?: ()
 
   return (
     <View style={styles.sectionStack}>
-      <EmployeeApprovalsSection onChanged={loadEmployees} />
+      <View style={styles.summaryStrip}>
+        <StatusCount label="전체 직원" value={employees.length} color={Colors.primary} />
+        <StatusCount label="승인 대기" value={employees.filter((employee) => employee.status === 'PENDING').length} color={Colors.warning} />
+        <StatusCount label="활성 계정" value={employees.filter((employee) => employee.status === 'ACTIVE').length} color={Colors.success} />
+      </View>
 
-      <View style={styles.panel}>
-        <Text style={styles.panelTitle}>직원 계정 발급</Text>
-        <View style={styles.formGrid}>
-          <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="이름" placeholderTextColor={Colors.textMuted} />
-          <TextInput style={styles.formInput} value={email} onChangeText={setEmail} placeholder="이메일" placeholderTextColor={Colors.textMuted} autoCapitalize="none" autoCorrect={false} />
-        </View>
-        <View style={styles.storePickerWrap}>
-          <TouchableOpacity
-            style={styles.storePickerTrigger}
-            onPress={() => setStorePickerOpen((v) => !v)}
-            activeOpacity={0.82}
-          >
-            <Text style={selectedStore ? styles.storePickerSelected : styles.storePickerPlaceholder}>
-              {selectedStore ? `${selectedStore.storeName}  (${selectedStore.storeCode})` : '매장 선택'}
-            </Text>
-            <Text style={styles.storePickerArrow}>{storePickerOpen ? '▴' : '▾'}</Text>
-          </TouchableOpacity>
-          {storePickerOpen ? (
-            <View style={styles.storePickerDropdown}>
-              {stores.length === 0 ? (
-                <Text style={styles.emptyText}>매장 없음</Text>
-              ) : stores.map((store) => (
-                <TouchableOpacity
-                  key={store.id}
-                  style={[styles.storePickerItem, store.storeCode === storeCode && styles.storePickerItemActive]}
-                  onPress={() => {
-                    setStoreCode(store.storeCode);
-                    setEmployeeCode(store.storeCode);
-                    setStorePickerOpen(false);
-                  }}
-                  activeOpacity={0.82}
-                >
-                  <Text style={styles.storePickerItemName}>{store.storeName}</Text>
-                  <Text style={styles.storePickerItemCode}>{store.storeCode}</Text>
-                </TouchableOpacity>
-              ))}
+      <View style={[styles.managementGrid, !isDesktop && styles.managementGridStack]}>
+        <View style={styles.managementFormColumn}>
+          <EmployeeApprovalsSection onChanged={loadEmployees} embedded />
+
+          <View style={styles.panel}>
+            <Text style={styles.panelTitle}>직원 계정 발급</Text>
+            <View style={styles.formGrid}>
+              <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="이름" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.formInput} value={email} onChangeText={setEmail} placeholder="이메일" placeholderTextColor={Colors.textMuted} autoCapitalize="none" autoCorrect={false} />
+              <TextInput style={styles.formInput} value={phoneNumber} onChangeText={setPhoneNumber} placeholder="휴대폰 번호 (가입 완료 문자)" placeholderTextColor={Colors.textMuted} keyboardType="phone-pad" />
+            </View>
+            <View style={styles.storePickerWrap}>
               <TouchableOpacity
-                style={styles.storePickerRegisterItem}
-                onPress={() => {
-                  setStorePickerOpen(false);
-                  onNavigateToStores?.();
-                }}
+                style={styles.storePickerTrigger}
+                onPress={() => setStorePickerOpen((v) => !v)}
                 activeOpacity={0.82}
               >
-                <Text style={styles.storePickerRegisterText}>매장 등록하기 →</Text>
+                <Text style={selectedStore ? styles.storePickerSelected : styles.storePickerPlaceholder}>
+                  {selectedStore ? `${selectedStore.storeName}  (${selectedStore.storeCode})` : '매장 선택'}
+                </Text>
+                <Text style={styles.storePickerArrow}>{storePickerOpen ? '▴' : '▾'}</Text>
               </TouchableOpacity>
+              {storePickerOpen ? (
+                <View style={styles.storePickerDropdown}>
+                  {stores.length === 0 ? (
+                    <Text style={styles.emptyText}>매장 없음</Text>
+                  ) : stores.map((store) => (
+                    <TouchableOpacity
+                      key={store.id}
+                      style={[styles.storePickerItem, store.storeCode === storeCode && styles.storePickerItemActive]}
+                      onPress={() => {
+                        setStoreCode(store.storeCode);
+                        setEmployeeCode(store.storeCode);
+                        setStorePickerOpen(false);
+                      }}
+                      activeOpacity={0.82}
+                    >
+                      <Text style={styles.storePickerItemName}>{store.storeName}</Text>
+                      <Text style={styles.storePickerItemCode}>{store.storeCode}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={styles.storePickerRegisterItem}
+                    onPress={() => {
+                      setStorePickerOpen(false);
+                      onNavigateToStores?.();
+                    }}
+                    activeOpacity={0.82}
+                  >
+                    <Text style={styles.storePickerRegisterText}>매장 등록하기 →</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.formGrid}>
+              <TextInput style={styles.formInput} value={employeeCode} onChangeText={setEmployeeCode} placeholder="직원 아이디 예: 1001ABCD!" placeholderTextColor={Colors.textMuted} autoCapitalize="none" autoCorrect={false} />
+              <TextInput style={styles.formInput} value={password} onChangeText={setPassword} placeholder="초기 비밀번호" placeholderTextColor={Colors.textMuted} secureTextEntry />
+            </View>
+            <View style={styles.filterRow}>
+              {(['STORE_STAFF', 'STORE_MANAGER', 'HQ_STAFF'] as AssignableRole[]).map((option) => (
+                <TouchableOpacity key={option} style={[styles.filterButton, role === option && styles.filterButtonActive]} onPress={() => setRole(option)}>
+                  <Text style={[styles.filterText, role === option && styles.filterTextActive]}>{roleLabel(option)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={[styles.primaryAction, saving && styles.disabled]} onPress={handleCreate} disabled={saving}>
+              <Text style={styles.primaryActionText}>{saving ? '발급 중...' : '직원 발급'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {editing ? (
+            <View style={styles.panel}>
+              <Text style={styles.panelTitle}>직원 정보 수정</Text>
+              <View style={styles.formGrid}>
+                <TextInput style={styles.formInput} value={editName} onChangeText={setEditName} placeholder="이름" placeholderTextColor={Colors.textMuted} />
+                <TextInput style={styles.formInput} value={editEmail} onChangeText={setEditEmail} placeholder="이메일" placeholderTextColor={Colors.textMuted} />
+                <TextInput style={styles.formInput} value={resetPassword} onChangeText={setResetPassword} placeholder="새 비밀번호" placeholderTextColor={Colors.textMuted} secureTextEntry />
+              </View>
+              <View style={styles.filterRow}>
+                {(['STORE_STAFF', 'STORE_MANAGER', 'HQ_STAFF'] as AssignableRole[]).map((option) => (
+                  <TouchableOpacity key={option} style={[styles.filterButton, editRole === option && styles.filterButtonActive]} onPress={() => setEditRole(option)}>
+                    <Text style={[styles.filterText, editRole === option && styles.filterTextActive]}>{roleLabel(option)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={[styles.primaryAction, saving && styles.disabled]} onPress={handleUpdate} disabled={saving}>
+                  <Text style={styles.primaryActionText}>수정 저장</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.smallOutlineAction} onPress={handleResetPassword}>
+                  <Text style={styles.smallOutlineActionText}>비밀번호 초기화</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.smallOutlineAction} onPress={closeEdit}>
+                  <Text style={styles.smallOutlineActionText}>닫기</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : null}
         </View>
-        <View style={styles.formGrid}>
-          <TextInput style={styles.formInput} value={employeeCode} onChangeText={setEmployeeCode} placeholder="직원 아이디 예: 1001ABCD!" placeholderTextColor={Colors.textMuted} autoCapitalize="none" autoCorrect={false} />
-          <TextInput style={styles.formInput} value={password} onChangeText={setPassword} placeholder="초기 비밀번호" placeholderTextColor={Colors.textMuted} secureTextEntry />
-        </View>
-        <View style={styles.filterRow}>
-          {(['STORE_STAFF', 'STORE_MANAGER', 'HQ_STAFF'] as AssignableRole[]).map((option) => (
-            <TouchableOpacity key={option} style={[styles.filterButton, role === option && styles.filterButtonActive]} onPress={() => setRole(option)}>
-              <Text style={[styles.filterText, role === option && styles.filterTextActive]}>{roleLabel(option)}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <TouchableOpacity style={[styles.primaryAction, saving && styles.disabled]} onPress={handleCreate} disabled={saving}>
-          <Text style={styles.primaryActionText}>{saving ? '발급 중...' : '직원 발급'}</Text>
-        </TouchableOpacity>
-      </View>
 
-      {editing ? (
-        <View style={styles.panel}>
-          <Text style={styles.panelTitle}>직원 정보 수정</Text>
-          <View style={styles.formGrid}>
-            <TextInput style={styles.formInput} value={editName} onChangeText={setEditName} placeholder="이름" placeholderTextColor={Colors.textMuted} />
-            <TextInput style={styles.formInput} value={editEmail} onChangeText={setEditEmail} placeholder="이메일" placeholderTextColor={Colors.textMuted} />
-            <TextInput style={styles.formInput} value={resetPassword} onChangeText={setResetPassword} placeholder="새 비밀번호" placeholderTextColor={Colors.textMuted} secureTextEntry />
-          </View>
-          <View style={styles.filterRow}>
-            {(['STORE_STAFF', 'STORE_MANAGER', 'HQ_STAFF'] as AssignableRole[]).map((option) => (
-              <TouchableOpacity key={option} style={[styles.filterButton, editRole === option && styles.filterButtonActive]} onPress={() => setEditRole(option)}>
-                <Text style={[styles.filterText, editRole === option && styles.filterTextActive]}>{roleLabel(option)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={[styles.primaryAction, saving && styles.disabled]} onPress={handleUpdate} disabled={saving}>
-              <Text style={styles.primaryActionText}>수정 저장</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.smallOutlineAction} onPress={handleResetPassword}>
-              <Text style={styles.smallOutlineActionText}>비밀번호 초기화</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.smallOutlineAction} onPress={closeEdit}>
-              <Text style={styles.smallOutlineActionText}>닫기</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : null}
-
-      <DataPanel loading={loading} empty={employees.length === 0} emptyText="직원 계정이 없습니다.">
-        {employees.map((employee) => (
-          <View key={employee.id} style={styles.dataRow}>
-            <View style={styles.dataMain}>
-              <Text style={styles.dataTitle}>{employee.name}</Text>
-              <Text style={styles.dataMeta}>{employee.employeeCode} · {employee.storeName} · {employee.email}</Text>
+        <DataPanel loading={loading} empty={employees.length === 0} emptyText="직원 계정이 없습니다." style={styles.managementListPanel}>
+          {employees.map((employee) => (
+            <View key={employee.id} style={styles.dataRow}>
+              <View style={styles.dataMain}>
+                <Text style={styles.dataTitle}>{employee.name}</Text>
+                <Text style={styles.dataMeta}>{employee.employeeCode} · {employee.storeName} · {employee.email}</Text>
+              </View>
+              <BadgeText label={roleLabel(employee.role)} />
+              <BadgeText label={statusLabel(employee.status)} tone={employee.status === 'PENDING' ? 'warning' : undefined} />
+              {employee.role !== 'ADMIN' ? (
+                <>
+                  <TouchableOpacity style={styles.smallOutlineAction} onPress={() => openEdit(employee)}>
+                    <Text style={styles.smallOutlineActionText}>수정</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.smallOutlineAction} onPress={() => handleRotateCode(employee)}>
+                    <Text style={styles.smallOutlineActionText}>코드 순환</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.smallDangerAction} onPress={() => handleDelete(employee)}>
+                    <Text style={styles.smallDangerActionText}>비활성화</Text>
+                  </TouchableOpacity>
+                </>
+              ) : null}
             </View>
-            <BadgeText label={roleLabel(employee.role)} />
-            <BadgeText label={statusLabel(employee.status)} tone={employee.status === 'PENDING' ? 'warning' : undefined} />
-            {employee.role !== 'ADMIN' ? (
-              <>
-                <TouchableOpacity style={styles.smallOutlineAction} onPress={() => openEdit(employee)}>
-                  <Text style={styles.smallOutlineActionText}>수정</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.smallOutlineAction} onPress={() => handleRotateCode(employee)}>
-                  <Text style={styles.smallOutlineActionText}>코드 순환</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.smallDangerAction} onPress={() => handleDelete(employee)}>
-                  <Text style={styles.smallDangerActionText}>비활성화</Text>
-                </TouchableOpacity>
-              </>
-            ) : null}
-          </View>
-        ))}
-      </DataPanel>
+          ))}
+        </DataPanel>
+      </View>
     </View>
   );
 }
 
-function EmployeeApprovalsSection({ onChanged }: { onChanged?: () => void }) {
+function EmployeeApprovalsSection({ embedded = false, onChanged }: { embedded?: boolean; onChanged?: () => void }) {
   const [pending, setPending] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
@@ -1060,7 +1301,7 @@ function EmployeeApprovalsSection({ onChanged }: { onChanged?: () => void }) {
   };
 
   return (
-    <View style={styles.sectionStack}>
+    <View style={embedded ? styles.embeddedSectionStack : styles.sectionStack}>
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>직원 승인</Text>
         <Text style={styles.panelMeta}>신규 가입 직원의 소속을 확인하고 승인 또는 거절합니다.</Text>
@@ -1094,6 +1335,8 @@ function EmployeeApprovalsSection({ onChanged }: { onChanged?: () => void }) {
 }
 
 function DocumentsSection() {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1080;
   const user = useAuthStore((s) => s.user);
   const isHqDoc = user?.role === 'ADMIN' || user?.role === 'HQ_STAFF';
   const [docs, setDocs] = useState<Document[]>([]);
@@ -1247,6 +1490,12 @@ function DocumentsSection() {
 
   return (
     <View style={styles.sectionStack}>
+      <View style={styles.summaryStrip}>
+        <StatusCount label="전체 문서" value={docs.length} color={Colors.primary} />
+        <StatusCount label="공지 문서" value={docs.filter((doc) => doc.category === 'NOTICE').length} color={Colors.info} />
+        <StatusCount label="매뉴얼" value={docs.filter((doc) => doc.category === 'MANUAL').length} color={Colors.success} />
+      </View>
+
       <View style={styles.documentToolbar}>
         <TextInput
           style={[styles.searchInput, styles.documentSearchInput]}
@@ -1260,63 +1509,67 @@ function DocumentsSection() {
         </TouchableOpacity>
       </View>
 
-      {showEditor ? (
-      <View style={styles.panel}>
-        <Text style={styles.panelTitle}>{editing ? '문서 수정' : '문서 업로드'}</Text>
-        <TouchableOpacity style={styles.filePickerInline} onPress={pickFile} activeOpacity={0.82}>
-          <Text style={styles.filePickerTitle}>{selectedFile?.name ?? (editing ? '파일을 교체하려면 선택하세요' : '파일 선택')}</Text>
-          <Text style={styles.dataMeta}>
-            {selectedFile?.size ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB` : 'PDF, 이미지, Word, Excel 지원'}
-          </Text>
-        </TouchableOpacity>
-        <View style={styles.filterRow}>
-          {DOC_CATEGORIES.map((item) => (
-            <TouchableOpacity key={item.key} style={[styles.filterButton, category === item.key && styles.filterButtonActive]} onPress={() => setCategory(item.key)}>
-              <Text style={[styles.filterText, category === item.key && styles.filterTextActive]}>{item.label}</Text>
+      <View style={[styles.managementGrid, (!isDesktop || !showEditor) && styles.managementGridStack]}>
+        {showEditor ? (
+          <View style={[styles.panel, styles.managementFormPanel]}>
+            <Text style={styles.panelTitle}>{editing ? '문서 수정' : '문서 업로드'}</Text>
+            <TouchableOpacity style={styles.filePickerInline} onPress={pickFile} activeOpacity={0.82}>
+              <Text style={styles.filePickerTitle}>{selectedFile?.name ?? (editing ? '파일을 교체하려면 선택하세요' : '파일 선택')}</Text>
+              <Text style={styles.dataMeta}>
+                {selectedFile?.size ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB` : 'PDF, 이미지, Word, Excel 지원'}
+              </Text>
             </TouchableOpacity>
-          ))}
-        </View>
-        <View style={styles.formGrid}>
-          <TextInput style={styles.formInputWide} value={title} onChangeText={setTitle} placeholder="문서 제목" placeholderTextColor={Colors.textMuted} />
-          <TextInput style={styles.formInputWide} value={description} onChangeText={setDescription} placeholder="설명" placeholderTextColor={Colors.textMuted} />
-        </View>
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.primaryAction, saving && styles.disabled]} onPress={saveDocument} disabled={saving}>
-            <Text style={styles.primaryActionText}>{saving ? '저장 중...' : editing ? '수정 저장' : '업로드'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.smallOutlineAction} onPress={resetForm}>
-            <Text style={styles.smallOutlineActionText}>취소</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      ) : null}
-
-      <DataPanel loading={loading} empty={filtered.length === 0} emptyText="문서가 없습니다.">
-        {filtered.map((doc) => (
-          <View key={doc.id} style={styles.dataRow}>
-            <View style={styles.dataMain}>
-              <Text style={styles.dataTitle} numberOfLines={1}>{doc.title}</Text>
-              <Text style={styles.dataMeta}>{doc.uploader} · {dateOnly(doc.createdAt)}</Text>
+            <View style={styles.filterRow}>
+              {DOC_CATEGORIES.map((item) => (
+                <TouchableOpacity key={item.key} style={[styles.filterButton, category === item.key && styles.filterButtonActive]} onPress={() => setCategory(item.key)}>
+                  <Text style={[styles.filterText, category === item.key && styles.filterTextActive]}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
-            <BadgeText label={DOC_CATEGORY_LABEL[doc.category]} />
-            {(isHqDoc || doc.uploaderId === user?.id) && (
-              <TouchableOpacity style={styles.smallOutlineAction} onPress={() => openEdit(doc)}>
-                <Text style={styles.smallOutlineActionText}>수정</Text>
+            <View style={styles.formGrid}>
+              <TextInput style={styles.formInputWide} value={title} onChangeText={setTitle} placeholder="문서 제목" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.formInputWide} value={description} onChangeText={setDescription} placeholder="설명" placeholderTextColor={Colors.textMuted} />
+            </View>
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={[styles.primaryAction, saving && styles.disabled]} onPress={saveDocument} disabled={saving}>
+                <Text style={styles.primaryActionText}>{saving ? '저장 중...' : editing ? '수정 저장' : '업로드'}</Text>
               </TouchableOpacity>
-            )}
-            {(isHqDoc || doc.uploaderId === user?.id) && (
-              <TouchableOpacity style={styles.smallDangerAction} onPress={() => deleteDocument(doc)}>
-                <Text style={styles.smallDangerActionText}>삭제</Text>
+              <TouchableOpacity style={styles.smallOutlineAction} onPress={resetForm}>
+                <Text style={styles.smallOutlineActionText}>취소</Text>
               </TouchableOpacity>
-            )}
+            </View>
           </View>
-        ))}
-      </DataPanel>
+        ) : null}
+
+        <DataPanel loading={loading} empty={filtered.length === 0} emptyText="문서가 없습니다." style={styles.managementListPanel}>
+          {filtered.map((doc) => (
+            <View key={doc.id} style={styles.dataRow}>
+              <View style={styles.dataMain}>
+                <Text style={styles.dataTitle} numberOfLines={1}>{doc.title}</Text>
+                <Text style={styles.dataMeta}>{doc.uploader} · {dateOnly(doc.createdAt)}</Text>
+              </View>
+              <BadgeText label={DOC_CATEGORY_LABEL[doc.category]} />
+              {(isHqDoc || doc.uploaderId === user?.id) && (
+                <TouchableOpacity style={styles.smallOutlineAction} onPress={() => openEdit(doc)}>
+                  <Text style={styles.smallOutlineActionText}>수정</Text>
+                </TouchableOpacity>
+              )}
+              {(isHqDoc || doc.uploaderId === user?.id) && (
+                <TouchableOpacity style={styles.smallDangerAction} onPress={() => deleteDocument(doc)}>
+                  <Text style={styles.smallDangerActionText}>삭제</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+        </DataPanel>
+      </View>
     </View>
   );
 }
 
 function ChatSection() {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 980;
   const user = useAuthStore((s) => s.user);
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
@@ -1434,7 +1687,7 @@ function ChatSection() {
   };
 
   return (
-    <View style={styles.chatGrid}>
+    <View style={[styles.chatGrid, !isDesktop && styles.chatGridStack]}>
       <View style={styles.roomPanel}>
         <Text style={styles.panelTitle}>채팅방</Text>
         <View style={styles.panel}>
@@ -1521,6 +1774,8 @@ function ChatSection() {
 }
 
 function NoticesSection() {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 980;
   const [notices, setNotices] = useState<Notice[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -1654,7 +1909,7 @@ function NoticesSection() {
       </View>
       ) : null}
 
-      <View style={styles.splitGrid}>
+      <View style={[styles.splitGrid, !isDesktop && styles.splitGridStack]}>
         <View style={styles.listPanel}>
         <Text style={styles.panelTitle}>공지사항</Text>
         <DataPanel loading={loading} empty={notices.length === 0} emptyText="공지사항이 없습니다." compact>
@@ -1706,38 +1961,83 @@ function NoticesSection() {
 
 function InventorySection() {
   const [items, setItems] = useState<InventoryItem[]>([]);
+  const [categoryCounts, setCategoryCounts] = useState<CategoryCount[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [archived, setArchived] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [reason, setReason] = useState('');
   const [archiveLabel, setArchiveLabel] = useState('보관함');
   const [archivePurpose, setArchivePurpose] = useState('');
 
-  const loadItems = useCallback(() => {
-    setLoading(true);
-    inventoryApi.search({ archived })
-      .then((page) => setItems(page.items))
+  const loadItems = useCallback((pageNumber = 0) => {
+    if (pageNumber === 0) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+    inventoryApi.search({
+      archived,
+      category: selectedCategory ?? undefined,
+      query: query.trim() || undefined,
+      page: pageNumber,
+    })
+      .then((page) => {
+        setItems((prev) => (pageNumber === 0 ? page.items : [...prev, ...page.items]));
+        setTotalCount(page.totalCount);
+        setHasNext(page.hasNext);
+        setCurrentPage(pageNumber);
+      })
       .catch((err) => {
         logger.warn('[Inventory] loadItems 실패:', err);
-        setItems([]);
+        if (pageNumber === 0) {
+          setItems([]);
+          setTotalCount(0);
+          setHasNext(false);
+          setCurrentPage(0);
+        }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (pageNumber === 0) {
+          setLoading(false);
+        } else {
+          setLoadingMore(false);
+        }
+      });
+  }, [archived, query, selectedCategory]);
+
+  const loadCategoryCounts = useCallback(() => {
+    inventoryApi.getCategoryCounts({ archived })
+      .then(setCategoryCounts)
+      .catch((err) => {
+        logger.warn('[Inventory] getCategoryCounts 실패:', err);
+        setCategoryCounts([]);
+      });
   }, [archived]);
 
   useEffect(() => {
-    loadItems();
-  }, [loadItems]);
+    const handle = setTimeout(() => {
+      loadItems(0);
+      loadCategoryCounts();
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [loadCategoryCounts, loadItems]);
 
-  const filtered = items.filter((item) =>
-    item.productName.includes(query)
-    || item.productCode.includes(query)
-    || (item.colorName ?? '').includes(query)
-  );
-  const lowStock = items.filter((item) => item.quantity > 0 && item.quantity <= 5).length;
-  const zeroStock = items.filter((item) => item.quantity === 0).length;
+  const totalCategoryCount = categoryCounts.reduce((sum, item) => sum + item.count, 0);
+  const lowStock = items.filter(isLowStock).length;
+  const zeroStock = items.filter(isOutOfStock).length;
+
+  const loadMoreItems = () => {
+    if (!hasNext || loadingMore || loading) return;
+    loadItems(currentPage + 1);
+  };
 
   const openItemAction = (item: InventoryItem) => {
     setSelectedItem(item);
@@ -1770,7 +2070,8 @@ function InventorySection() {
         reason: reason.trim() || undefined,
       });
       closeItemAction();
-      loadItems();
+      loadItems(0);
+      loadCategoryCounts();
     } catch (e: any) {
       Alert.alert('오류', e?.response?.data?.error?.message ?? '수량 조정에 실패했습니다.');
     } finally {
@@ -1793,7 +2094,8 @@ function InventorySection() {
         archiveQuantity: qty,
       });
       closeItemAction();
-      loadItems();
+      loadItems(0);
+      loadCategoryCounts();
     } catch (e: any) {
       Alert.alert('오류', e?.response?.data?.error?.message ?? '보관함 이동에 실패했습니다.');
     } finally {
@@ -1805,7 +2107,8 @@ function InventorySection() {
     setProcessing(true);
     try {
       await inventoryApi.unarchive(item.id);
-      loadItems();
+      loadItems(0);
+      loadCategoryCounts();
     } catch (e: any) {
       Alert.alert('오류', e?.response?.data?.error?.message ?? '복원에 실패했습니다.');
     } finally {
@@ -1817,8 +2120,9 @@ function InventorySection() {
     setProcessing(true);
     try {
       const result = await inventoryApi.reload();
-      Alert.alert('재동기화 완료', `${result.rowCount}개 행을 처리했습니다.`);
-      loadItems();
+      Alert.alert('재동기화 완료', `${result.rowCount}개 행을 분류해 반영했습니다.`);
+      loadItems(0);
+      loadCategoryCounts();
     } catch (e: any) {
       Alert.alert('오류', e?.response?.data?.error?.message ?? '재동기화에 실패했습니다.');
     } finally {
@@ -1832,22 +2136,41 @@ function InventorySection() {
         copyToCacheDirectory: true,
         multiple: false,
         type: [
+          'text/csv',
+          'application/csv',
+          'text/comma-separated-values',
           'application/vnd.ms-excel',
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ],
       });
       if (result.canceled || result.assets.length === 0) return;
       const file = result.assets[0];
+      const lowerName = file.name.toLowerCase();
+      if (!lowerName.endsWith('.csv') && !lowerName.endsWith('.xlsx')) {
+        Alert.alert('파일 형식 확인', '재고 업로드는 CSV 또는 XLSX 파일만 지원합니다.');
+        return;
+      }
       setProcessing(true);
       const loaded = await inventoryApi.uploadDaily({
         uri: file.uri,
         name: file.name,
         type: file.mimeType ?? inferContentType(file.name),
+        file: file.file,
       });
-      Alert.alert('업로드 완료', `${loaded.rowCount}개 행을 처리했습니다.`);
-      loadItems();
+      Alert.alert('업로드 완료', `${loaded.rowCount}개 행을 상품명 기준으로 분류해 반영했습니다.`);
+      setArchived(false);
+      setSelectedCategory(null);
+      const [page, counts] = await Promise.all([
+        inventoryApi.search({ archived: false, page: 0 }),
+        inventoryApi.getCategoryCounts({ archived: false }),
+      ]);
+      setItems(page.items);
+      setTotalCount(page.totalCount);
+      setHasNext(page.hasNext);
+      setCurrentPage(0);
+      setCategoryCounts(counts);
     } catch (e: any) {
-      Alert.alert('오류', e?.response?.data?.error?.message ?? '재고 파일 업로드에 실패했습니다.');
+      Alert.alert('오류', e.message ?? e?.response?.data?.error?.message ?? '재고 파일 업로드에 실패했습니다.');
     } finally {
       setProcessing(false);
     }
@@ -1856,31 +2179,56 @@ function InventorySection() {
   return (
     <View style={styles.sectionStack}>
       <View style={styles.kpiGridWide}>
-        <KpiCard label="전체 품목" value={String(items.length)} unit="개" tone="primary" />
-        <KpiCard label="재고 부족" value={String(lowStock)} unit="5개 이하" tone="warning" />
-        <KpiCard label="재고 없음" value={String(zeroStock)} unit="개" tone="success" />
+        <KpiCard label="전체 품목" value={String(totalCount)} unit={`표시 ${items.length}개`} tone="primary" />
+        <KpiCard label="현재 페이지 부족" value={String(lowStock)} unit="최소 기준 미만" tone="warning" />
+        <KpiCard label="현재 페이지 소진" value={String(zeroStock)} unit="개" tone="danger" />
       </View>
-      <View style={styles.filterRow}>
-        <TouchableOpacity style={[styles.filterButton, !archived && styles.filterButtonActive]} onPress={() => setArchived(false)}>
-          <Text style={[styles.filterText, !archived && styles.filterTextActive]}>실시간 재고</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.filterButton, archived && styles.filterButtonActive]} onPress={() => setArchived(true)}>
-          <Text style={[styles.filterText, archived && styles.filterTextActive]}>보관함</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.smallOutlineAction} onPress={reloadInventory} disabled={processing}>
-          <Text style={styles.smallOutlineActionText}>서버 재동기화</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.smallOutlineAction} onPress={uploadDailyInventory} disabled={processing}>
-          <Text style={styles.smallOutlineActionText}>엑셀 업로드</Text>
-        </TouchableOpacity>
+      <View style={styles.managementToolbar}>
+        <View style={styles.filterRow}>
+          <TouchableOpacity style={[styles.filterButton, !archived && styles.filterButtonActive]} onPress={() => setArchived(false)}>
+            <Text style={[styles.filterText, !archived && styles.filterTextActive]}>실시간 재고</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.filterButton, archived && styles.filterButtonActive]} onPress={() => setArchived(true)}>
+            <Text style={[styles.filterText, archived && styles.filterTextActive]}>보관함</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.smallOutlineAction} onPress={reloadInventory} disabled={processing}>
+            <Text style={styles.smallOutlineActionText}>서버 재동기화</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.smallOutlineAction} onPress={uploadDailyInventory} disabled={processing}>
+            <Text style={styles.smallOutlineActionText}>엑셀 업로드</Text>
+          </TouchableOpacity>
+        </View>
+        <TextInput
+          style={[styles.searchInput, styles.toolbarSearchInput]}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="상품명, 상품코드, 색상 검색..."
+          placeholderTextColor={Colors.textMuted}
+        />
+        <View style={styles.categoryChipRow}>
+          <TouchableOpacity
+            style={[styles.categoryChip, selectedCategory === null && styles.categoryChipActive]}
+            onPress={() => setSelectedCategory(null)}
+            activeOpacity={0.82}
+          >
+            <Text style={[styles.categoryChipText, selectedCategory === null && styles.categoryChipTextActive]}>
+              전체 {totalCategoryCount}
+            </Text>
+          </TouchableOpacity>
+          {categoryCounts.map((category) => (
+            <TouchableOpacity
+              key={category.category}
+              style={[styles.categoryChip, selectedCategory === category.category && styles.categoryChipActive]}
+              onPress={() => setSelectedCategory(category.category)}
+              activeOpacity={0.82}
+            >
+              <Text style={[styles.categoryChipText, selectedCategory === category.category && styles.categoryChipTextActive]}>
+                {category.label} {category.count}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
-      <TextInput
-        style={styles.searchInput}
-        value={query}
-        onChangeText={setQuery}
-        placeholder="상품명, 상품코드, 색상 검색..."
-        placeholderTextColor={Colors.textMuted}
-      />
       {selectedItem ? (
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>{selectedItem.productName}</Text>
@@ -1919,16 +2267,17 @@ function InventorySection() {
           </View>
         </View>
       ) : null}
-      <DataPanel loading={loading} empty={filtered.length === 0} emptyText="재고 데이터가 없습니다.">
-        {filtered.slice(0, 50).map((item) => (
+      <DataPanel loading={loading} empty={items.length === 0} emptyText="재고 데이터가 없습니다.">
+        {items.map((item) => (
           <View key={item.id} style={styles.dataRow}>
             <View style={styles.dataMain}>
               <Text style={styles.dataTitle} numberOfLines={1}>{item.productName}</Text>
               <Text style={styles.dataMeta}>{item.productCode} · {item.colorName ?? '-'} · {item.sizeName ?? '-'}</Text>
             </View>
+            <BadgeText label={item.categoryLabel ?? '기타'} />
             <Text style={[
               styles.quantityText,
-              item.quantity === 0 ? styles.errorText : item.quantity <= 5 ? styles.warningText : null,
+              isOutOfStock(item) ? styles.errorText : isLowStock(item) ? styles.warningText : null,
             ]}>
               {item.quantity}
             </Text>
@@ -1943,6 +2292,13 @@ function InventorySection() {
             )}
           </View>
         ))}
+        {hasNext ? (
+          <TouchableOpacity style={[styles.loadMoreButton, loadingMore && styles.disabled]} onPress={loadMoreItems} disabled={loadingMore} activeOpacity={0.82}>
+            <Text style={styles.loadMoreButtonText}>{loadingMore ? '불러오는 중...' : `더 불러오기 (${items.length}/${totalCount})`}</Text>
+          </TouchableOpacity>
+        ) : totalCount > 0 ? (
+          <Text style={styles.paginationMeta}>총 {totalCount}개 중 {items.length}개 표시</Text>
+        ) : null}
       </DataPanel>
     </View>
   );
@@ -2156,76 +2512,84 @@ function ScheduleSection() {
         </View>
       </View>
 
-      <View style={styles.panel}>
-        <Text style={styles.panelTitle}>{editing ? '스케줄 수정' : '스케줄 등록'}</Text>
-        <View style={styles.filterRow}>
-          {SCHEDULE_TYPES.map((item) => (
-            <TouchableOpacity key={item.key} style={[styles.filterButton, type === item.key && styles.filterButtonActive]} onPress={() => setType(item.key)}>
-              <Text style={[styles.filterText, type === item.key && styles.filterTextActive]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <View style={styles.formGrid}>
-          <TextInput style={styles.formInputWide} value={title} onChangeText={setTitle} placeholder="스케줄 제목" placeholderTextColor={Colors.textMuted} />
-          <TextInput style={styles.formInput} value={dueDate} onChangeText={setDueDate} placeholder="마감일 YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
-          <TextInput style={styles.formInput} value={assignee} onChangeText={setAssignee} placeholder="담당자" placeholderTextColor={Colors.textMuted} />
-          <TextInput style={[styles.formInputWide, styles.textAreaInline]} value={description} onChangeText={setDescription} placeholder="상세 내용" placeholderTextColor={Colors.textMuted} multiline />
-        </View>
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.primaryAction, saving && styles.disabled]} onPress={saveSchedule} disabled={saving}>
-            <Text style={styles.primaryActionText}>{saving ? '저장 중...' : editing ? '수정 저장' : '스케줄 등록'}</Text>
-          </TouchableOpacity>
-          {editing ? (
-            <TouchableOpacity style={styles.smallOutlineAction} onPress={resetForm}>
-              <Text style={styles.smallOutlineActionText}>취소</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={styles.filterRow}>
-        {(['ALL', 'PENDING', 'IN_PROGRESS', 'DONE'] as const).map((value) => (
-          <TouchableOpacity
-            key={value}
-            style={[styles.filterButton, filter === value && styles.filterButtonActive]}
-            onPress={() => setFilter(value)}
-            activeOpacity={0.82}
-          >
-            <Text style={[styles.filterText, filter === value && styles.filterTextActive]}>
-              {value === 'ALL' ? '전체' : STATUS_LABEL[value]}
-            </Text>
-          </TouchableOpacity>
-        ))}
-        <TouchableOpacity style={styles.filterRefresh} onPress={load}>
-          <Text style={styles.outlineButtonText}>새로고침</Text>
-        </TouchableOpacity>
-      </View>
-      <DataPanel loading={loading} empty={filtered.length === 0} emptyText="스케줄이 없습니다.">
-        {filtered.map((schedule) => (
-          <View key={schedule.id} style={[styles.dataRow, schedule.status === 'DONE' && styles.doneRow]}>
-            <View style={styles.dataMain}>
-              <Text style={[styles.dataTitle, schedule.status === 'DONE' && styles.doneSchedule]} numberOfLines={1}>
-                {schedule.title}
-              </Text>
-              <Text style={styles.dataMeta}>
-                {TYPE_LABEL[schedule.type]} · {dateOnly(schedule.dueDate)} · {schedule.assignee || '미배정'}
-              </Text>
-            </View>
-            <BadgeText label={STATUS_LABEL[schedule.status]} />
-            <TouchableOpacity style={styles.smallOutlineAction} onPress={() => openEdit(schedule)}>
-              <Text style={styles.smallOutlineActionText}>수정</Text>
-            </TouchableOpacity>
-            {schedule.status !== 'DONE' ? (
-              <TouchableOpacity style={styles.smallOutlineAction} onPress={() => handleComplete(schedule.id)}>
-                <Text style={styles.smallOutlineActionText}>완료</Text>
+      <View style={[styles.scheduleManagementGrid, !isDesktop && styles.scheduleManagementGridStack]}>
+        <View style={[styles.panel, styles.scheduleEditorPanel]}>
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>{editing ? '스케줄 수정' : '스케줄 등록'}</Text>
+            {editing ? (
+              <TouchableOpacity style={styles.panelTextAction} onPress={resetForm} activeOpacity={0.82}>
+                <Text style={styles.panelFooterText}>신규 등록</Text>
               </TouchableOpacity>
             ) : null}
-            <TouchableOpacity style={styles.smallDangerAction} onPress={() => deleteSchedule(schedule)}>
-              <Text style={styles.smallDangerActionText}>삭제</Text>
+          </View>
+          <View style={styles.scheduleTypeGrid}>
+            {SCHEDULE_TYPES.map((item) => (
+              <TouchableOpacity key={item.key} style={[styles.scheduleTypeButton, type === item.key && styles.filterButtonActive]} onPress={() => setType(item.key)} activeOpacity={0.82}>
+                <Text style={[styles.filterText, type === item.key && styles.filterTextActive]}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.scheduleFormStack}>
+            <TextInput style={styles.scheduleFormInput} value={title} onChangeText={setTitle} placeholder="스케줄 제목" placeholderTextColor={Colors.textMuted} />
+            <View style={styles.scheduleFormRow}>
+              <TextInput style={styles.scheduleFormHalfInput} value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.scheduleFormHalfInput} value={assignee} onChangeText={setAssignee} placeholder="담당자" placeholderTextColor={Colors.textMuted} />
+            </View>
+            <TextInput style={[styles.scheduleFormInput, styles.scheduleTextArea]} value={description} onChangeText={setDescription} placeholder="상세 내용" placeholderTextColor={Colors.textMuted} multiline />
+          </View>
+          <TouchableOpacity style={[styles.primaryAction, styles.scheduleSubmitButton, saving && styles.disabled]} onPress={saveSchedule} disabled={saving}>
+            <Text style={styles.primaryActionText}>{saving ? '저장 중...' : editing ? '수정 저장' : '스케줄 등록'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.scheduleListColumn}>
+          <View style={styles.scheduleListToolbar}>
+            <View style={styles.filterRow}>
+              {(['ALL', 'PENDING', 'IN_PROGRESS', 'DONE'] as const).map((value) => (
+                <TouchableOpacity
+                  key={value}
+                  style={[styles.filterButton, filter === value && styles.filterButtonActive]}
+                  onPress={() => setFilter(value)}
+                  activeOpacity={0.82}
+                >
+                  <Text style={[styles.filterText, filter === value && styles.filterTextActive]}>
+                    {value === 'ALL' ? '전체' : STATUS_LABEL[value]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.smallOutlineAction} onPress={load}>
+              <Text style={styles.smallOutlineActionText}>새로고침</Text>
             </TouchableOpacity>
           </View>
-        ))}
-      </DataPanel>
+          <DataPanel loading={loading} empty={filtered.length === 0} emptyText="스케줄이 없습니다." style={styles.scheduleListPanel}>
+            {filtered.map((schedule) => (
+              <View key={schedule.id} style={[styles.dataRow, schedule.status === 'DONE' && styles.doneRow]}>
+                <View style={styles.dataMain}>
+                  <Text style={[styles.dataTitle, schedule.status === 'DONE' && styles.doneSchedule]} numberOfLines={1}>
+                    {schedule.title}
+                  </Text>
+                  <Text style={styles.dataMeta}>
+                    {TYPE_LABEL[schedule.type]} · {dateOnly(schedule.dueDate)} · {schedule.assignee || '미배정'}
+                  </Text>
+                </View>
+                <BadgeText label={STATUS_LABEL[schedule.status]} />
+                <TouchableOpacity style={styles.smallOutlineAction} onPress={() => openEdit(schedule)}>
+                  <Text style={styles.smallOutlineActionText}>수정</Text>
+                </TouchableOpacity>
+                {schedule.status !== 'DONE' ? (
+                  <TouchableOpacity style={styles.smallOutlineAction} onPress={() => handleComplete(schedule.id)}>
+                    <Text style={styles.smallOutlineActionText}>완료</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity style={styles.smallDangerAction} onPress={() => deleteSchedule(schedule)}>
+                  <Text style={styles.smallDangerActionText}>삭제</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </DataPanel>
+        </View>
+      </View>
     </View>
   );
 }
@@ -2233,19 +2597,20 @@ function ScheduleSection() {
 function Sidebar({
   active,
   role,
+  unreadNotices,
   userName,
   storeName,
   onSelect,
 }: {
   active: NavId;
   role: string;
+  unreadNotices: number;
   userName: string;
   storeName: string;
   onSelect: (id: NavId) => void;
 }) {
   const roleLabel = role === 'ADMIN' ? '관리자' : role === 'HQ_STAFF' ? '본사 직원' : role === 'STORE_MANAGER' ? '점장' : '직원';
   const isHqRole = role === 'ADMIN' || role === 'HQ_STAFF';
-  const visibleNavItems = NAV_ITEMS.filter((item) => item.id !== 'stores' || isHqRole);
 
   return (
     <View style={styles.sidebar}>
@@ -2254,23 +2619,37 @@ function Sidebar({
           <Text style={styles.brandIconText}>F</Text>
         </View>
         <View style={styles.brandCopy}>
-          <Text style={styles.brandTitle}>Flowre 관리 콘솔</Text>
-          <Text style={styles.brandSub} numberOfLines={1}>{storeName}</Text>
+          <Text style={styles.brandTitle}>flowre</Text>
+          <Text style={styles.brandSub} numberOfLines={1}>매장 통합관리</Text>
         </View>
       </View>
-      <Text style={styles.navKicker}>메뉴</Text>
-      {visibleNavItems.map((item) => {
-        const isActive = active === item.id;
+      {NAV_SECTIONS.map((section) => {
+        const sectionItems = section.items.filter((item) => item.id !== 'stores' || isHqRole);
+        if (sectionItems.length === 0) return null;
         return (
-          <TouchableOpacity
-            key={item.id}
-            style={[styles.navItem, isActive && styles.navItemActive]}
-            onPress={() => onSelect(item.id)}
-            activeOpacity={0.84}
-          >
-            <View style={[styles.navDot, isActive && styles.navDotActive]} />
-            <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
-          </TouchableOpacity>
+          <View key={section.title} style={styles.navSection}>
+            <Text style={styles.navKicker}>{section.title}</Text>
+            {sectionItems.map((item) => {
+              const isActive = active === item.id;
+              const badge = item.badge?.({ unreadNotices }) ?? 0;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.navItem, isActive && styles.navItemActive]}
+                  onPress={() => onSelect(item.id)}
+                  activeOpacity={0.84}
+                >
+                  <View style={[styles.navDot, isActive && styles.navDotActive]} />
+                  <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
+                  {badge > 0 ? (
+                    <View style={[styles.navBadge, isActive && styles.navBadgeActive]}>
+                      <Text style={styles.navBadgeText}>{badge}</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         );
       })}
       <View style={styles.sidebarAccountNav}>
@@ -2295,7 +2674,7 @@ function Sidebar({
         </View>
         <View style={styles.brandCopy}>
           <Text style={styles.userName} numberOfLines={1}>{userName}</Text>
-          <Text style={styles.brandSub}>{roleLabel}</Text>
+          <Text style={styles.brandSub}>{roleLabel} · {storeName}</Text>
         </View>
       </View>
     </View>
@@ -2347,11 +2726,37 @@ const AS_STATUS_LABEL: Record<AsTicketStatus, string> = {
   DONE: '완료',
 };
 
+const SUPPORT_FAQS = [
+  {
+    id: 'account-login',
+    category: '계정',
+    question: '로그인이 안 될 때 먼저 확인할 것은?',
+    answer: '매장 코드, 직원 번호, 비밀번호를 확인하고 그래도 안 되면 직원 관리에서 비밀번호 초기화를 요청하세요.',
+  },
+  {
+    id: 'inventory-upload',
+    category: '재고',
+    question: '재고 업로드 후 반영이 늦을 때는?',
+    answer: '업로드 결과가 생성된 뒤 목록을 새로고침합니다. 파일 형식이나 상품 코드 누락이 있으면 일부 행은 제외될 수 있습니다.',
+  },
+  {
+    id: 'urgent-as',
+    category: 'AS',
+    question: '긴급 AS로 접수해야 하는 기준은?',
+    answer: '결제, 영업, 재고 처리처럼 당일 운영에 직접 영향을 주는 장애는 긴급으로 접수하세요.',
+  },
+];
+
 function SupportSection({ initialTab = 'inquiries' }: { initialTab?: 'inquiries' | 'as-tickets' }) {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1080;
   const [tab, setTab] = useState<'inquiries' | 'as-tickets'>(initialTab);
   const [inquiries, setInquiries] = useState<InquiryTicket[]>([]);
   const [asTickets, setAsTickets] = useState<AsTicket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<number | null>(null);
+  const [query, setQuery] = useState('');
+  const [expandedFaqId, setExpandedFaqId] = useState(SUPPORT_FAQS[0]?.id ?? '');
 
   useEffect(() => {
     setTab(initialTab);
@@ -2374,60 +2779,152 @@ function SupportSection({ initialTab = 'inquiries' }: { initialTab?: 'inquiries'
     load();
   }, [load]);
 
+  const changeInquiryStatus = async (item: InquiryTicket, status: InquiryStatus) => {
+    setProcessingId(item.id);
+    try {
+      const updated = await supportApi.changeInquiryStatus(item.id, status);
+      setInquiries((prev) => prev.map((ticket) => ticket.id === item.id ? updated : ticket));
+    } catch (e: any) {
+      Alert.alert('오류', e?.response?.data?.error?.message ?? '문의 상태 변경에 실패했습니다.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const changeAsTicketStatus = async (item: AsTicket, status: AsTicketStatus) => {
+    setProcessingId(item.id);
+    try {
+      const updated = await supportApi.changeAsTicketStatus(item.id, status);
+      setAsTickets((prev) => prev.map((ticket) => ticket.id === item.id ? updated : ticket));
+    } catch (e: any) {
+      Alert.alert('오류', e?.response?.data?.error?.message ?? 'AS 상태 변경에 실패했습니다.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredFaqs = SUPPORT_FAQS.filter((item) => !normalizedQuery
+    || item.question.toLowerCase().includes(normalizedQuery)
+    || item.answer.toLowerCase().includes(normalizedQuery)
+    || item.category.toLowerCase().includes(normalizedQuery));
+  const filteredInquiries = inquiries.filter((item) => !normalizedQuery
+    || [item.title, item.content, item.storeName, item.requesterName].some((value) => (value ?? '').toLowerCase().includes(normalizedQuery)));
+  const filteredAsTickets = asTickets.filter((item) => !normalizedQuery
+    || [item.title, item.description, item.storeName].some((value) => (value ?? '').toLowerCase().includes(normalizedQuery)));
+
   return (
     <View style={styles.sectionStack}>
-      <View style={styles.filterRow}>
-        <TouchableOpacity
-          style={[styles.filterButton, tab === 'inquiries' && styles.filterButtonActive]}
-          onPress={() => setTab('inquiries')}
-        >
-          <Text style={[styles.filterText, tab === 'inquiries' && styles.filterTextActive]}>
-            문의 ({inquiries.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterButton, tab === 'as-tickets' && styles.filterButtonActive]}
-          onPress={() => setTab('as-tickets')}
-        >
-          <Text style={[styles.filterText, tab === 'as-tickets' && styles.filterTextActive]}>
-            AS 접수 ({asTickets.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.smallOutlineAction} onPress={load}>
-          <Text style={styles.smallOutlineActionText}>새로고침</Text>
-        </TouchableOpacity>
+      <View style={styles.summaryStrip}>
+        <StatusCount label="문의" value={inquiries.length} color={Colors.primary} />
+        <StatusCount label="AS 접수" value={asTickets.length} color={Colors.info} />
+        <StatusCount label="미처리" value={inquiries.filter((item) => item.status !== 'DONE').length + asTickets.filter((item) => item.status !== 'DONE').length} color={Colors.warning} />
       </View>
 
-      {tab === 'inquiries' ? (
-        <DataPanel loading={loading} empty={inquiries.length === 0} emptyText="등록된 문의가 없습니다.">
-          {inquiries.map((item) => (
-            <View key={item.id} style={styles.dataRow}>
-              <View style={styles.dataMain}>
-                <Text style={styles.dataTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.dataMeta}>
-                  {item.storeName} · {item.requesterName} · {dateOnly(item.createdAt)}
-                </Text>
-              </View>
-              <BadgeText label={INQUIRY_STATUS_LABEL[item.status]} tone={item.status === 'PENDING' ? 'warning' : undefined} />
-            </View>
-          ))}
-        </DataPanel>
-      ) : (
-        <DataPanel loading={loading} empty={asTickets.length === 0} emptyText="등록된 AS 접수가 없습니다.">
-          {asTickets.map((item) => (
-            <View key={item.id} style={styles.dataRow}>
-              <View style={styles.dataMain}>
-                <Text style={styles.dataTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.dataMeta}>
-                  {item.storeName} · {item.requesterName} · {dateOnly(item.createdAt)}
-                </Text>
-              </View>
-              <BadgeText label={AS_STATUS_LABEL[item.status]} tone={item.status === 'NEW' ? 'warning' : undefined} />
-              {item.priority === 'URGENT' ? <BadgeText label="긴급" tone="warning" /> : null}
-            </View>
-          ))}
-        </DataPanel>
-      )}
+      <View style={[styles.managementGrid, !isDesktop && styles.managementGridStack]}>
+        <View style={[styles.panel, styles.supportFaqPanel]}>
+          <Text style={styles.panelTitle}>FAQ 게시판</Text>
+          <Text style={styles.panelMeta}>자주 묻는 질문을 먼저 확인하고, 접수 게시글을 검색합니다.</Text>
+          <TextInput
+            style={[styles.searchInput, styles.inlineSearchInput]}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="FAQ, 제목, 매장, 요청자 검색"
+            placeholderTextColor={Colors.textMuted}
+          />
+          <View style={styles.supportFaqList}>
+            {filteredFaqs.map((item) => {
+              const expanded = expandedFaqId === item.id;
+              return (
+                <TouchableOpacity key={item.id} style={styles.supportFaqItem} onPress={() => setExpandedFaqId(expanded ? '' : item.id)} activeOpacity={0.84}>
+                  <View style={styles.supportFaqQuestionRow}>
+                    <Text style={styles.supportFaqCategory}>{item.category}</Text>
+                    <Text style={styles.supportFaqQuestion} numberOfLines={expanded ? undefined : 1}>{item.question}</Text>
+                    <Text style={styles.supportFaqToggle}>{expanded ? '−' : '+'}</Text>
+                  </View>
+                  {expanded ? <Text style={styles.supportFaqAnswer}>{item.answer}</Text> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.supportBoardPanel}>
+          <View style={styles.filterRow}>
+            <TouchableOpacity
+              style={[styles.filterButton, tab === 'inquiries' && styles.filterButtonActive]}
+              onPress={() => setTab('inquiries')}
+            >
+              <Text style={[styles.filterText, tab === 'inquiries' && styles.filterTextActive]}>
+                문의 ({inquiries.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, tab === 'as-tickets' && styles.filterButtonActive]}
+              onPress={() => setTab('as-tickets')}
+            >
+              <Text style={[styles.filterText, tab === 'as-tickets' && styles.filterTextActive]}>
+                AS 접수 ({asTickets.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.smallOutlineAction} onPress={load}>
+              <Text style={styles.smallOutlineActionText}>새로고침</Text>
+            </TouchableOpacity>
+          </View>
+
+          {tab === 'inquiries' ? (
+            <DataPanel loading={loading} empty={filteredInquiries.length === 0} emptyText="등록된 문의가 없습니다.">
+              {filteredInquiries.map((item) => (
+                <View key={item.id} style={styles.supportBoardRow}>
+                  <View style={styles.dataMain}>
+                    <Text style={styles.supportPostType}>문의</Text>
+                    <Text style={styles.dataTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.dataMeta}>
+                      {item.storeName} · {item.requesterName} · {dateOnly(item.createdAt)}
+                    </Text>
+                  </View>
+                  <BadgeText label={INQUIRY_STATUS_LABEL[item.status]} tone={item.status === 'PENDING' ? 'warning' : undefined} />
+                  {item.status !== 'IN_PROGRESS' ? (
+                    <TouchableOpacity style={[styles.smallAction, styles.openAction, processingId === item.id && styles.disabled]} onPress={() => changeInquiryStatus(item, 'IN_PROGRESS')} disabled={processingId === item.id}>
+                      <Text style={styles.smallActionText}>처리</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {item.status !== 'DONE' ? (
+                    <TouchableOpacity style={[styles.smallAction, styles.openAction, processingId === item.id && styles.disabled]} onPress={() => changeInquiryStatus(item, 'DONE')} disabled={processingId === item.id}>
+                      <Text style={styles.smallActionText}>완료</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ))}
+            </DataPanel>
+          ) : (
+            <DataPanel loading={loading} empty={filteredAsTickets.length === 0} emptyText="등록된 AS 접수가 없습니다.">
+              {filteredAsTickets.map((item) => (
+                <View key={item.id} style={styles.supportBoardRow}>
+                  <View style={styles.dataMain}>
+                    <Text style={styles.supportPostType}>AS</Text>
+                    <Text style={styles.dataTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.dataMeta}>
+                      {item.storeName} · {dateOnly(item.createdAt)}
+                    </Text>
+                  </View>
+                  <BadgeText label={AS_STATUS_LABEL[item.status]} tone={item.status === 'NEW' ? 'warning' : undefined} />
+                  {item.priority === 'URGENT' ? <BadgeText label="긴급" tone="warning" /> : null}
+                  {item.status !== 'IN_PROGRESS' ? (
+                    <TouchableOpacity style={[styles.smallAction, styles.openAction, processingId === item.id && styles.disabled]} onPress={() => changeAsTicketStatus(item, 'IN_PROGRESS')} disabled={processingId === item.id}>
+                      <Text style={styles.smallActionText}>처리</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {item.status !== 'DONE' ? (
+                    <TouchableOpacity style={[styles.smallAction, styles.openAction, processingId === item.id && styles.disabled]} onPress={() => changeAsTicketStatus(item, 'DONE')} disabled={processingId === item.id}>
+                      <Text style={styles.smallActionText}>완료</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ))}
+            </DataPanel>
+          )}
+        </View>
+      </View>
     </View>
   );
 }
@@ -2457,16 +2954,18 @@ function DataPanel({
   empty,
   emptyText,
   loading,
+  style,
 }: {
   children: React.ReactNode;
   compact?: boolean;
   empty: boolean;
   emptyText: string;
   loading: boolean;
+  style?: ViewStyle;
 }) {
   if (loading) {
     return (
-      <View style={[styles.panel, compact && styles.compactPanel]}>
+      <View style={[styles.panel, compact && styles.compactPanel, style]}>
         <ActivityIndicator color={Colors.primary} />
       </View>
     );
@@ -2474,33 +2973,61 @@ function DataPanel({
 
   if (empty) {
     return (
-      <View style={[styles.panel, compact && styles.compactPanel]}>
+      <View style={[styles.panel, compact && styles.compactPanel, style]}>
         <Text style={styles.emptyText}>{emptyText}</Text>
       </View>
     );
   }
 
-  return <View style={[styles.panel, compact && styles.compactPanel]}>{children}</View>;
+  return <View style={[styles.panel, compact && styles.compactPanel, style]}>{children}</View>;
 }
 
-function KpiCard({ label, value, unit, tone }: { label: string; value: string; unit: string; tone: 'success' | 'info' | 'warning' | 'primary' }) {
+function KpiCard({
+  label,
+  onPress,
+  value,
+  unit,
+  tone,
+}: {
+  label: string;
+  onPress?: () => void;
+  value: string;
+  unit: string;
+  tone: 'success' | 'info' | 'warning' | 'primary' | 'danger';
+}) {
   const toneColor = tone === 'success'
     ? Colors.success
     : tone === 'warning'
       ? Colors.warning
+      : tone === 'danger'
+        ? Colors.error
       : tone === 'info'
         ? Colors.info
         : Colors.primary;
-  return (
-    <View style={styles.kpiCard}>
-      <View style={styles.kpiTop}>
+  const content = (
+    <>
+      <View style={[styles.kpiIndicator, { backgroundColor: toneColor }]} />
+      <View style={styles.kpiCopy}>
         <Text style={styles.kpiLabel}>{label}</Text>
-        <View style={[styles.kpiIndicator, { backgroundColor: toneColor }]} />
+        <Text style={styles.kpiUnit}>{unit}</Text>
       </View>
       <View style={styles.kpiValueRow}>
         <Text style={styles.kpiValue}>{value}</Text>
-        <Text style={styles.kpiUnit}>{unit}</Text>
       </View>
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity style={styles.kpiCard} onPress={onPress} activeOpacity={0.86}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={styles.kpiCard}>
+      {content}
     </View>
   );
 }
@@ -2529,52 +3056,73 @@ const styles = StyleSheet.create({
   sidebar: {
     width: 220,
     backgroundColor: Colors.sidebar,
-    borderRightWidth: 1,
-    borderRightColor: Colors.sidebarBorder,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: 12,
+    paddingVertical: 0,
   },
   brandBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingBottom: Spacing.md,
+    gap: 10,
+    minHeight: 74,
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.lg,
+    paddingBottom: 18,
     borderBottomWidth: 1,
     borderBottomColor: Colors.sidebarBorder,
   },
   brandIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandIconText: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '900' },
+  brandIconText: { color: '#FFFFFF', fontSize: FontSize.sm, fontWeight: '900' },
   brandCopy: { flex: 1, minWidth: 0 },
-  brandTitle: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '900' },
-  brandSub: { color: Colors.sidebarText, fontSize: FontSize.xs, opacity: 0.7, marginTop: 2 },
+  brandTitle: { color: '#FFFFFF', fontSize: FontSize.lg, fontWeight: '900' },
+  brandSub: { color: '#64748B', fontSize: 10, fontWeight: '700', marginTop: 2 },
+  navSection: {
+    marginTop: 18,
+  },
   navKicker: {
-    color: Colors.sidebarText,
-    opacity: 0.55,
-    fontSize: FontSize.xs,
+    color: '#64748B',
+    fontSize: 10,
     fontWeight: '900',
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
+    marginBottom: 6,
+    paddingHorizontal: Spacing.sm,
   },
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 11,
-    borderRadius: Radius.md,
+    gap: 12,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  navItemActive: { backgroundColor: Colors.sidebarMuted },
-  navDot: { width: 7, height: 7, borderRadius: Radius.full, backgroundColor: Colors.sidebarText, opacity: 0.45 },
-  navDotActive: { backgroundColor: Colors.surface, opacity: 1 },
-  navLabel: { color: Colors.sidebarText, fontSize: FontSize.sm, fontWeight: '700' },
-  navLabelActive: { color: Colors.surface, fontWeight: '900' },
+  navItemActive: { backgroundColor: Colors.primary },
+  navDot: { width: 7, height: 7, borderRadius: Radius.full, backgroundColor: '#94A3B8', opacity: 0.65 },
+  navDotActive: { backgroundColor: '#FFFFFF', opacity: 1 },
+  navLabel: { flex: 1, color: '#94A3B8', fontSize: FontSize.sm, fontWeight: '700' },
+  navLabelActive: { color: '#FFFFFF', fontWeight: '900' },
+  navBadge: {
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.full,
+    backgroundColor: Colors.error,
+    paddingHorizontal: 5,
+  },
+  navBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  navBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+  },
   sidebarAccountNav: {
     marginTop: 'auto',
     borderTopWidth: 1,
@@ -2586,7 +3134,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingTop: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.sidebarBorder,
   },
@@ -2594,12 +3143,12 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: Radius.full,
-    backgroundColor: Colors.sidebarMuted,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '900' },
-  userName: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '800' },
+  avatarText: { color: '#FFFFFF', fontSize: FontSize.sm, fontWeight: '900' },
+  userName: { color: '#FFFFFF', fontSize: FontSize.sm, fontWeight: '800' },
   mobileNav: {
     maxHeight: 56,
     backgroundColor: Colors.sidebar,
@@ -2615,29 +3164,110 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mobileNavActive: { backgroundColor: Colors.sidebarMuted },
-  mobileNavText: { color: Colors.sidebarText, fontSize: FontSize.sm, fontWeight: '700' },
-  mobileNavTextActive: { color: Colors.surface, fontWeight: '900' },
+  mobileNavActive: { backgroundColor: Colors.primary },
+  mobileNavText: { color: '#94A3B8', fontSize: FontSize.sm, fontWeight: '700' },
+  mobileNavTextActive: { color: '#FFFFFF', fontWeight: '900' },
   content: { flex: 1 },
-  contentInner: { padding: Spacing.lg, gap: Spacing.md },
-  header: {
-    minHeight: 72,
+  contentInner: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    padding: 24,
+    gap: 20,
+  },
+  topBar: {
+    minHeight: 76,
+    marginHorizontal: -24,
+    marginTop: -24,
+    paddingHorizontal: 30,
+    paddingVertical: 12,
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.md,
-    ...Shadow.card,
+  },
+  topBarMeta: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  topBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  searchPill: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceMuted,
+    paddingHorizontal: 12,
+  },
+  searchIcon: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
+  },
+  searchPillText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '800',
+  },
+  searchShortcut: {
+    color: Colors.textMuted,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    paddingHorizontal: 4,
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  bellButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+  },
+  bellText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
+  },
+  bellDot: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 6,
+    height: 6,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.error,
+  },
+  header: {
+    minHeight: 104,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    ...Shadow.raised,
   },
   headerCopy: { flex: 1, minWidth: 180 },
   breadcrumb: { color: Colors.textMuted, fontSize: FontSize.xs, fontWeight: '700' },
   title: { color: Colors.textPrimary, fontSize: FontSize.xl, fontWeight: '900', marginTop: 4 },
   subtitle: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600', marginTop: 2 },
-  sectionTitle: { color: Colors.textPrimary, fontSize: FontSize.lg, fontWeight: '900' },
+  sectionTitle: { color: Colors.textPrimary, fontSize: 24, fontWeight: '900', lineHeight: 30 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap', justifyContent: 'flex-end' },
   outlineButton: {
     paddingHorizontal: Spacing.md,
@@ -2654,7 +3284,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     backgroundColor: Colors.primary,
   },
-  logoutText: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '900' },
+  logoutText: { color: '#FFFFFF', fontSize: FontSize.sm, fontWeight: '900' },
   profileHero: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2674,7 +3304,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.primary,
   },
-  profileAvatarText: { color: Colors.surface, fontSize: FontSize.xxl, fontWeight: '900' },
+  profileAvatarText: { color: '#FFFFFF', fontSize: FontSize.xxl, fontWeight: '900' },
   profileHeroCopy: { flex: 1, minWidth: 160 },
   profileKicker: { color: Colors.textMuted, fontSize: FontSize.xs, fontWeight: '900' },
   profileName: { color: Colors.textPrimary, fontSize: FontSize.xl, fontWeight: '900', marginTop: 4 },
@@ -2699,40 +3329,539 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  kpiGrid: { gap: Spacing.sm },
-  kpiGridWide: { flexDirection: 'row', gap: Spacing.sm },
+  kpiGrid: { gap: 14 },
+  kpiGridWide: { flexDirection: 'row', gap: 14 },
   kpiCard: {
     flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.md,
-    minHeight: 116,
-    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    minHeight: 100,
+    gap: 12,
     ...Shadow.card,
   },
-  kpiTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
-  kpiLabel: { color: Colors.textMuted, fontSize: FontSize.xs, fontWeight: '900' },
-  kpiIndicator: { width: 9, height: 9, borderRadius: Radius.full },
-  kpiValueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.xs },
-  kpiValue: { color: Colors.textPrimary, fontSize: 30, fontWeight: '900' },
-  kpiUnit: { color: Colors.textMuted, fontSize: FontSize.xs, fontWeight: '700', marginBottom: 6 },
+  kpiTop: { flexDirection: 'row-reverse', alignItems: 'flex-start', justifyContent: 'space-between', gap: Spacing.md },
+  kpiCopy: { flex: 1, minWidth: 0 },
+  kpiLabel: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '900', lineHeight: 18 },
+  kpiIndicator: { width: 8, height: 44, borderRadius: Radius.full },
+  kpiValueRow: { alignItems: 'flex-end', justifyContent: 'center' },
+  kpiValue: { color: Colors.textPrimary, fontSize: 32, fontWeight: '900', lineHeight: 36 },
+  kpiUnit: { color: Colors.textMuted, fontSize: FontSize.xs, fontWeight: '800', marginTop: 6 },
+  figmaMiddleGrid: {
+    gap: 18,
+  },
+  figmaMiddleGridWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  figmaSchedulePanel: {
+    flex: 1.12,
+    aspectRatio: 3.35,
+    minHeight: 0,
+    overflow: 'hidden',
+  },
+  figmaRightColumn: {
+    flex: 1,
+    minWidth: 320,
+    gap: 18,
+  },
+  figmaSidePanel: {
+    flex: 1,
+    minHeight: 188,
+  },
+  figmaBottomGrid: {
+    gap: 18,
+  },
+  figmaBottomGridWide: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  figmaInlinePanel: {
+    flex: 1,
+    minWidth: 0,
+  },
+  segmentedControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    backgroundColor: Colors.surfaceMuted,
+    padding: 2,
+  },
+  segmentedItem: {
+    minHeight: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  segmentedItemActive: {
+    backgroundColor: Colors.surface,
+    ...Shadow.card,
+  },
+  segmentedText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  segmentedTextActive: {
+    color: Colors.textPrimary,
+    fontWeight: '900',
+  },
+  figmaScheduleRow: {
+    minHeight: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingVertical: 10,
+  },
+  scheduleTypeAccent: {
+    width: 3,
+    alignSelf: 'stretch',
+    borderRadius: Radius.full,
+  },
+  figmaScheduleMain: {
+    flex: 1,
+    minWidth: 0,
+  },
+  figmaRowMain: {
+    flex: 1,
+    minWidth: 0,
+  },
+  figmaRowTitle: {
+    color: Colors.textPrimary,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
+  },
+  figmaUnreadTitle: {
+    color: Colors.textPrimary,
+  },
+  figmaRowMeta: {
+    marginTop: 4,
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+  },
+  figmaTimeText: {
+    width: 42,
+    textAlign: 'right',
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  figmaChartList: {
+    gap: 10,
+    paddingTop: Spacing.xs,
+  },
+  figmaChartRow: {
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  figmaChartLabel: {
+    width: 78,
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '800',
+  },
+  figmaChartTrack: {
+    flex: 1,
+    height: 16,
+    borderRadius: 4,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#E2E8F0',
+  },
+  figmaChartTotal: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: '#E2E8F0',
+  },
+  figmaChartDone: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: Colors.primary,
+  },
+  figmaChartValue: {
+    width: 52,
+    textAlign: 'right',
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  weeklyChartBlock: {
+    flex: 1,
+    minHeight: 0,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: 18,
+  },
+  weeklyChartTitle: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
+    marginBottom: 10,
+  },
+  weeklyChartArea: {
+    flex: 1,
+    minHeight: 0,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  weeklyAxis: {
+    width: 32,
+    justifyContent: 'space-between',
+    paddingBottom: 22,
+  },
+  weeklyAxisText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+    textAlign: 'right',
+  },
+  weeklyBars: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    justifyContent: 'space-around',
+    paddingLeft: 18,
+  },
+  weeklyBarColumn: {
+    flex: 1,
+    minWidth: 42,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  weeklyBarTrack: {
+    width: 20,
+    height: 66,
+    justifyContent: 'flex-end',
+    position: 'relative',
+  },
+  weeklyBarTotal: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: '#E2E8F0',
+  },
+  weeklyBarDone: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: Colors.primary,
+  },
+  weeklyBarLabel: {
+    marginTop: 9,
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  weeklyLegend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+    marginTop: 12,
+  },
+  weeklyLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  weeklyLegendTotal: {
+    width: 24,
+    height: 10,
+    borderRadius: Radius.full,
+    backgroundColor: '#E2E8F0',
+  },
+  weeklyLegendDone: {
+    width: 24,
+    height: 10,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+  },
+  weeklyLegendText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  figmaNoticeRow: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingVertical: 12,
+  },
+  noticeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+    marginTop: 5,
+  },
+  noticeDotRead: {
+    backgroundColor: Colors.borderStrong,
+  },
+  figmaNoticeCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  figmaChatRow: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingVertical: 12,
+  },
+  chatAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#94A3B8',
+  },
+  chatAvatarGroup: {
+    backgroundColor: Colors.primary,
+  },
+  chatAvatarText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.md,
+    fontWeight: '900',
+  },
+  figmaChatCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  chatUnread: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+    textAlign: 'center',
+    color: '#FFFFFF',
+    backgroundColor: Colors.primary,
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 18,
+  },
+  employeePreviewRow: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingVertical: 10,
+  },
+  employeeAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceMuted,
+  },
+  employeeAvatarText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  inlinePrimaryMini: {
+    minHeight: 30,
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+  },
+  inlinePrimaryMiniText: {
+    color: '#FFFFFF',
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  inventoryTableHeader: {
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  inventoryHeaderText: {
+    color: Colors.textMuted,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  inventoryPreviewRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingVertical: 9,
+  },
+  inventoryNameCell: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inventorySku: {
+    width: 76,
+    color: Colors.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  inventoryQtyCell: {
+    width: 72,
+    textAlign: 'right',
+  },
+  inventoryQtyWrap: {
+    width: 72,
+    alignItems: 'flex-end',
+  },
+  inventoryQty: {
+    color: Colors.textPrimary,
+    fontSize: FontSize.md,
+    fontWeight: '900',
+  },
+  inventoryStatus: {
+    marginTop: 2,
+    color: Colors.warning,
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  inventoryStatusDanger: {
+    color: Colors.error,
+  },
+  storeCompactRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingVertical: 9,
+  },
+  panelFooterAction: {
+    minHeight: 32,
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    marginBottom: -4,
+  },
+  panelTextAction: {
+    minHeight: 28,
+    justifyContent: 'center',
+  },
+  panelFooterText: {
+    color: Colors.primary,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
   panel: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    padding: 20,
+    gap: 12,
     ...Shadow.card,
   },
   compactPanel: { minHeight: 120 },
-  panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
-  panelTitle: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '900' },
-  panelMeta: { color: Colors.textMuted, fontSize: FontSize.xs, fontWeight: '700', marginTop: 2 },
+  panelHeader: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+  panelTitle: { color: Colors.textPrimary, fontSize: 20, fontWeight: '900', lineHeight: 25 },
+  panelMeta: { color: Colors.textMuted, fontSize: 10, fontWeight: '700', marginTop: 2 },
   emptyText: { color: Colors.textMuted, fontSize: FontSize.sm, textAlign: 'center', paddingVertical: Spacing.xl },
   sectionStack: { gap: Spacing.md },
+  embeddedSectionStack: { gap: 12 },
+  summaryStrip: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'stretch',
+  },
+  managementGrid: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 18,
+  },
+  managementGridStack: {
+    flexDirection: 'column',
+  },
+  managementFormColumn: {
+    flex: 0.9,
+    minWidth: 340,
+    gap: 18,
+  },
+  managementFormPanel: {
+    flex: 0.85,
+    minWidth: 320,
+  },
+  managementListPanel: {
+    flex: 1.45,
+    minWidth: 0,
+    alignSelf: 'stretch',
+  },
+  managementToolbar: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 16,
+    gap: 12,
+    ...Shadow.card,
+  },
+  toolbarSearchInput: {
+    minHeight: 44,
+  },
+  categoryChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  categoryChip: {
+    minHeight: 34,
+    justifyContent: 'center',
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceMuted,
+    paddingHorizontal: 12,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  categoryChipText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  categoryChipTextActive: {
+    color: '#FFFFFF',
+  },
   searchInput: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -2765,14 +3894,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   documentCreateButtonText: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontSize: FontSize.sm,
     fontWeight: '900',
   },
   formGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   formInput: {
     minWidth: 180,
@@ -2782,7 +3911,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 12,
     color: Colors.textPrimary,
     fontSize: FontSize.sm,
   },
@@ -2871,7 +4000,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   searchBtnText: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontSize: FontSize.sm,
     fontWeight: '700',
   },
@@ -2950,7 +4079,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   primaryActionText: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontSize: FontSize.sm,
     fontWeight: '900',
   },
@@ -2999,7 +4128,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   inlineCheckText: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontSize: FontSize.xs,
     fontWeight: '900',
   },
@@ -3011,10 +4140,10 @@ const styles = StyleSheet.create({
   dataRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     flexWrap: 'wrap',
   },
   dataMain: { flex: 1, minWidth: 180 },
@@ -3022,12 +4151,12 @@ const styles = StyleSheet.create({
   dataMeta: { color: Colors.textMuted, fontSize: FontSize.xs, fontWeight: '700', marginTop: 2 },
   badge: {
     backgroundColor: Colors.accentLight,
-    borderRadius: Radius.sm,
+    borderRadius: Radius.full,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
   },
   badgeText: { color: Colors.primary, fontSize: FontSize.xs, fontWeight: '900' },
-  warningBadge: { backgroundColor: Colors.surfaceMuted },
+  warningBadge: { backgroundColor: '#FEF3C7' },
   warningBadgeText: { color: Colors.warning },
   storeRow: {
     minHeight: 76,
@@ -3069,16 +4198,17 @@ const styles = StyleSheet.create({
   openAction: { backgroundColor: Colors.primary },
   closeAction: { backgroundColor: Colors.error },
   disabled: { opacity: 0.55 },
-  smallActionText: { color: Colors.surface, fontSize: FontSize.xs, fontWeight: '900' },
+  smallActionText: { color: '#FFFFFF', fontSize: FontSize.xs, fontWeight: '900' },
   statusGrid: { flexDirection: 'row', gap: Spacing.sm },
   statusCountCard: {
     flex: 1,
     backgroundColor: Colors.surfaceMuted,
     borderRadius: Radius.md,
-    padding: Spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.sm,
     alignItems: 'center',
   },
-  statusCountValue: { fontSize: FontSize.xxl, fontWeight: '900' },
+  statusCountValue: { fontSize: FontSize.xl, fontWeight: '900' },
   statusCountLabel: { color: Colors.textMuted, fontSize: FontSize.xs, fontWeight: '800', marginTop: 2 },
   lowerGrid: { gap: Spacing.md },
   lowerGridWide: { flexDirection: 'row', alignItems: 'flex-start' },
@@ -3120,6 +4250,75 @@ const styles = StyleSheet.create({
   supportMain: { flex: 1, minWidth: 140 },
   supportTitle: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '900' },
   supportMeta: { color: Colors.textMuted, fontSize: FontSize.xs, fontWeight: '700', marginTop: 3 },
+  supportFaqList: {
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  supportFaqItem: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceMuted,
+    padding: Spacing.md,
+  },
+  supportFaqQuestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  supportFaqCategory: {
+    minWidth: 42,
+    color: Colors.primary,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+  },
+  supportFaqQuestion: {
+    flex: 1,
+    minWidth: 0,
+    color: Colors.textPrimary,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
+  },
+  supportFaqToggle: {
+    color: Colors.primary,
+    fontSize: FontSize.lg,
+    fontWeight: '900',
+  },
+  supportFaqAnswer: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  supportBoardRow: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingVertical: Spacing.md,
+    flexWrap: 'wrap',
+  },
+  supportPostType: {
+    color: Colors.primary,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  supportFaqPanel: {
+    flex: 0.78,
+    minWidth: 300,
+  },
+  supportBoardPanel: {
+    flex: 1.35,
+    minWidth: 0,
+    gap: 12,
+  },
   asStatusGrid: { flexDirection: 'row', gap: Spacing.sm },
   asStatusCard: {
     flex: 1,
@@ -3144,7 +4343,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent,
   },
   chatGrid: { flexDirection: 'row', gap: Spacing.md, alignItems: 'stretch' },
-  roomPanel: { width: 280, gap: Spacing.sm },
+  chatGridStack: { flexDirection: 'column' },
+  roomPanel: { width: 320, maxWidth: '100%', gap: Spacing.sm },
   messagePanel: {
     flex: 1,
     minHeight: 520,
@@ -3167,7 +4367,7 @@ const styles = StyleSheet.create({
   unreadBadge: {
     marginLeft: 'auto',
     backgroundColor: Colors.primary,
-    color: Colors.surface,
+    color: '#FFFFFF',
     borderRadius: Radius.full,
     overflow: 'hidden',
     paddingHorizontal: Spacing.sm,
@@ -3205,9 +4405,9 @@ const styles = StyleSheet.create({
   },
   messageBubbleMine: { backgroundColor: Colors.primary },
   messageSender: { color: Colors.textPrimary, fontSize: FontSize.xs, fontWeight: '900', marginBottom: 2 },
-  messageSenderMine: { color: Colors.surface },
+  messageSenderMine: { color: '#FFFFFF' },
   messageText: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '600' },
-  messageTextMine: { color: Colors.surface },
+  messageTextMine: { color: '#FFFFFF' },
   messageTime: { color: Colors.textMuted, fontSize: FontSize.xs, marginTop: 4 },
   messageTimeMine: { color: Colors.sidebarText },
   messageInputRow: {
@@ -3232,9 +4432,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     justifyContent: 'center',
   },
-  sendButtonText: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '900' },
+  sendButtonText: { color: '#FFFFFF', fontSize: FontSize.sm, fontWeight: '900' },
   splitGrid: { flexDirection: 'row', gap: Spacing.md },
-  listPanel: { width: 320, gap: Spacing.sm },
+  splitGridStack: { flexDirection: 'column' },
+  listPanel: { width: 320, maxWidth: '100%', gap: Spacing.sm },
   detailPanel: {
     flex: 1,
     minHeight: 420,
@@ -3259,6 +4460,29 @@ const styles = StyleSheet.create({
   quantityText: { minWidth: 58, textAlign: 'right', color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '900' },
   warningText: { color: Colors.warning },
   errorText: { color: Colors.error },
+  loadMoreButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    marginTop: Spacing.sm,
+  },
+  loadMoreButtonText: {
+    color: Colors.primary,
+    fontSize: FontSize.sm,
+    fontWeight: '900',
+  },
+  paginationMeta: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.md,
+    color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
   filterRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap', alignItems: 'center' },
   filterButton: {
     borderRadius: Radius.md,
@@ -3270,13 +4494,102 @@ const styles = StyleSheet.create({
   },
   filterButtonActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   filterText: { color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: '900' },
-  filterTextActive: { color: Colors.surface },
+  filterTextActive: { color: '#FFFFFF' },
   filterRefresh: { marginLeft: 'auto', paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm },
   schedulePageTop: { alignItems: 'flex-end' },
   sectionMetaRow: { alignItems: 'flex-end' },
   schedulePageDate: { color: Colors.textMuted, fontSize: FontSize.sm, fontWeight: '800' },
   scheduleDesktopGrid: { flexDirection: 'row', gap: Spacing.md, alignItems: 'stretch' },
   scheduleDesktopGridMobile: { flexDirection: 'column' },
+  scheduleManagementGrid: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 18,
+  },
+  scheduleManagementGridStack: {
+    flexDirection: 'column',
+  },
+  scheduleEditorPanel: {
+    flex: 0.82,
+    minWidth: 320,
+    maxWidth: 430,
+  },
+  scheduleTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  scheduleTypeButton: {
+    flexGrow: 1,
+    minWidth: 126,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.sm,
+  },
+  scheduleFormStack: {
+    gap: 10,
+  },
+  scheduleFormRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  scheduleFormInput: {
+    minHeight: 44,
+    backgroundColor: Colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    color: Colors.textPrimary,
+    fontSize: FontSize.sm,
+  },
+  scheduleFormHalfInput: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 44,
+    backgroundColor: Colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    color: Colors.textPrimary,
+    fontSize: FontSize.sm,
+  },
+  scheduleTextArea: {
+    minHeight: 92,
+    textAlignVertical: 'top',
+  },
+  scheduleSubmitButton: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  scheduleListColumn: {
+    flex: 1.45,
+    minWidth: 0,
+    gap: 12,
+  },
+  scheduleListToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 12,
+    ...Shadow.card,
+  },
+  scheduleListPanel: {
+    alignSelf: 'stretch',
+  },
   scheduleCalendarCard: {
     flex: 0.9,
     minHeight: 420,
@@ -3305,7 +4618,7 @@ const styles = StyleSheet.create({
   },
   calendarDaySelected: { backgroundColor: Colors.primary },
   calendarDayText: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '900' },
-  calendarDayTextSelected: { color: Colors.surface },
+  calendarDayTextSelected: { color: '#FFFFFF' },
   calendarDot: { width: 3, height: 3, borderRadius: Radius.full, backgroundColor: Colors.primary, marginTop: 3 },
   calendarDotSelected: { backgroundColor: Colors.surface },
   scheduleTimelineCard: {

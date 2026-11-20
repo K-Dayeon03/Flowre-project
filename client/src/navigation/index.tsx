@@ -2,13 +2,12 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/useAuthStore';
-import { Colors, FontSize } from '../constants/theme';
 import { RootStackParamList, AuthStackParamList, MainStackParamList } from './types';
 import AppHeader from '../components/AppHeader';
 
 // Screens
 import LoginScreen from '../screens/auth/LoginScreen';
-import HomeScreen from '../screens/home/HomeScreen';
+import StoreManagementDashboard from '../screens/home/StoreManagementDashboard';
 import ProfileScreen from '../screens/home/ProfileScreen';
 import StoreManageScreen from '../screens/home/StoreManageScreen';
 import EmployeeManageScreen from '../screens/home/EmployeeManageScreen';
@@ -51,7 +50,7 @@ function MainNavigator() {
         header: () => <AppHeader currentRoute={route.name} />,
       })}
     >
-      <MainStack.Screen name="Home" component={HomeScreen} />
+      <MainStack.Screen name="Home" component={StoreManagementDashboard} options={{ headerShown: false }} />
       <MainStack.Screen name="Profile" component={ProfileScreen} options={{ title: '내 프로필' }} />
       <MainStack.Screen name="StoreManage" component={StoreManageScreen} options={{ title: '매장 등록' }} />
       <MainStack.Screen name="EmployeeManage" component={EmployeeManageScreen} options={{ title: '직원 등록' }} />

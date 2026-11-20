@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -21,7 +19,7 @@ import { canApproveEmployees, canCreateNotices, canManageStores, canRegisterEmpl
 import { dashboardApi, HomeDashboardResponse } from '../../api/dashboardApi';
 import { Employee, employeeApi } from '../../api/employeeApi';
 import { AsTicket, InquiryTicket, supportApi } from '../../api/supportApi';
-import { storeApi, OperationStatus, StoreActivity } from '../../api/storeApi';
+import { storeApi, StoreActivity } from '../../api/storeApi';
 import Badge from '../../components/Badge';
 import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
@@ -135,10 +133,10 @@ const DashboardColors = {
   faint: Colors.textMuted,
   line: Colors.border,
   lineStrong: Colors.borderStrong,
-  gray: Colors.accent,
+  gray: Colors.primary,
   grayDark: Colors.primary,
   graySoft: Colors.accentLight,
-  shadow: 'rgba(34, 52, 55, 0.09)',
+  shadow: 'rgba(15, 23, 42, 0.08)',
 };
 
 export default function HomeScreen() {
@@ -182,7 +180,6 @@ export default function HomeScreen() {
   const [asTickets, setAsTickets] = useState<AsTicket[]>([]);
   const [homeSummary, setHomeSummary] = useState<HomeDashboardResponse | null>(null);
   const [queueFilter, setQueueFilter] = useState<QueueFilter>('ALL');
-  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const loadMyStoreStatus = useCallback(async () => {
     if (!isManager && !isHq) {
@@ -224,32 +221,6 @@ export default function HomeScreen() {
       .then(setPendingEmployees)
       .catch(() => setPendingEmployees([]));
   }, [user?.role]);
-
-  const handleToggleMyStore = async () => {
-    if (!myStoreActivity) return;
-    const next: OperationStatus = myStoreActivity.operationStatus === 'OPEN' ? 'CLOSED' : 'OPEN';
-    const label = next === 'OPEN' ? '운영 시작' : '영업 종료';
-    Alert.alert('운영 상태 변경', `${label}으로 변경하시겠습니까?`, [
-      { text: '취소', style: 'cancel' },
-      {
-        text: label,
-        onPress: async () => {
-          setUpdatingStatus(true);
-          try {
-            await storeApi.updateOperationStatus(myStoreActivity.storeId, next);
-            setMyStoreActivity((prev) => prev ? { ...prev, operationStatus: next } : prev);
-            setStoreActivities((prev) => prev.map((activity) =>
-              activity.storeId === myStoreActivity.storeId ? { ...activity, operationStatus: next } : activity
-            ));
-          } catch {
-            Alert.alert('오류', '상태를 변경하지 못했습니다.');
-          } finally {
-            setUpdatingStatus(false);
-          }
-        },
-      },
-    ]);
-  };
 
   const displayStoreName = selectedStore?.storeName ?? user?.storeName ?? '매장 미지정';
   const canShowStoreManage = canManageStores(user?.role);
@@ -334,7 +305,7 @@ export default function HomeScreen() {
         filter: 'AS' as const,
         urgent: ticket.priority === 'URGENT',
         title: ticket.title,
-        meta: `${ticket.storeName} · ${ticket.requesterName} · ${AS_STATUS_LABEL[ticket.status]}`,
+        meta: `${ticket.storeName} · ${AS_STATUS_LABEL[ticket.status]}`,
         value: ticket.priority === 'URGENT' ? '긴급' : AS_STATUS_LABEL[ticket.status],
         tone: ticket.priority === 'URGENT' ? 'danger' as const : ticket.status === 'NEW' ? 'warning' as const : 'primary' as const,
         onPress: () => navigation.navigate('Support', { initialTab: 'as-tickets' }),
@@ -447,17 +418,6 @@ export default function HomeScreen() {
                     {myStoreActivity ? (myStoreActivity.operationStatus === 'OPEN' ? '운영 중' : '영업 종료') : '상태 없음'}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={[styles.managerMiniButton, myStoreActivity?.operationStatus === 'OPEN' ? styles.managerMiniButtonClose : styles.managerMiniButtonOpen, updatingStatus && styles.toggleDisabled]}
-                  onPress={handleToggleMyStore}
-                  disabled={updatingStatus || !myStoreActivity}
-                  activeOpacity={0.8}
-                >
-                  {updatingStatus
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={styles.managerMiniButtonText}>{myStoreActivity?.operationStatus === 'OPEN' ? '종료' : '시작'}</Text>
-                  }
-                </TouchableOpacity>
               </View>
             )}
 
@@ -893,21 +853,30 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: DashboardColors.page },
   workspace: {
     width: '100%',
-    maxWidth: 1180,
+    maxWidth: 1240,
     alignSelf: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: Spacing.xxl,
-    gap: Spacing.md,
+    gap: 16,
   },
   topBar: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.md,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: DashboardColors.line,
+    gap: Spacing.lg,
+    minHeight: 72,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surface,
+    shadowColor: DashboardColors.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 1,
   },
   topBarMobile: {
     flexDirection: 'column',
@@ -918,58 +887,60 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   topKicker: {
-    fontSize: FontSize.sm,
-    color: DashboardColors.muted,
-    fontWeight: '700',
+    fontSize: 10,
+    color: DashboardColors.faint,
+    fontWeight: '900',
     letterSpacing: 0,
   },
   topTitle: {
-    marginTop: Spacing.xs,
-    fontSize: FontSize.xxl,
+    marginTop: 3,
+    fontSize: FontSize.lg,
     color: DashboardColors.ink,
     fontWeight: '900',
-    lineHeight: 30,
+    lineHeight: 23,
   },
   topSubtitle: {
-    marginTop: Spacing.xs,
+    marginTop: 2,
     color: DashboardColors.muted,
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     fontWeight: '700',
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    minWidth: 86,
+    minWidth: 112,
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderRadius: Radius.full,
-    backgroundColor: DashboardColors.graySoft,
+    borderWidth: 1,
+    borderColor: DashboardColors.line,
+    backgroundColor: DashboardColors.surfaceSoft,
   },
   liveDot: {
     width: 8,
     height: 8,
     borderRadius: Radius.full,
-    backgroundColor: DashboardColors.gray,
+    backgroundColor: Colors.error,
   },
   liveText: {
-    color: DashboardColors.grayDark,
+    color: DashboardColors.muted,
     fontSize: FontSize.xs,
     fontWeight: '900',
   },
   summaryRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   quickDock: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'stretch',
-    gap: Spacing.sm,
-    padding: Spacing.sm,
-    borderRadius: Radius.md,
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: DashboardColors.line,
     backgroundColor: DashboardColors.surface,
@@ -977,20 +948,20 @@ const styles = StyleSheet.create({
   quickAction: {
     flexGrow: 1,
     flexBasis: 150,
-    minHeight: 56,
+    minHeight: 70,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: DashboardColors.line,
     backgroundColor: DashboardColors.surfaceSoft,
   },
   quickActionMark: {
-    width: 7,
-    height: 28,
+    width: 9,
+    height: 34,
     borderRadius: Radius.full,
     backgroundColor: DashboardColors.gray,
   },
@@ -1018,13 +989,13 @@ const styles = StyleSheet.create({
   managerMini: {
     flexGrow: 1,
     flexBasis: 210,
-    minHeight: 56,
+    minHeight: 70,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: DashboardColors.line,
     backgroundColor: DashboardColors.surfaceSoft,
@@ -1066,18 +1037,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.error,
   },
   managerMiniButtonText: {
-    color: DashboardColors.surface,
+    color: DashboardColors.ink,
     fontSize: FontSize.xs,
     fontWeight: '900',
   },
   favoriteDock: {
     flexGrow: 1,
     flexBasis: 260,
-    minHeight: 56,
+    minHeight: 70,
     gap: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: DashboardColors.line,
     backgroundColor: DashboardColors.surfaceSoft,
@@ -1116,32 +1087,30 @@ const styles = StyleSheet.create({
     flex: 1,
     flexBasis: 150,
     minWidth: 138,
-    minHeight: 104,
-    padding: Spacing.md,
+    minHeight: 112,
+    padding: 16,
     overflow: 'hidden',
     backgroundColor: DashboardColors.surface,
-    borderRadius: Radius.md,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: DashboardColors.line,
     shadowColor: DashboardColors.shadow,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.22,
-    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 1,
   },
   metricAccent: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    backgroundColor: DashboardColors.lineStrong,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: DashboardColors.graySoft,
   },
   metricValue: {
     color: DashboardColors.grayDark,
-    fontSize: FontSize.xxl,
+    fontSize: 24,
     fontWeight: '900',
-    marginTop: Spacing.xs,
+    marginTop: 10,
   },
   metricLabel: {
     color: DashboardColors.muted,
@@ -1180,21 +1149,21 @@ const styles = StyleSheet.create({
   },
   dashboardGrid: {
     flex: 1,
-    gap: Spacing.md,
+    gap: Spacing.lg,
   },
   dashboardGridWide: {
     flexDirection: 'row',
   },
   dashboardMain: {
     flex: 1,
-    gap: Spacing.md,
+    gap: Spacing.lg,
   },
   dashboardMainWide: {
     flex: 1.6,
   },
   dashboardSide: {
     flex: 1,
-    gap: Spacing.md,
+    gap: Spacing.lg,
   },
   dashboardSideWide: {
     flex: 1,
@@ -1203,14 +1172,14 @@ const styles = StyleSheet.create({
   },
   panel: {
     backgroundColor: DashboardColors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: DashboardColors.line,
-    padding: Spacing.md,
+    padding: 16,
     shadowColor: DashboardColors.shadow,
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.18,
-    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 1,
   },
   panelEmptyCard: {
@@ -1245,7 +1214,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   queueFilterTextActive: {
-    color: DashboardColors.surface,
+    color: '#FFFFFF',
   },
   queueList: {
     gap: Spacing.sm,
