@@ -31,6 +31,7 @@ export type MainStackParamList = {
       storeName?: string;
     };
   } | undefined;
+  SalesDashboard: undefined;
   DocumentList: undefined;
   DocumentDetail: { documentId: number; title: string };
   DocumentUpload: { documentId?: number } | undefined;

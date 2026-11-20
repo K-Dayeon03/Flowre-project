@@ -74,6 +74,9 @@ public enum ErrorCode {
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "ORDER_001", "발주를 찾을 수 없습니다."),
     ORDER_FORBIDDEN(HttpStatus.FORBIDDEN, "ORDER_002", "발주에 대한 권한이 없습니다."),
 
+    // Sales
+    SALES_UPLOAD_FAILED(HttpStatus.BAD_REQUEST, "SALES_001", "매출 파일을 반영하지 못했습니다."),
+
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON_001", "입력값이 올바르지 않습니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_002", "서버 내부 오류가 발생했습니다."),
