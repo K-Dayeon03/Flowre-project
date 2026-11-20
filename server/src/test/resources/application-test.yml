@@ -1,0 +1,2 @@
+jwt:
+  secret: "${random.uuid}${random.uuid}"

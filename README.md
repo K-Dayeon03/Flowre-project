@@ -415,7 +415,8 @@ docker run -d --name flowre-redis -p 6379:6379 redis:7
 ```bash
 cd server
 
-# 기본 실행
+# 기본 프로필 실행 전, 현재 터미널에서 사용할 개발 키 생성
+export JWT_SECRET="$(openssl rand -hex 32)"
 ./gradlew bootRun
 
 # 재고 초기 데이터 로드를 건너뛸 때 (시작 속도 개선)
@@ -480,7 +481,7 @@ npm run android   # Android 에뮬레이터
 | `DB_URL` | `jdbc:mysql://localhost:3306/flowre` | MySQL 연결 URL |
 | `DB_USERNAME` | `root` | DB 사용자 |
 | `DB_PASSWORD` | `1234` | DB 비밀번호 |
-| `JWT_SECRET` | `flowre-secret-key-...` | JWT 서명 키 (256bit 이상) |
+| `JWT_SECRET` | 필수 (기본값 없음) | JWT 서명 키. 운영에서는 한 번 생성한 키를 모든 인스턴스에 동일하게 주입합니다. |
 | `AWS_ACCESS_KEY_ID` | — | S3 접근 키 |
 | `AWS_SECRET_ACCESS_KEY` | — | S3 시크릿 키 |
 | `AWS_REGION` | `ap-northeast-2` | S3 리전 |

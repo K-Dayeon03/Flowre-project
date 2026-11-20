@@ -23,6 +23,9 @@ public class JwtUtil {
             @Value("${jwt.access-expiration}") long accessExpiration,
             @Value("${jwt.refresh-expiration}") long refreshExpiration
     ) {
+        if (secret.isBlank()) {
+            throw new IllegalArgumentException("JWT 서명 키가 비어 있습니다.");
+        }
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessExpiration = accessExpiration;
         this.refreshExpiration = refreshExpiration;

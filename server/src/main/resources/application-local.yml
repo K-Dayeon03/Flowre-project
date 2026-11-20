@@ -22,3 +22,7 @@ spring:
 flowre:
   simulation:
     reset-on-start: false
+
+# 로컬 실행 중에만 사용할 임시 서명 키
+jwt:
+  secret: ${JWT_SECRET:${random.uuid}${random.uuid}}
