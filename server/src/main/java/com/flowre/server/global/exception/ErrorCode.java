@@ -13,6 +13,8 @@ public enum ErrorCode {
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "AUTH_004", "Refresh Token이 존재하지 않습니다."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "AUTH_005", "인증이 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "AUTH_006", "접근 권한이 없습니다."),
+    AUTH_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_007", "인증 저장소에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."),
+
 
     // User
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_001", "사용자를 찾을 수 없습니다."),

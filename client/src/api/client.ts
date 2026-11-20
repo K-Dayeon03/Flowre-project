@@ -56,12 +56,28 @@ function notifySessionExpired(): void {
 let isRefreshing = false;
 let pendingQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
 
+/**
+ * 로그인·refresh 자체의 401은 원래 오류를 그대로 전달한다.
+ * 이 요청들까지 refresh 대상으로 삼으면 로그인 실패 메시지가 refresh 실패 메시지로 덮인다.
+ */
+function shouldAttemptTokenRefresh(
+  error: AxiosError,
+  request?: InternalAxiosRequestConfig & { _retry?: boolean }
+): request is InternalAxiosRequestConfig & { _retry?: boolean } {
+  if (!request || request._retry || error.response?.status !== 401) {
+    return false;
+  }
+
+  const requestUrl = request.url ?? '';
+  return !requestUrl.includes('/api/auth/login') && !requestUrl.includes('/api/auth/refresh');
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (shouldAttemptTokenRefresh(error, originalRequest)) {
       originalRequest._retry = true;
 
       if (isRefreshing) {
@@ -101,11 +117,27 @@ apiClient.interceptors.response.use(
       }
     }
 
-    return Promise.reject(error);
+    return Promise.reject(withApiErrorMessage(error));
   }
 );
 
 /** 공통 응답 언래핑 */
 export function unwrap<T>(response: { data: { data: T } }): T {
   return response.data.data;
+}
+
+interface ApiErrorPayload {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+  message?: string;
+}
+
+/** 서버 공통 에러 메시지를 AxiosError에 보존해 화면과 테스트에서 상태 코드를 함께 쓸 수 있게 합니다. */
+function withApiErrorMessage(error: AxiosError): AxiosError {
+  const data = error.response?.data as ApiErrorPayload | undefined;
+  const message = data?.error?.message ?? data?.message ?? error.message;
+  error.message = message;
+  return error;
 }
