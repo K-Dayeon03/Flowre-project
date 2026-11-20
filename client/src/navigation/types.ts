@@ -32,6 +32,7 @@ export type MainStackParamList = {
     };
   } | undefined;
   SalesDashboard: undefined;
+  Attendance: undefined;
   DocumentList: undefined;
   DocumentDetail: { documentId: number; title: string };
   DocumentUpload: { documentId?: number } | undefined;

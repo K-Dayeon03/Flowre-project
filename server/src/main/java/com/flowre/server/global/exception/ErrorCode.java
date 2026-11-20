@@ -13,8 +13,8 @@ public enum ErrorCode {
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "AUTH_004", "Refresh Token이 존재하지 않습니다."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "AUTH_005", "인증이 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "AUTH_006", "접근 권한이 없습니다."),
-    AUTH_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_007", "인증 저장소에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."),
 
+    AUTH_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_007", "인증 저장소에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."),
 
     // User
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_001", "사용자를 찾을 수 없습니다."),
@@ -76,6 +76,10 @@ public enum ErrorCode {
 
     // Sales
     SALES_UPLOAD_FAILED(HttpStatus.BAD_REQUEST, "SALES_001", "매출 파일을 반영하지 못했습니다."),
+
+    // Attendance
+    ATTENDANCE_NOT_FOUND(HttpStatus.NOT_FOUND, "ATTENDANCE_001", "근태 기록을 찾을 수 없습니다."),
+    ATTENDANCE_FORBIDDEN(HttpStatus.FORBIDDEN, "ATTENDANCE_002", "근태 기록에 대한 권한이 없습니다."),
 
     // Common
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON_001", "입력값이 올바르지 않습니다."),
