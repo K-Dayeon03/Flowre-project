@@ -13,6 +13,7 @@ export interface Store {
   longitude?: number;
   operationStatus?: OperationStatus;
   active: boolean;
+  needsReview: boolean;
 }
 
 export interface NearbyStore {
@@ -44,6 +45,16 @@ export interface StoreAddressUpdateRequest {
   roadAddress: string;
   jibunAddress?: string;
   detailAddress?: string;
+}
+
+export interface StoreMasterUpdateRequest {
+  storeName: string;
+  postalCode?: string;
+  roadAddress?: string;
+  jibunAddress?: string;
+  detailAddress?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export type OperationStatus = 'OPEN' | 'CLOSED';
@@ -80,6 +91,12 @@ export const storeApi = {
 
   create: async (data: StoreCreateRequest): Promise<Store> => {
     const res = await apiClient.post('/api/stores', data);
+    return unwrap(res);
+  },
+
+  /** 업로드로 자동 생성된 매장 마스터 정보를 정리합니다. */
+  updateMaster: async (storeId: number, data: StoreMasterUpdateRequest): Promise<Store> => {
+    const res = await apiClient.patch(`/api/stores/${storeId}`, data);
     return unwrap(res);
   },
 

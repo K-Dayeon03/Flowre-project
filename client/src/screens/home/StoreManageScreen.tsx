@@ -49,6 +49,7 @@ async function getCurrentCoordinates(): Promise<Coordinates | null> {
 
 export default function StoreManageScreen() {
   const [stores, setStores] = useState<Store[]>([]);
+  const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [storeName, setStoreName] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [roadAddress, setRoadAddress] = useState('');
@@ -106,41 +107,80 @@ export default function StoreManageScreen() {
   };
 
   /** 입력한 매장명·주소로 신규 매장을 등록합니다. 점별 코드는 서버에서 자동 발급합니다. */
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!storeName.trim()) {
       setError('매장명을 입력해주세요.');
       return;
     }
-    if (!postalCode || !roadAddress) {
+    if (!editingStore && (!postalCode || !roadAddress)) {
       setError('주소 검색으로 매장 주소를 선택해주세요.');
+      return;
+    }
+    if (editingStore && ((postalCode && !roadAddress) || (!postalCode && roadAddress))) {
+      setError('주소를 정리하려면 우편번호와 도로명 주소가 함께 필요합니다.');
       return;
     }
 
     setSaving(true);
     setError('');
     try {
-      const created = await storeApi.create({
-        storeName: storeName.trim(),
-        postalCode,
-        roadAddress,
-        jibunAddress: jibunAddress || undefined,
-        detailAddress: detailAddress.trim() || undefined,
-        latitude: coordinates?.latitude,
-        longitude: coordinates?.longitude,
-      });
-      setStores((prev) => [...prev, created].sort((a, b) => a.storeCode.localeCompare(b.storeCode)));
-      setStoreName('');
-      setPostalCode('');
-      setRoadAddress('');
-      setJibunAddress('');
-      setDetailAddress('');
-      setCoordinates(null);
+      if (editingStore) {
+        const updated = await storeApi.updateMaster(editingStore.id, {
+          storeName: storeName.trim(),
+          postalCode: postalCode || undefined,
+          roadAddress: roadAddress || undefined,
+          jibunAddress: jibunAddress || undefined,
+          detailAddress: detailAddress.trim() || undefined,
+          latitude: coordinates?.latitude,
+          longitude: coordinates?.longitude,
+        });
+        setStores((prev) => prev.map((store) => (store.id === updated.id ? updated : store)));
+      } else {
+        const created = await storeApi.create({
+          storeName: storeName.trim(),
+          postalCode,
+          roadAddress,
+          jibunAddress: jibunAddress || undefined,
+          detailAddress: detailAddress.trim() || undefined,
+          latitude: coordinates?.latitude,
+          longitude: coordinates?.longitude,
+        });
+        setStores((prev) => [...prev, created].sort((a, b) => a.storeCode.localeCompare(b.storeCode)));
+      }
+      resetForm();
     } catch (e: any) {
       const message = e?.response?.data?.error?.message;
-      setError(message ?? '매장을 등록하지 못했습니다.');
+      setError(message ?? (editingStore ? '매장 정보를 수정하지 못했습니다.' : '매장을 등록하지 못했습니다.'));
     } finally {
       setSaving(false);
     }
+  };
+
+  /** 매장 행을 폼에 불러와 마스터 정리 모드로 전환합니다. */
+  const startEdit = (store: Store) => {
+    setEditingStore(store);
+    setStoreName(store.storeName);
+    setPostalCode(store.postalCode ?? '');
+    setRoadAddress(store.roadAddress ?? '');
+    setJibunAddress(store.jibunAddress ?? '');
+    setDetailAddress(store.detailAddress ?? '');
+    setCoordinates(
+      store.latitude != null && store.longitude != null
+        ? { latitude: store.latitude, longitude: store.longitude }
+        : null
+    );
+    setError('');
+  };
+
+  /** 등록/정리 폼을 초기 상태로 되돌립니다. */
+  const resetForm = () => {
+    setEditingStore(null);
+    setStoreName('');
+    setPostalCode('');
+    setRoadAddress('');
+    setJibunAddress('');
+    setDetailAddress('');
+    setCoordinates(null);
   };
 
   return (
@@ -148,8 +188,14 @@ export default function StoreManageScreen() {
       <View style={styles.container}>
         <View style={styles.form}>
           <View style={styles.autoCodeBox}>
-            <Text style={styles.autoCodeTitle}>점별 코드는 자동 발급됩니다</Text>
-            <Text style={styles.autoCodeDescription}>등록 시 서버가 중복되지 않는 숫자 4자리 코드를 생성합니다.</Text>
+            <Text style={styles.autoCodeTitle}>
+              {editingStore ? `${editingStore.storeCode} 매장 마스터 정리` : '점별 코드는 자동 발급됩니다'}
+            </Text>
+            <Text style={styles.autoCodeDescription}>
+              {editingStore
+                ? '재고 업로드로 자동 생성된 매장은 매장명과 주소를 여기서 보완합니다.'
+                : '등록 시 서버가 중복되지 않는 숫자 4자리 코드를 생성합니다.'}
+            </Text>
           </View>
           <TextInput
             style={styles.input}
@@ -198,16 +244,26 @@ export default function StoreManageScreen() {
 
           <TouchableOpacity
             style={[styles.createButton, saving && styles.disabledButton]}
-            onPress={handleCreate}
+            onPress={handleSave}
             disabled={saving}
             activeOpacity={0.8}
           >
             {saving ? (
-              <ActivityIndicator color={Colors.surface} />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.createButtonText}>등록</Text>
+              <Text style={styles.createButtonText}>{editingStore ? '수정 저장' : '등록'}</Text>
             )}
           </TouchableOpacity>
+          {editingStore ? (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={resetForm}
+              disabled={saving}
+              activeOpacity={0.82}
+            >
+              <Text style={styles.cancelButtonText}>정리 취소</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -227,6 +283,9 @@ export default function StoreManageScreen() {
                 </View>
                 <View style={styles.storeInfo}>
                   <Text style={styles.storeName}>{item.storeName}</Text>
+                  {item.needsReview ? (
+                    <Text style={styles.reviewBadge}>정리 필요</Text>
+                  ) : null}
                   {item.roadAddress ? (
                     <Text style={styles.storeAddress} numberOfLines={2}>
                       {item.roadAddress}
@@ -238,6 +297,13 @@ export default function StoreManageScreen() {
                     <Text style={styles.storeMeta}>위치 등록됨</Text>
                   ) : null}
                 </View>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => startEdit(item)}
+                  activeOpacity={0.82}
+                >
+                  <Text style={styles.editButtonText}>{item.needsReview ? '정리' : '수정'}</Text>
+                </TouchableOpacity>
               </View>
             )}
           />
@@ -336,9 +402,23 @@ const styles = StyleSheet.create({
   },
   disabledButton: { opacity: 0.6 },
   createButtonText: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontSize: FontSize.md,
     fontWeight: '900',
+  },
+  cancelButton: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+  },
+  cancelButtonText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.sm,
+    fontWeight: '800',
   },
   errorText: {
     color: Colors.error,
@@ -373,7 +453,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   codeText: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontSize: FontSize.sm,
     fontWeight: '700',
   },
@@ -392,5 +472,33 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: FontSize.xs,
     marginTop: 2,
+  },
+  reviewBadge: {
+    alignSelf: 'flex-start',
+    color: Colors.warning,
+    backgroundColor: Colors.warning + '18',
+    borderWidth: 1,
+    borderColor: Colors.warning + '35',
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
+    marginTop: Spacing.xs,
+  },
+  editButton: {
+    minHeight: 36,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButtonText: {
+    color: Colors.textPrimary,
+    fontSize: FontSize.xs,
+    fontWeight: '900',
   },
 });

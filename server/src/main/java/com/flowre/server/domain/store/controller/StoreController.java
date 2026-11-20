@@ -4,6 +4,7 @@ import com.flowre.server.domain.store.dto.StoreActivityResponse;
 import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.AddressSearchResponse;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
+import com.flowre.server.domain.store.dto.StoreMasterUpdateRequest;
 import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.entity.StoreOperationStatus;
@@ -89,5 +90,15 @@ public class StoreController {
             @Valid @RequestBody StoreAddressUpdateRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(storeService.updateStoreAddress(user, storeId, request)));
+    }
+
+    /** PATCH /api/stores/{storeId} - 자동 생성된 매장 마스터 정보를 정리합니다. */
+    @PatchMapping("/{storeId}")
+    public ResponseEntity<ApiResponse<StoreResponse>> updateStoreMaster(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long storeId,
+            @Valid @RequestBody StoreMasterUpdateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(storeService.updateStoreMaster(user, storeId, request)));
     }
 }

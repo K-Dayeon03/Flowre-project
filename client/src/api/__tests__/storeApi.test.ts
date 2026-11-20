@@ -14,6 +14,7 @@ const fakeStore = (overrides?: Partial<Store>): Store => ({
   storeCode: '1001',
   storeName: '강남점',
   active: true,
+  needsReview: false,
   ...overrides,
 });
 
@@ -104,6 +105,34 @@ describe('storeApi.updateAddress()', () => {
     const result = await storeApi.updateAddress(1, {
       postalCode: '06035',
       roadAddress: '서울 강남구 가로수길 5',
+    });
+
+    expect(result).toEqual(updated);
+  });
+});
+
+describe('storeApi.updateMaster()', () => {
+  it('PATCH /api/stores/{id} 로 자동 생성 매장 마스터를 정리한다', async () => {
+    const updated = fakeStore({
+      storeCode: '0886',
+      storeName: '자주 파미에스테이션',
+      postalCode: '06546',
+      roadAddress: '서울 서초구 사평대로 205',
+      needsReview: false,
+    });
+    mock.onPatch('/api/stores/1').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({
+        storeName: '자주 파미에스테이션',
+        postalCode: '06546',
+        roadAddress: '서울 서초구 사평대로 205',
+      });
+      return [200, { data: updated }];
+    });
+
+    const result = await storeApi.updateMaster(1, {
+      storeName: '자주 파미에스테이션',
+      postalCode: '06546',
+      roadAddress: '서울 서초구 사평대로 205',
     });
 
     expect(result).toEqual(updated);

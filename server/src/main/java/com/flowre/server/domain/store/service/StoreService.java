@@ -9,6 +9,7 @@ import com.flowre.server.domain.schedule.repository.ScheduleRepository;
 import com.flowre.server.domain.store.dto.StoreActivityResponse;
 import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
+import com.flowre.server.domain.store.dto.StoreMasterUpdateRequest;
 import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.entity.Store;
@@ -152,6 +153,33 @@ public class StoreService {
                 trimToNull(request.getJibunAddress()),
                 trimToNull(request.getDetailAddress())
         );
+        return StoreResponse.from(store);
+    }
+
+    /** 업로드로 자동 생성된 매장 등 매장 마스터 기본 정보를 정리합니다. */
+    @Transactional
+    public StoreResponse updateStoreMaster(User user, Long storeId, StoreMasterUpdateRequest request) {
+        assertCanManageStores(user);
+        Store store = storeRepository.findById(storeId)
+                .filter(s -> s.getBrandId().equals(user.getBrandId()))
+                .orElseThrow(() -> new CustomException(ErrorCode.STORE_NOT_FOUND));
+
+        store.updateStoreName(request.getStoreName().trim());
+
+        String postalCode = trimToNull(request.getPostalCode());
+        String roadAddress = trimToNull(request.getRoadAddress());
+        if ((postalCode == null) != (roadAddress == null)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (postalCode != null) {
+            store.updateAddress(
+                    postalCode,
+                    roadAddress,
+                    trimToNull(request.getJibunAddress()),
+                    trimToNull(request.getDetailAddress())
+            );
+        }
+        store.updateCoordinates(request.getLatitude(), request.getLongitude());
         return StoreResponse.from(store);
     }
 

@@ -32,7 +32,7 @@ public class Store {
     @Column(nullable = false)
     private Long brandId;
 
-    @Column(nullable = false, length = 4)
+    @Column(nullable = false, length = 10)
     private String storeCode;
 
     @Column(nullable = false)
@@ -76,6 +76,11 @@ public class Store {
         this.roadAddress = roadAddress;
         this.jibunAddress = jibunAddress;
         this.detailAddress = detailAddress;
+    }
+
+    /** 매장 마스터의 기본 표시명을 갱신합니다. */
+    public void updateStoreName(String storeName) {
+        this.storeName = storeName;
     }
 
     /** 매장의 위도·경도 좌표를 갱신합니다. */

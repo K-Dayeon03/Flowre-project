@@ -2,6 +2,7 @@ package com.flowre.server.domain.store.service;
 
 import com.flowre.server.domain.store.dto.StoreAddressUpdateRequest;
 import com.flowre.server.domain.store.dto.StoreCreateRequest;
+import com.flowre.server.domain.store.dto.StoreMasterUpdateRequest;
 import com.flowre.server.domain.store.dto.NearbyStoreResponse;
 import com.flowre.server.domain.store.dto.StoreResponse;
 import com.flowre.server.domain.store.entity.Store;
@@ -94,6 +95,37 @@ class StoreServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.STORE_NOT_FOUND);
+    }
+
+    @Test
+    void updateStoreMasterCleansUpAutoDiscoveredStore() {
+        User hq = user(UserRole.HQ_STAFF);
+        Store existing = Store.builder()
+                .id(7L)
+                .brandId(1L)
+                .storeCode("0886")
+                .storeName("자주 파미에스테이션점")
+                .active(true)
+                .build();
+        when(storeRepository.findById(7L)).thenReturn(java.util.Optional.of(existing));
+
+        StoreMasterUpdateRequest request = new StoreMasterUpdateRequest();
+        ReflectionTestUtils.setField(request, "storeName", "자주 파미에스테이션");
+        ReflectionTestUtils.setField(request, "postalCode", "06546");
+        ReflectionTestUtils.setField(request, "roadAddress", "서울 서초구 사평대로 205");
+        ReflectionTestUtils.setField(request, "detailAddress", "지하 1층");
+        ReflectionTestUtils.setField(request, "latitude", 37.503);
+        ReflectionTestUtils.setField(request, "longitude", 127.004);
+
+        StoreResponse response = storeService.updateStoreMaster(hq, 7L, request);
+
+        assertThat(response.getStoreName()).isEqualTo("자주 파미에스테이션");
+        assertThat(response.getPostalCode()).isEqualTo("06546");
+        assertThat(response.getRoadAddress()).isEqualTo("서울 서초구 사평대로 205");
+        assertThat(response.getDetailAddress()).isEqualTo("지하 1층");
+        assertThat(response.getLatitude()).isEqualTo(37.503);
+        assertThat(response.getLongitude()).isEqualTo(127.004);
+        assertThat(response.isNeedsReview()).isFalse();
     }
 
     @Test

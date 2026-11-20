@@ -20,6 +20,7 @@ public class StoreResponse {
     private Double longitude;
     private StoreOperationStatus operationStatus;
     private boolean active;
+    private boolean needsReview;
 
     /** 매장 엔티티를 API 응답 DTO로 변환합니다. */
     public static StoreResponse from(Store store) {
@@ -36,6 +37,7 @@ public class StoreResponse {
                 .longitude(store.getLongitude())
                 .operationStatus(store.getOperationStatus())
                 .active(store.isActive())
+                .needsReview(store.getPostalCode() == null || store.getRoadAddress() == null)
                 .build();
     }
 }
