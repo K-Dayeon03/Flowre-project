@@ -251,3 +251,11 @@ npm run build:android  # Android APK/AAB 빌드
 - S3 업로드는 서버에서 Presigned URL을 발급하고 클라이언트가 직접 업로드하는 방식 사용
 - FCM 토큰은 로그인 성공 후 서버에 등록, 로그아웃 시 삭제
 - Refresh Token 갱신 로직은 Axios 인터셉터에서 401 응답 시 자동 처리
+
+---
+
+## Code Review Workflow
+- 코드 리뷰 목록은 `docs/코드리뷰.md`에 있다. (리뷰 작성: claude.ai / 수정: Claude Code)
+- "코드리뷰 #N 고쳐줘" 요청을 받으면 `docs/코드리뷰.md` 상단의 **Claude Code 작업 방법**을 따른다.
+- 수정 후 해당 항목의 `상태`를 `해결 (YYYY-MM-DD)`로 바꾸고, **수정 이력** 표에 한 줄 추가한다.
+- 새 문제를 발견하면 번호를 이어서(#18, #19 …) 이슈 목록에 추가한다. 기존 번호는 삭제하지 않는다.
