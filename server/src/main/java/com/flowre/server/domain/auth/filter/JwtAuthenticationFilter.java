@@ -23,14 +23,14 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-
+    //필터가 요청 처리 흐름을 담당하고, JwtUtil이 토큰 검증을 담당하는 구조
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
-
+    //LoginRequest와는 다르다. 헤더 등을 읽을 수 있는 Http요청 객체이다. 요쳥에서 문자열만 꺼낸 단계
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        String token = resolveToken(request);
+        String token = resolveToken(request); //사용자가 로그인 후 API를 호출하면 요청 헤더에  Authorization:Bearer abc.def.ghi 형식으로 들어온다
 
         if (StringUtils.hasText(token) && jwtUtil.isAccessToken(token)) {
             try {
@@ -52,9 +52,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
     }
-
+    //토큰이 유효한 Access Token인지 확인하는 부분
     private String resolveToken(HttpServletRequest request) {
         String bearer = request.getHeader("Authorization");
+        //토큰 문자열이 있는지, 유효한 토큰인지
         if (StringUtils.hasText(bearer) && bearer.startsWith("Bearer ")) {
             return bearer.substring(7);
         }

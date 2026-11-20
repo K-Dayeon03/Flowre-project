@@ -31,6 +31,7 @@ public class AuthController {
     /**
      * POST /api/auth/login
      * 프론트: authApi.login(email, password)
+     * 입력 받기 → 서비스에 검사 맡기기 → 성공 결과 보내기입력 받기 → 서비스에 검사 맡기기 → 성공 결과 보내기
      */
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
@@ -41,7 +42,7 @@ public class AuthController {
 
         // Refresh Token은 HttpOnly Cookie로 내려줌
         addRefreshCookie(response, result.refreshToken());
-
+        //RefreshToken은 쿠키로,AccessToken과 사용자 정보는 Json 본문으로 전달되는 것
         return ResponseEntity.ok(ApiResponse.ok(result.response()));
     }
 

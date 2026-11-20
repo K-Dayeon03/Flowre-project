@@ -35,7 +35,7 @@ public class NoticeService {
         List<Notice> notices = noticeRepository.findByBrandIdOrderByPinnedDescCreatedAtDesc(user.getBrandId());
         List<Long> noticeIds = notices.stream().map(Notice::getId).toList();
         Set<Long> readNoticeIds = noticeIds.isEmpty()
-                ? Set.of()
+                ? Set.of() //해당 브랜드의 공지 ID를 모은다. 목록에 공지가 있으면 아래 find~ 한번호출 그 공지들 중 이 직원이 읽은 공지 아이디를 set<Long>에 담는다.
                 : noticeReadRepository.findByUserIdAndNoticeIdIn(user.getId(), noticeIds).stream()
                 .map(NoticeRead::getNoticeId)
                 .collect(Collectors.toSet());

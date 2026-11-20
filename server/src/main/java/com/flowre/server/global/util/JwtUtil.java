@@ -13,7 +13,7 @@ import java.util.Date;
 @Slf4j
 @Component
 public class JwtUtil {
-
+    //필터가 요청 처리 흐름을 담당하고, JwtUtil이 토큰 검증을 담당하는 구조
     private final SecretKey secretKey;
     private final long accessExpiration;
     private final long refreshExpiration;
@@ -90,6 +90,8 @@ public class JwtUtil {
 
     private boolean hasTokenType(String token, String expectedType) {
         try {
+            //토큰을 검즈하고 안에 담긴 정보를 가져온다
+            //parseClaims는 서버의 키로 서명을 검증, 만료 여부도 확인한다.
             Claims claims = parseClaims(token);
             return expectedType.equals(claims.get("type", String.class));
         } catch (ExpiredJwtException e) {
