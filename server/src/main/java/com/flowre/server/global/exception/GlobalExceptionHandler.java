@@ -32,8 +32,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleCustomException(CustomException e, HttpServletRequest request) {
         ErrorCode code = e.getErrorCode();
         logByStatus(code.getStatus(), "[CustomException] {} {} {} - {}",
-                request.getMethod(), request.getRequestURI(), code.getCode(), code.getMessage(), e);
-        return fail(code, code.getMessage());
+                request.getMethod(), request.getRequestURI(), code.getCode(), e.getMessage(), e);
+        return fail(code, e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -74,6 +74,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({MultipartException.class, MaxUploadSizeExceededException.class})
     public ResponseEntity<ApiResponse<Void>> handleMultipartException(Exception e, HttpServletRequest request) {
         log.error("[MultipartException] {} {} - {}", request.getMethod(), request.getRequestURI(), e.getMessage(), e);
+        if (request.getRequestURI().startsWith("/api/inventories/")) {
+            return fail(ErrorCode.INVENTORY_UPLOAD_FAILED, "재고 파일 업로드 요청을 처리하지 못했습니다. 파일을 다시 선택해주세요.");
+        }
         return fail(ErrorCode.S3_UPLOAD_FAILED, ErrorCode.S3_UPLOAD_FAILED.getMessage());
     }
 

@@ -37,6 +37,23 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void customInventoryUploadExceptionReturnsDetailedMessage() {
+        request = new MockHttpServletRequest("POST", "/api/inventories/upload");
+        CustomException exception = new CustomException(
+                ErrorCode.INVENTORY_UPLOAD_FAILED,
+                "반영할 재고 행을 찾지 못했습니다. 파일의 컬럼 순서와 점별 코드를 확인해주세요."
+        );
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleCustomException(exception, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getError().getCode()).isEqualTo("INVENTORY_004");
+        assertThat(response.getBody().getError().getMessage())
+                .isEqualTo("반영할 재고 행을 찾지 못했습니다. 파일의 컬럼 순서와 점별 코드를 확인해주세요.");
+    }
+
+    @Test
     void multipartExceptionReturnsDocumentUploadError() {
         MultipartException exception = new MultipartException("upload stream closed");
 
@@ -45,6 +62,20 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getError().getCode()).isEqualTo("DOCUMENT_002");
+    }
+
+    @Test
+    void multipartExceptionForInventoryReturnsInventoryUploadError() {
+        request = new MockHttpServletRequest("POST", "/api/inventories/upload");
+        MultipartException exception = new MultipartException("upload stream closed");
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleMultipartException(exception, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getError().getCode()).isEqualTo("INVENTORY_004");
+        assertThat(response.getBody().getError().getMessage())
+                .isEqualTo("재고 파일 업로드 요청을 처리하지 못했습니다. 파일을 다시 선택해주세요.");
     }
 
     @Test

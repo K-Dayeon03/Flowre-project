@@ -163,7 +163,11 @@ export const inventoryApi = {
     if (file.file) {
       formData.append('file', file.file, file.name);
     } else {
-      formData.append('file', file as unknown as Blob);
+      formData.append('file', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as unknown as Blob);
     }
     const res = await apiClient.post('/api/inventories/upload', formData);
     return unwrap(res);

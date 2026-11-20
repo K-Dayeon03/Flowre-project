@@ -4,6 +4,8 @@ import com.flowre.server.domain.inventory.dto.InventoryLoadResponse;
 import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.ProductCategory;
 import com.flowre.server.domain.inventory.repository.InventoryItemRepository;
+import com.flowre.server.domain.store.entity.Store;
+import com.flowre.server.domain.store.repository.StoreRepository;
 import com.flowre.server.global.exception.CustomException;
 import com.flowre.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +24,12 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +45,7 @@ public class InventoryExcelLoader {
     private static final int FIRST_DATA_ROW = 5;
 
     private final InventoryItemRepository inventoryItemRepository;
+    private final StoreRepository storeRepository;
 
     @Value("${flowre.inventory.data-dir:../data}")
     private String dataDir;
@@ -90,7 +98,7 @@ public class InventoryExcelLoader {
     @Transactional
     public InventoryLoadResponse loadUploadedFile(MultipartFile file, String storeScopeCode, long brandId) {
         if (file == null || file.isEmpty()) {
-            throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED);
+            throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED, "업로드할 재고 파일이 비어 있습니다.");
         }
         String fileName = Optional.ofNullable(file.getOriginalFilename()).orElse("inventory.xlsx");
         try {
@@ -102,15 +110,27 @@ public class InventoryExcelLoader {
                 Map<String, Set<String>> seenByStore = new HashMap<>();
                 // 매장코드 → (복합키 → 기존 비보관 항목). 매장별 1회만 조회해 행마다 SELECT 하던 것을 제거한다.
                 Map<String, Map<String, InventoryItem>> existingByStore = new HashMap<>();
+                Set<String> ensuredStores = new HashSet<>();
                 if ("csv".equals(extension)) {
-                    loadCsv(temp, storeScopeCode, brandId, stats, seenByStore, existingByStore);
+                    loadCsv(temp, storeScopeCode, brandId, stats, seenByStore, existingByStore, ensuredStores);
                 } else {
-                    loadWorkbook(temp, storeScopeCode, brandId, stats, seenByStore, existingByStore);
+                    loadWorkbook(temp, storeScopeCode, brandId, stats, seenByStore, existingByStore, ensuredStores);
                 }
                 // 전체 교체: 파일에 없는 기존 비보관 항목 수량을 0으로 초기화 (선조회 맵 재사용)
                 stats.zeroedCount = applyFullReplacement(seenByStore, existingByStore);
                 if (stats.rowCount == 0) {
-                    throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED);
+                    if (storeScopeCode != null && !stats.scopeSkippedStoreCodes.isEmpty()) {
+                        throw new CustomException(
+                                ErrorCode.INVENTORY_UPLOAD_FAILED,
+                                "로그인한 매장 코드(" + storeScopeCode + ")와 파일의 점별 코드("
+                                        + String.join(", ", stats.scopeSkippedStoreCodes)
+                                        + ")가 달라 반영할 수 없습니다. 본사/관리자 계정으로 업로드하거나 파일의 점별 코드를 확인해주세요."
+                        );
+                    }
+                    throw new CustomException(
+                            ErrorCode.INVENTORY_UPLOAD_FAILED,
+                            "반영할 재고 행을 찾지 못했습니다. 파일의 컬럼 순서와 점별 코드를 확인해주세요."
+                    );
                 }
                 return InventoryLoadResponse.builder()
                         .fileCount(1)
@@ -128,7 +148,7 @@ public class InventoryExcelLoader {
             throw e;
         } catch (Exception e) {
             log.error("[InventoryExcelLoader] failed to load uploaded file {}", fileName, e);
-            throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED, e);
+            throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED, ErrorCode.INVENTORY_UPLOAD_FAILED.getMessage(), e);
         }
     }
 
@@ -140,7 +160,7 @@ public class InventoryExcelLoader {
         if (lower.endsWith(".xlsx")) {
             return "xlsx";
         }
-        throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED);
+        throw new CustomException(ErrorCode.INVENTORY_UPLOAD_FAILED, "xlsx 또는 csv 파일만 업로드할 수 있습니다.");
     }
 
     /**
@@ -199,7 +219,7 @@ public class InventoryExcelLoader {
     /** data 폴더 적재용 — 매장 스코프 없이 전체를 upsert만 한다(전체 교체 미적용). */
     private LoadStats loadWorkbook(Path file, long brandId) throws Exception {
         LoadStats stats = new LoadStats();
-        loadWorkbook(file, null, brandId, stats, new HashMap<>(), new HashMap<>());
+        loadWorkbook(file, null, brandId, stats, new HashMap<>(), new HashMap<>(), new HashSet<>());
         return stats;
     }
 
@@ -213,7 +233,8 @@ public class InventoryExcelLoader {
      */
     private void loadWorkbook(Path file, String storeScopeCode, long brandId, LoadStats stats,
                               Map<String, Set<String>> seenByStore,
-                              Map<String, Map<String, InventoryItem>> existingByStore) throws Exception {
+                              Map<String, Map<String, InventoryItem>> existingByStore,
+                              Set<String> ensuredStores) throws Exception {
         try (ZipFile zip = new ZipFile(file.toFile())) {
             List<String> sharedStrings = readSharedStrings(zip);
             Document sheet = readXml(zip, "xl/worksheets/sheet1.xml");
@@ -236,11 +257,12 @@ public class InventoryExcelLoader {
                 InventoryRow inventoryRow = parsed.get();
                 // 매장 스코프 필터: 직원·점장 업로드 시 본인 매장 외 행은 건너뛴다
                 if (storeScopeCode != null && !storeScopeCode.equals(inventoryRow.storeCode())) {
+                    stats.scopeSkippedStoreCodes.add(inventoryRow.storeCode());
                     stats.skippedCount++;
                     continue;
                 }
 
-                upsert(inventoryRow, brandId, stats, existingByStore);
+                upsert(inventoryRow, brandId, stats, existingByStore, ensuredStores);
                 seenByStore
                         .computeIfAbsent(inventoryRow.storeCode(), k -> new HashSet<>())
                         .add(compositeKey(inventoryRow.productCode(), inventoryRow.colorCode(),
@@ -254,8 +276,9 @@ public class InventoryExcelLoader {
     /** CSV 파일을 읽어 행을 upsert 한다. 컬럼 순서는 xlsx 재고 양식과 동일해야 한다. */
     private void loadCsv(Path file, String storeScopeCode, long brandId, LoadStats stats,
                          Map<String, Set<String>> seenByStore,
-                         Map<String, Map<String, InventoryItem>> existingByStore) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8))) {
+                         Map<String, Map<String, InventoryItem>> existingByStore,
+                         Set<String> ensuredStores) throws Exception {
+        try (BufferedReader reader = new BufferedReader(new StringReader(decodeCsvContent(file)))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (!StringUtils.hasText(line)) {
@@ -271,11 +294,12 @@ public class InventoryExcelLoader {
 
                 InventoryRow inventoryRow = parsed.get();
                 if (storeScopeCode != null && !storeScopeCode.equals(inventoryRow.storeCode())) {
+                    stats.scopeSkippedStoreCodes.add(inventoryRow.storeCode());
                     stats.skippedCount++;
                     continue;
                 }
 
-                upsert(inventoryRow, brandId, stats, existingByStore);
+                upsert(inventoryRow, brandId, stats, existingByStore, ensuredStores);
                 seenByStore
                         .computeIfAbsent(inventoryRow.storeCode(), k -> new HashSet<>())
                         .add(compositeKey(inventoryRow.productCode(), inventoryRow.colorCode(),
@@ -283,6 +307,24 @@ public class InventoryExcelLoader {
             }
 
             log.info("[InventoryExcelLoader] loaded {} rows from {}", stats.rowCount, file.getFileName());
+        }
+    }
+
+    /**
+     * CSV 업로드는 UTF-8과 Excel에서 흔한 MS949(CP949)를 모두 허용한다.
+     * UTF-8 엄격 디코딩에 실패하면 MS949로 재시도해 한글 상품명이 깨져 분류가 실패하는 일을 줄인다.
+     */
+    private String decodeCsvContent(Path file) throws Exception {
+        byte[] bytes = Files.readAllBytes(file);
+        try {
+            return StandardCharsets.UTF_8
+                    .newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException e) {
+            return Charset.forName("MS949").decode(ByteBuffer.wrap(bytes)).toString();
         }
     }
 
@@ -315,7 +357,9 @@ public class InventoryExcelLoader {
      * 복합키로 매칭하므로, 수만 행이어도 행마다 SELECT 하지 않는다(매장 수만큼만 조회).
      */
     private void upsert(InventoryRow row, long brandId, LoadStats stats,
-                        Map<String, Map<String, InventoryItem>> existingByStore) {
+                        Map<String, Map<String, InventoryItem>> existingByStore,
+                        Set<String> ensuredStores) {
+        ensureStoreMaster(row, brandId, ensuredStores);
         Map<String, InventoryItem> storeItems =
                 existingByStore.computeIfAbsent(row.storeCode(), code -> loadExistingItems(brandId, code));
         String key = compositeKey(row.productCode(), row.colorCode(), row.sizeName(), row.barcode());
@@ -357,6 +401,27 @@ public class InventoryExcelLoader {
             stats.createdCount++;
         }
         stats.rowCount++;
+    }
+
+    /** 업로드 파일에서 처음 발견한 점별 코드는 주소 없는 매장 마스터로 자동 등록합니다. */
+    private void ensureStoreMaster(InventoryRow row, long brandId, Set<String> ensuredStores) {
+        String key = brandId + "|" + row.storeCode();
+        if (!ensuredStores.add(key)) {
+            return;
+        }
+        if (storeRepository.existsByBrandIdAndStoreCode(brandId, row.storeCode())) {
+            return;
+        }
+
+        String storeName = StringUtils.hasText(row.storeName())
+                ? row.storeName()
+                : "미확인 매장 " + row.storeCode();
+        storeRepository.save(Store.builder()
+                .brandId(brandId)
+                .storeCode(row.storeCode())
+                .storeName(storeName)
+                .active(true)
+                .build());
     }
 
     /** 매장의 비보관(실시간) 재고를 복합키 → 항목 맵으로 1회 조회한다. */
@@ -513,11 +578,11 @@ public class InventoryExcelLoader {
             Integer quantity
     ) {
         private static Optional<InventoryRow> from(List<String> values) {
-            String storeCode = clean(values, 0);
+            String storeCode = normalizeStoreCode(clean(values, 0));
             String productCode = clean(values, 2);
             String productName = clean(values, 6);
             if (!StringUtils.hasText(storeCode)
-                    || !storeCode.matches("\\d{4}")
+                    || !storeCode.matches("\\d{4,5}")
                     || !StringUtils.hasText(productCode)
                     || !StringUtils.hasText(productName)) {
                 return Optional.empty();
@@ -539,6 +604,26 @@ public class InventoryExcelLoader {
                     parseInteger(values, 11),
                     parseInteger(values, 12)
             ));
+        }
+
+        /**
+         * 엑셀에서 점별 코드가 숫자로 저장되면 "0886"이 "886"으로 읽힌다.
+         * 4자리 미만 숫자는 왼쪽 0으로 보정하고, 외부 원본의 5자리 점별 코드는 그대로 둔다.
+         */
+        private static String normalizeStoreCode(String rawStoreCode) {
+            if (!StringUtils.hasText(rawStoreCode)) {
+                return "";
+            }
+            String value = rawStoreCode.trim();
+            try {
+                value = new BigDecimal(value).stripTrailingZeros().toPlainString();
+            } catch (NumberFormatException ignored) {
+                // 문자열 코드면 아래 검증으로 넘긴다.
+            }
+            if (value.matches("\\d{1,3}")) {
+                return String.format("%04d", Integer.parseInt(value));
+            }
+            return value;
         }
 
         private static Long parseStoreId(String storeCode) {
@@ -575,6 +660,7 @@ public class InventoryExcelLoader {
         private int updatedCount;
         private int skippedCount;
         private int zeroedCount;
+        private Set<String> scopeSkippedStoreCodes = new TreeSet<>();
 
         private void add(LoadStats other) {
             this.rowCount += other.rowCount;
@@ -582,6 +668,7 @@ public class InventoryExcelLoader {
             this.updatedCount += other.updatedCount;
             this.skippedCount += other.skippedCount;
             this.zeroedCount += other.zeroedCount;
+            this.scopeSkippedStoreCodes.addAll(other.scopeSkippedStoreCodes);
         }
     }
 }
