@@ -20,7 +20,7 @@ export default function BrandWordmark({ size = 'header', light = false }: BrandW
   const token = SIZE_STYLE[size];
   return (
     <View style={styles.wrap}>
-      <Text style={[styles.word, { fontSize: token.fontSize, color: light ? Colors.surface : Colors.textPrimary }]}>
+      <Text style={[styles.word, { fontSize: token.fontSize, color: Colors.textPrimary }]}>
         flowre
       </Text>
       <View

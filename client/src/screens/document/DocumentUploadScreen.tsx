@@ -212,7 +212,7 @@ export default function DocumentUploadScreen({ navigation, route }: Props) {
           activeOpacity={0.85}
         >
           {loading ? (
-            <ActivityIndicator color={Colors.surface} />
+            <ActivityIndicator color={Colors.textPrimary} />
           ) : (
             <Text style={styles.uploadBtnText}>{isEdit ? '수정 저장' : '업로드'}</Text>
           )}
@@ -295,5 +295,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   uploadBtnDisabled: { opacity: 0.6 },
-  uploadBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '900' },
+  uploadBtnText: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '900' },
 });

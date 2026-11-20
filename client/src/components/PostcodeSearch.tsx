@@ -106,7 +106,7 @@ export default function PostcodeSearch({ visible, onClose, onSelected }: Postcod
             onSubmitEditing={handleSearch}
           />
           <TouchableOpacity style={styles.searchButton} onPress={handleSearch} disabled={loading} activeOpacity={0.82}>
-            {loading ? <ActivityIndicator color={Colors.surface} /> : <Text style={styles.searchButtonText}>검색</Text>}
+            {loading ? <ActivityIndicator color={Colors.textPrimary} /> : <Text style={styles.searchButtonText}>검색</Text>}
           </TouchableOpacity>
         </View>
 
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   searchButtonText: {
-    color: Colors.surface,
+    color: Colors.textPrimary,
     fontSize: FontSize.sm,
     fontWeight: '900',
   },

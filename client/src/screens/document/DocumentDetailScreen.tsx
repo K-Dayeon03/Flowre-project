@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  downloadBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '700' },
+  downloadBtnText: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '700' },
   editBtn: {
     borderWidth: 1,
     borderColor: Colors.primary,

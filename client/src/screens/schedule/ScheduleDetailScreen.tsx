@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  completeBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '900' },
+  completeBtnText: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '900' },
   doneLabel: {
     backgroundColor: Colors.success + '15',
     borderRadius: Radius.md,

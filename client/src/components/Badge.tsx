@@ -19,7 +19,7 @@ export default function Badge({ label, color = Colors.primary, subtle = true }: 
           : { backgroundColor: color, borderColor: 'transparent' },
       ]}
     >
-      <Text style={[styles.text, { color: subtle ? color : Colors.surface }]}>{label}</Text>
+      <Text style={[styles.text, { color: Colors.textPrimary }]}>{label}</Text>
     </View>
   );
 }

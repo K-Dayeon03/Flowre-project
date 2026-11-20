@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   confirmText: {
     fontSize: FontSize.sm,
     fontWeight: '700',
-    color: Colors.surface,
+    color: '#FFFFFF',
   },
   confirmTextDestructive: {
     color: Colors.error,

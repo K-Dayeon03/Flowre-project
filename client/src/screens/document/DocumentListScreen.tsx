@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fileBadgeText: { color: Colors.surface, fontSize: FontSize.xs, fontWeight: '800' },
+  fileBadgeText: { color: Colors.textPrimary, fontSize: FontSize.xs, fontWeight: '800' },
   cardInfo: { flex: 1 },
   cardTitle: { fontSize: FontSize.md, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
@@ -230,5 +230,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...Shadow.raised,
   },
-  fabText: { color: Colors.surface, fontSize: 28, lineHeight: 32 },
+  fabText: { color: Colors.textPrimary, fontSize: 28, lineHeight: 32 },
 });

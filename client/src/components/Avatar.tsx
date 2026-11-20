@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
     borderColor: `${Colors.accent}55`,
   },
   text: {
-    color: Colors.surface,
+    color: Colors.textPrimary,
     fontWeight: '900',
   },
 });

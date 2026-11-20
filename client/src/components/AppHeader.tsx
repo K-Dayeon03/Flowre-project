@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Colors, FontSize, Shadow, Spacing } from '../constants/theme';
+import { Colors, FontSize, Radius, Shadow, Spacing } from '../constants/theme';
 import { useAuthStore } from '../store/useAuthStore';
 import { useStoreContextStore } from '../store/useStoreContextStore';
 import { Store, storeApi } from '../api/storeApi';
@@ -41,10 +41,14 @@ export default function AppHeader({ currentRoute }: Props) {
     : 'EmployeeManage';
   const tabs: HeaderTab[] = [
     { label: '대시보드', route: 'Home', group: ['Home'] },
+    { label: '허브', route: 'CommunicationHub', group: ['CommunicationHub'] },
     { label: '스케줄', route: 'ScheduleList', group: ['ScheduleList', 'ScheduleDetail', 'ScheduleCreate'] },
     { label: '매장', route: 'StoreActivity', group: ['StoreActivity', 'StoreManage'] },
     { label: '재고', route: 'InventoryList', group: ['InventoryList'] },
+    { label: '발주', route: 'OrderList', group: ['OrderList'] },
+    { label: '매출', route: 'SalesDashboard', group: ['SalesDashboard'] },
     { label: '직원', route: employeeRoute, group: ['EmployeeManage', 'EmployeeApproval'] },
+    { label: '근태', route: 'Attendance', group: ['Attendance'] },
     { label: '문의/AS', route: 'Support', group: ['Support'] },
     { label: '공지', route: 'NoticeList', group: ['NoticeList', 'NoticeDetail', 'NoticeCreate'] },
   ];
@@ -90,7 +94,7 @@ export default function AppHeader({ currentRoute }: Props) {
             return (
               <TouchableOpacity
                 key={tab.route}
-                style={styles.tab}
+                style={[styles.tab, active && styles.tabActive]}
                 onPress={() => navigation.navigate(tab.route)}
                 activeOpacity={0.75}
               >
@@ -182,34 +186,40 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.sidebar,
+    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.sidebarBorder,
-    paddingHorizontal: Spacing.md,
-    height: 52,
-    gap: Spacing.sm,
+    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.lg,
+    height: 68,
+    gap: Spacing.md,
+    ...Shadow.card,
   },
   logoButton: {
-    minWidth: 76,
+    minWidth: 92,
     minHeight: 52,
     justifyContent: 'center',
-    paddingRight: Spacing.sm,
+    paddingRight: Spacing.md,
   },
   tabScroll: {
     flex: 1,
   },
   tabList: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-    height: 52,
-    paddingHorizontal: 2,
+    alignItems: 'center',
+    height: 68,
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
   },
   tab: {
-    paddingHorizontal: Spacing.sm,
+    minHeight: 40,
+    paddingHorizontal: Spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: Radius.full,
     position: 'relative',
-    minHeight: 52,
+  },
+  tabActive: {
+    backgroundColor: Colors.accentLight,
   },
   tabText: {
     fontSize: FontSize.sm,
@@ -217,17 +227,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tabTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+    color: Colors.textPrimary,
+    fontWeight: '900',
   },
   tabIndicator: {
     position: 'absolute',
-    bottom: 0,
-    left: 4,
-    right: 4,
-    height: 2,
-    backgroundColor: Colors.accent,
-    borderRadius: 1,
+    bottom: 6,
+    width: 5,
+    height: 5,
+    backgroundColor: Colors.primaryDark,
+    borderRadius: Radius.full,
   },
   rightActions: {
     flexDirection: 'row',
@@ -235,19 +244,19 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   searchBox: {
-    width: 118,
-    minHeight: 30,
+    width: 156,
+    minHeight: 38,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
-    borderRadius: 6,
+    borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.sidebarBorder,
-    backgroundColor: Colors.sidebarMuted,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceMuted,
   },
   searchIcon: {
-    color: Colors.sidebarText,
+    color: Colors.textMuted,
     fontSize: FontSize.xs,
     fontWeight: '900',
   },
@@ -255,35 +264,36 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     padding: 0,
-    color: Colors.surface,
-    fontSize: FontSize.xs,
+    color: Colors.textPrimary,
+    fontSize: FontSize.sm,
     fontWeight: '700',
   },
   storeChip: {
-    maxWidth: 130,
+    maxWidth: 170,
+    minHeight: 38,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    backgroundColor: Colors.sidebarMuted,
-    borderRadius: 6,
+    backgroundColor: Colors.accentLight,
+    borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.sidebarBorder,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 5,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   storeChipText: {
-    color: Colors.sidebarText,
+    color: Colors.textPrimary,
     fontSize: FontSize.xs,
     fontWeight: '700',
   },
   storeChipArrow: {
-    color: Colors.sidebarText,
+    color: Colors.textPrimary,
     fontSize: FontSize.xs,
     fontWeight: '900',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(34, 52, 55, 0.45)',
+    backgroundColor: 'rgba(39, 48, 46, 0.32)',
     justifyContent: 'center',
     padding: Spacing.lg,
   },

@@ -121,7 +121,7 @@ export default function LoginScreen() {
                 onPress={handleLogin}
                 disabled={loading}
               >
-                {loading ? <ActivityIndicator color={Colors.surface} /> : <Text style={styles.loginButtonText}>로그인</Text>}
+                {loading ? <ActivityIndicator color={Colors.textPrimary} /> : <Text style={styles.loginButtonText}>로그인</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     opacity: 0.68,
   },
   loginButtonText: {
-    color: Colors.surface,
+    color: Colors.textPrimary,
     fontSize: FontSize.md,
     fontWeight: '900',
   },

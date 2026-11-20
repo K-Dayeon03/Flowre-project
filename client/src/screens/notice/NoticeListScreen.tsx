@@ -186,5 +186,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...Shadow.raised,
   },
-  fabText: { color: Colors.surface, fontSize: 28, lineHeight: 32, fontWeight: '800' },
+  fabText: { color: Colors.textPrimary, fontSize: 28, lineHeight: 32, fontWeight: '800' },
 });

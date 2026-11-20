@@ -140,7 +140,7 @@ export default function ScheduleCreateScreen() {
           activeOpacity={0.85}
         >
           {loading ? (
-            <ActivityIndicator color={Colors.surface} />
+            <ActivityIndicator color={Colors.textPrimary} />
           ) : (
             <Text style={styles.submitBtnText}>스케줄 등록</Text>
           )}
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { color: Colors.surface, fontSize: FontSize.md, fontWeight: '900' },
+  submitBtnText: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '900' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',

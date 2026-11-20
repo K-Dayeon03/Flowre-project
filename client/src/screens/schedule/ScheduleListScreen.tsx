@@ -294,5 +294,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...Shadow.raised,
   },
-  fabText: { color: Colors.surface, fontSize: 28, lineHeight: 32 },
+  fabText: { color: Colors.textPrimary, fontSize: 28, lineHeight: 32 },
 });

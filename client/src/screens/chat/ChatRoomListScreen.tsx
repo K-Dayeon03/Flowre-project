@@ -452,7 +452,7 @@ export default function ChatRoomListScreen() {
                 disabled={creating}
               >
                 {creating ? (
-                  <ActivityIndicator color={Colors.surface} size="small" />
+                  <ActivityIndicator color={Colors.textPrimary} size="small" />
                 ) : (
                   <Text style={styles.modalConfirmText}>채팅하기</Text>
                 )}
@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  checkboxTick: { fontSize: 12, color: Colors.surface, fontWeight: '700' },
+  checkboxTick: { fontSize: 12, color: Colors.textPrimary, fontWeight: '700' },
   avatar: {
     width: 36,
     height: 36,
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.md,
   },
   avatarGroup: { backgroundColor: Colors.primary },
-  avatarText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.surface },
+  avatarText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.textPrimary },
   roomInfo: { flex: 1 },
   roomTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
   roomName: { fontSize: FontSize.md, fontWeight: '800', color: Colors.textPrimary, flex: 1 },
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     marginLeft: Spacing.sm,
   },
-  unreadText: { color: Colors.surface, fontSize: FontSize.xs, fontWeight: '700' },
+  unreadText: { color: Colors.textPrimary, fontSize: FontSize.xs, fontWeight: '700' },
   empty: { paddingVertical: 60, alignItems: 'center' },
   emptyText: { fontSize: FontSize.md, color: Colors.textMuted },
 
@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...Shadow.raised,
   },
-  fabText: { fontSize: 20, color: Colors.surface, lineHeight: 24 },
+  fabText: { fontSize: 20, color: Colors.textPrimary, lineHeight: 24 },
 
   // 이름 수정 모달
   renameOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
@@ -667,7 +667,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   renameConfirmBtnDisabled: { opacity: 0.5 },
-  renameConfirmText: { fontSize: FontSize.md, color: Colors.surface, fontWeight: '700' },
+  renameConfirmText: { fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: '700' },
 
   // 새 채팅 모달
   modalOverlay: { flex: 1, backgroundColor: 'rgba(14, 86, 128, 0.34)', justifyContent: 'flex-end' },
@@ -730,7 +730,7 @@ const styles = StyleSheet.create({
   },
   memberNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   hqBadge: { backgroundColor: Colors.primary, borderRadius: 3, paddingHorizontal: 5, paddingVertical: 1 },
-  hqBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.surface },
+  hqBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.textPrimary },
   modalCancelBtn: {
     flex: 1,
     paddingVertical: Spacing.md,
@@ -748,5 +748,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalConfirmBtnDisabled: { opacity: 0.6 },
-  modalConfirmText: { fontSize: FontSize.md, color: Colors.surface, fontWeight: '700' },
+  modalConfirmText: { fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: '700' },
 });

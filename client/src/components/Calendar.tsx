@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   },
   sundayText: { color: Colors.error },
   saturdayText: { color: Colors.info },
-  selectedText: { color: Colors.surface, fontWeight: '700' },
+  selectedText: { color: Colors.textPrimary, fontWeight: '700' },
   todayText: { color: Colors.accent, fontWeight: '700' },
   dot: {
     width: 5,

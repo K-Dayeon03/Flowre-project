@@ -130,6 +130,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  checkmark: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: '900' },
+  checkmark: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '900' },
   toggleText: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '800' },
 });

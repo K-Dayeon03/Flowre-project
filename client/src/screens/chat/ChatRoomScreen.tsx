@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   bubbleText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 20 },
-  bubbleTextMe: { color: Colors.surface },
+  bubbleTextMe: { color: Colors.textPrimary },
   fileLabel: { fontSize: FontSize.xs, color: Colors.accent, fontWeight: '800', marginBottom: 2 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyMessages: { flex: 1, paddingTop: 80, alignItems: 'center' },
@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendBtnDisabled: { backgroundColor: Colors.textMuted },
-  sendIcon: { color: Colors.surface, fontSize: 14 },
+  sendIcon: { color: Colors.textPrimary, fontSize: 14 },
 
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   menuBtn: { paddingHorizontal: Spacing.sm, paddingVertical: 4 },
@@ -434,5 +434,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   renameConfirmBtnDisabled: { opacity: 0.5 },
-  renameConfirmText: { fontSize: FontSize.md, color: Colors.surface, fontWeight: '700' },
+  renameConfirmText: { fontSize: FontSize.md, color: Colors.textPrimary, fontWeight: '700' },
 });

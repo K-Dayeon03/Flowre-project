@@ -22,7 +22,7 @@ export default function GradientButton({ title, onPress, loading, disabled, styl
       style={[styles.touchable, inactive && styles.disabled, style]}
     >
       <LinearGradient colors={Gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradient}>
-        {loading ? <ActivityIndicator color={Colors.surface} /> : <Text style={styles.text}>{title}</Text>}
+        {loading ? <ActivityIndicator color={Colors.textPrimary} /> : <Text style={styles.text}>{title}</Text>}
       </LinearGradient>
     </TouchableOpacity>
   );
@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   text: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontSize: FontSize.md,
     fontWeight: '800',
     letterSpacing: 0.2,
