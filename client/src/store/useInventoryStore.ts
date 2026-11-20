@@ -6,6 +6,7 @@ interface SearchParams {
   archived?: boolean;
   labelName?: string;
   category?: string;
+  alertsOnly?: boolean;
 }
 
 interface InventoryState {
@@ -31,6 +32,7 @@ interface InventoryState {
   unarchiveItem: (id: number) => Promise<void>;
   adjustItem: (item: InventoryItem, quantityChange: number, reason?: string) => Promise<void>;
   deductItem: (item: InventoryItem, quantity: number, reason?: string) => Promise<void>;
+  updateMinQuantity: (item: InventoryItem, minQuantity: number) => Promise<void>;
   uploadDailyFile: (file: { uri: string; name: string; type: string; file?: File }) => Promise<InventoryLoadResult>;
   reloadFromExcel: () => Promise<void>;
 }
@@ -147,6 +149,14 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       version: item.version,
       reason,
     });
+    set((state) => ({
+      items: state.items.map((current) => (current.id === updated.id ? updated : current)),
+    }));
+  },
+
+  /** 상품별 최소 보유 수량을 수정하고 서버가 반환한 항목으로 교체합니다. */
+  updateMinQuantity: async (item, minQuantity) => {
+    const updated = await inventoryApi.updateMinQuantity(item.id, minQuantity);
     set((state) => ({
       items: state.items.map((current) => (current.id === updated.id ? updated : current)),
     }));

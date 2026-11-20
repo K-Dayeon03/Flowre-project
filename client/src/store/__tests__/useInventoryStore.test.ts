@@ -9,6 +9,8 @@ jest.mock('../../api/inventoryApi', () => ({
     archive: jest.fn(),
     unarchive: jest.fn(),
     deduct: jest.fn(),
+    adjust: jest.fn(),
+    updateMinQuantity: jest.fn(),
     getTransactions: jest.fn(),
     reload: jest.fn(),
     uploadDaily: jest.fn(),
@@ -31,6 +33,8 @@ const fakeInventory = (overrides?: Partial<InventoryItem>): InventoryItem => ({
   productName: '남녀공용 라이트 다운필 베스트',
   barcode: '8806077980199',
   quantity: 12,
+  minQuantity: 5,
+  stockStatus: 'SUFFICIENT',
   archived: false,
   ...overrides,
 });
@@ -167,6 +171,20 @@ describe('deductItem()', () => {
       version: 0,
       reason: '본사 사용',
     });
+    expect(useInventoryStore.getState().items[0]).toEqual(updated);
+  });
+});
+
+describe('updateMinQuantity()', () => {
+  it('최소 보유 수량 수정 후 서버 응답으로 항목을 교체한다', async () => {
+    const item = fakeInventory({ quantity: 6, minQuantity: 5, stockStatus: 'SUFFICIENT' });
+    const updated = fakeInventory({ quantity: 6, minQuantity: 8, stockStatus: 'LOW' });
+    useInventoryStore.setState({ items: [item] });
+    mockedApi.updateMinQuantity.mockResolvedValue(updated);
+
+    await useInventoryStore.getState().updateMinQuantity(item, 8);
+
+    expect(mockedApi.updateMinQuantity).toHaveBeenCalledWith(1, 8);
     expect(useInventoryStore.getState().items[0]).toEqual(updated);
   });
 });

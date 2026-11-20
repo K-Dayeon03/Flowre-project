@@ -29,6 +29,8 @@ public class InventoryResponse {
     private Integer normalPrice;
     private Integer retailPrice;
     private Integer quantity;
+    private Integer minQuantity;
+    private String stockStatus;
     private boolean archived;
     private Long sourceItemId;
     private String archiveLabelName;
@@ -64,6 +66,8 @@ public class InventoryResponse {
                 .normalPrice(item.getNormalPrice())
                 .retailPrice(item.getRetailPrice())
                 .quantity(item.getQuantity())
+                .minQuantity(item.getEffectiveMinQuantity())
+                .stockStatus(item.getStockStatus().name())
                 .archived(item.isArchived())
                 .sourceItemId(item.getSourceItemId())
                 .archiveLabelName(item.getArchiveLabel() != null ? item.getArchiveLabel().getName() : null)

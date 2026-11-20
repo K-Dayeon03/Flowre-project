@@ -4,6 +4,7 @@ import com.flowre.server.domain.audit.service.AuditLogService;
 import com.flowre.server.domain.inventory.dto.InventoryTransactionResponse;
 import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.InventoryTransaction;
+import com.flowre.server.domain.inventory.entity.StockStatus;
 import com.flowre.server.domain.inventory.repository.InventoryItemRepository;
 import com.flowre.server.domain.inventory.repository.InventoryLabelRepository;
 import com.flowre.server.domain.inventory.repository.InventoryTransactionRepository;
@@ -27,6 +28,7 @@ class InventoryServiceTest {
     private InventoryLabelRepository inventoryLabelRepository;
     private InventoryTransactionRepository inventoryTransactionRepository;
     private InventoryExcelLoader inventoryExcelLoader;
+    private InventoryStockAlertNotifier stockAlertNotifier;
     private InventoryService inventoryService;
 
     @BeforeEach
@@ -35,12 +37,14 @@ class InventoryServiceTest {
         inventoryLabelRepository = mock(InventoryLabelRepository.class);
         inventoryTransactionRepository = mock(InventoryTransactionRepository.class);
         inventoryExcelLoader = mock(InventoryExcelLoader.class);
+        stockAlertNotifier = mock(InventoryStockAlertNotifier.class);
         inventoryService = new InventoryService(
                 inventoryItemRepository,
                 inventoryLabelRepository,
                 inventoryTransactionRepository,
                 inventoryExcelLoader,
-                mock(AuditLogService.class)
+                mock(AuditLogService.class),
+                stockAlertNotifier
         );
     }
 
@@ -134,6 +138,31 @@ class InventoryServiceTest {
                 .findByBrandIdAndStoreIdOrderByCreatedAtDesc(anyLong(), anyLong());
     }
 
+    @Test
+    void updateMinQuantityChangesStockStatusAndNotifiesWhenBecameLow() {
+        User user = storeManager(10L, 1L, 1001L);
+        InventoryItem item = item(5L, 1L, 1001L);
+        when(inventoryItemRepository.findByIdAndBrandId(5L, 1L)).thenReturn(Optional.of(item));
+
+        var result = inventoryService.updateMinQuantity(user, 5L, minQuantityRequest(12));
+
+        assertThat(result.getMinQuantity()).isEqualTo(12);
+        assertThat(result.getStockStatus()).isEqualTo(StockStatus.LOW.name());
+        verify(stockAlertNotifier).notifyIfBecameAlert(item, StockStatus.SUFFICIENT);
+    }
+
+    @Test
+    void updateMinQuantityFailsForStoreStaff() {
+        User user = storeStaff(10L, 1L, 1001L);
+
+        assertThatThrownBy(() -> inventoryService.updateMinQuantity(user, 5L, minQuantityRequest(12)))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(inventoryItemRepository, never()).findByIdAndBrandId(anyLong(), anyLong());
+    }
+
     private InventoryItem item(Long id, Long brandId, Long storeId) {
         return InventoryItem.builder()
                 .id(id)
@@ -144,7 +173,15 @@ class InventoryServiceTest {
                 .productCode("J1-0-4-4-01-101")
                 .productName("테스트 상품")
                 .quantity(10)
+                .minQuantity(5)
                 .build();
+    }
+
+    private com.flowre.server.domain.inventory.dto.InventoryMinQuantityRequest minQuantityRequest(Integer value) {
+        com.flowre.server.domain.inventory.dto.InventoryMinQuantityRequest request =
+                new com.flowre.server.domain.inventory.dto.InventoryMinQuantityRequest();
+        org.springframework.test.util.ReflectionTestUtils.setField(request, "minQuantity", value);
+        return request;
     }
 
     private InventoryTransaction transaction(Long id, Long brandId, Long storeId, Long itemId) {
@@ -189,6 +226,21 @@ class InventoryServiceTest {
                 .storeId(9001L)
                 .storeCode("9001")
                 .storeName("본사")
+                .build();
+    }
+
+    private User storeManager(Long id, Long brandId, Long storeId) {
+        return User.builder()
+                .id(id)
+                .email("manager@flowre.com")
+                .employeeCode("1001MANAGER!")
+                .password("encoded")
+                .name("매장 점장")
+                .role(UserRole.STORE_MANAGER)
+                .brandId(brandId)
+                .storeId(storeId)
+                .storeCode(String.valueOf(storeId))
+                .storeName("강남점")
                 .build();
     }
 }

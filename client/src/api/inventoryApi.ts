@@ -21,6 +21,8 @@ export interface InventoryItem {
   normalPrice?: number;
   retailPrice?: number;
   quantity: number;
+  minQuantity: number;
+  stockStatus: 'OUT_OF_STOCK' | 'LOW' | 'SUFFICIENT';
   archived: boolean;
   /** 보관 항목의 원본 실시간 재고 아이템 ID — 보관 해제 시 이 항목 수량 복원에 사용 */
   sourceItemId?: number;
@@ -89,9 +91,15 @@ export const inventoryApi = {
     archived?: boolean;
     labelName?: string;
     category?: string;
+    alertsOnly?: boolean;
     page?: number;
   }): Promise<InventoryPage> => {
     const res = await apiClient.get('/api/inventories', { params });
+    return unwrap(res);
+  },
+
+  getAlerts: async (params?: { storeId?: number }): Promise<InventoryItem[]> => {
+    const res = await apiClient.get('/api/inventories/alerts', { params });
     return unwrap(res);
   },
 
@@ -136,6 +144,11 @@ export const inventoryApi = {
     data: { quantityChange: number; version: number; reason?: string }
   ): Promise<InventoryItem> => {
     const res = await apiClient.patch(`/api/inventories/${id}/adjust`, data);
+    return unwrap(res);
+  },
+
+  updateMinQuantity: async (id: number, minQuantity: number): Promise<InventoryItem> => {
+    const res = await apiClient.patch(`/api/inventories/${id}/min-quantity`, { minQuantity });
     return unwrap(res);
   },
 

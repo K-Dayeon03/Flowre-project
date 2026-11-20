@@ -7,16 +7,17 @@ import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.InventoryLabel;
 import com.flowre.server.domain.inventory.entity.InventoryTransaction;
 import com.flowre.server.domain.inventory.entity.ProductCategory;
+import com.flowre.server.domain.inventory.entity.StockStatus;
 import com.flowre.server.domain.inventory.repository.InventoryItemRepository;
 import com.flowre.server.domain.inventory.repository.InventoryLabelRepository;
 import com.flowre.server.domain.inventory.repository.InventoryTransactionRepository;
 import com.flowre.server.domain.user.entity.User;
+import com.flowre.server.domain.user.entity.UserRole;
 import com.flowre.server.global.exception.CustomException;
 import com.flowre.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -37,6 +38,7 @@ public class InventoryService {
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final InventoryExcelLoader inventoryExcelLoader;
     private final AuditLogService auditLogService;
+    private final InventoryStockAlertNotifier stockAlertNotifier;
 
     /**
      * 재고 목록을 브랜드 단위로 격리해 페이지 단위로 검색합니다.
@@ -44,17 +46,19 @@ public class InventoryService {
      */
     @Transactional(readOnly = true)
     public InventoryPageResponse search(User user, Long storeId, String query, Boolean archived,
-                                        String labelName, String category, int page) {
+                                        Boolean alertsOnly, String labelName, String category, int page) {
         Long effectiveStoreId = canViewAllStores(user) ? storeId : user.getStoreId();
         String normalizedQuery = normalizeNullable(query);
         String normalizedLabel = normalizeNullable(labelName);
         ProductCategory parsedCategory = parseCategory(category);
         int pageNumber = Math.max(0, page);
-        PageRequest pageRequest = PageRequest.of(pageNumber, 30, Sort.by(Sort.Direction.DESC, "updatedAt", "id"));
+        PageRequest pageRequest = PageRequest.of(pageNumber, 30);
+        boolean alertFilter = Boolean.TRUE.equals(alertsOnly);
+        boolean prioritizeAlerts = archived == null || Boolean.FALSE.equals(archived);
 
         Page<InventoryItem> result = inventoryItemRepository.search(
-                user.getBrandId(), effectiveStoreId, normalizedQuery, archived, normalizedLabel,
-                parsedCategory, pageRequest);
+                user.getBrandId(), effectiveStoreId, normalizedQuery, archived,
+                alertFilter, prioritizeAlerts, normalizedLabel, parsedCategory, pageRequest);
 
         return InventoryPageResponse.of(
                 result.map(InventoryResponse::from).getContent(),
@@ -62,6 +66,16 @@ public class InventoryService {
                 result.getTotalPages(),
                 result.hasNext()
         );
+    }
+
+    /** 부족/소진 재고만 상위 30건 조회합니다. */
+    @Transactional(readOnly = true)
+    public List<InventoryResponse> getAlerts(User user, Long storeId) {
+        Long effectiveStoreId = canViewAllStores(user) ? storeId : user.getStoreId();
+        return inventoryItemRepository.findAlerts(user.getBrandId(), effectiveStoreId, PageRequest.of(0, 30))
+                .stream()
+                .map(InventoryResponse::from)
+                .toList();
     }
 
     /**
@@ -136,6 +150,7 @@ public class InventoryService {
     public InventoryResponse archive(User user, Long id, InventoryArchiveRequest request) {
         InventoryItem source = getItem(user, id);
         assertStoreVisible(user, source);
+        StockStatus previousStatus = source.getStockStatus();
 
         int moveQuantity = request.getArchiveQuantity();
         if (moveQuantity > source.getQuantity()) {
@@ -160,6 +175,7 @@ public class InventoryService {
                 moveQuantity
         );
         inventoryItemRepository.save(archived);
+        stockAlertNotifier.notifyIfBecameAlert(source, previousStatus);
 
         return InventoryResponse.from(source);
     }
@@ -211,6 +227,7 @@ public class InventoryService {
             throw new CustomException(ErrorCode.INVENTORY_VERSION_CONFLICT);
         }
 
+        StockStatus previousStatus = item.getStockStatus();
         item.deduct(request.getQuantity());
         inventoryTransactionRepository.save(InventoryTransaction.builder()
                 .brandId(user.getBrandId())
@@ -227,6 +244,7 @@ public class InventoryService {
 
         auditLogService.record(user, AuditAction.INVENTORY_DEDUCTED, "INVENTORY_ITEM", item.getId(),
                 item.getProductName() + " " + request.getQuantity() + "개 차감 - " + request.getReason());
+        stockAlertNotifier.notifyIfBecameAlert(item, previousStatus);
         return InventoryResponse.from(item);
     }
 
@@ -239,6 +257,7 @@ public class InventoryService {
             throw new CustomException(ErrorCode.INVENTORY_VERSION_CONFLICT);
         }
 
+        StockStatus previousStatus = item.getStockStatus();
         item.adjust(request.getQuantityChange());
         inventoryTransactionRepository.save(InventoryTransaction.builder()
                 .brandId(user.getBrandId())
@@ -255,6 +274,20 @@ public class InventoryService {
 
         auditLogService.record(user, AuditAction.INVENTORY_ADJUSTED, "INVENTORY_ITEM", item.getId(),
                 item.getProductName() + " 수량 변경 " + request.getQuantityChange() + " - " + request.getReason());
+        stockAlertNotifier.notifyIfBecameAlert(item, previousStatus);
+        return InventoryResponse.from(item);
+    }
+
+    /** 상품별 최소 보유 수량을 수정합니다. */
+    @Transactional
+    public InventoryResponse updateMinQuantity(User user, Long id, InventoryMinQuantityRequest request) {
+        assertCanUpdateMinQuantity(user);
+        InventoryItem item = getItem(user, id);
+        assertStoreVisible(user, item);
+        StockStatus previousStatus = item.getStockStatus();
+
+        item.updateMinQuantity(request.getMinQuantity());
+        stockAlertNotifier.notifyIfBecameAlert(item, previousStatus);
         return InventoryResponse.from(item);
     }
 
@@ -347,6 +380,12 @@ public class InventoryService {
 
     private void assertCanUploadInventory(User user) {
         if (!user.getRole().canManage()) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private void assertCanUpdateMinQuantity(User user) {
+        if (user.getRole() != UserRole.STORE_MANAGER && !user.getRole().isHeadquarters()) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

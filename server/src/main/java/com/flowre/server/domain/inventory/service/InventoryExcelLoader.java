@@ -3,6 +3,7 @@ package com.flowre.server.domain.inventory.service;
 import com.flowre.server.domain.inventory.dto.InventoryLoadResponse;
 import com.flowre.server.domain.inventory.entity.InventoryItem;
 import com.flowre.server.domain.inventory.entity.ProductCategory;
+import com.flowre.server.domain.inventory.entity.StockStatus;
 import com.flowre.server.domain.inventory.repository.InventoryItemRepository;
 import com.flowre.server.domain.store.entity.Store;
 import com.flowre.server.domain.store.repository.StoreRepository;
@@ -46,6 +47,7 @@ public class InventoryExcelLoader {
 
     private final InventoryItemRepository inventoryItemRepository;
     private final StoreRepository storeRepository;
+    private final InventoryStockAlertNotifier stockAlertNotifier;
 
     @Value("${flowre.inventory.data-dir:../data}")
     private String dataDir;
@@ -183,7 +185,9 @@ public class InventoryExcelLoader {
                     continue; // 이미 0이면 변경 불필요
                 }
                 if (!seenKeys.contains(itemEntry.getKey())) {
+                    StockStatus previousStatus = item.getStockStatus();
                     item.clearQuantityForSnapshot();
+                    stockAlertNotifier.notifyIfBecameAlert(item, previousStatus);
                     zeroed++;
                 }
             }
@@ -366,6 +370,7 @@ public class InventoryExcelLoader {
         InventoryItem existing = storeItems.get(key);
 
         if (existing != null) {
+            StockStatus previousStatus = existing.getStockStatus();
             existing.updateFromLoader(
                     row.storeName(),
                     row.productName(),
@@ -376,6 +381,7 @@ public class InventoryExcelLoader {
                     row.retailPrice(),
                     row.quantity()
             );
+            stockAlertNotifier.notifyIfBecameAlert(existing, previousStatus);
             stats.updatedCount++;
         } else {
             InventoryItem created = inventoryItemRepository.save(InventoryItem.builder()

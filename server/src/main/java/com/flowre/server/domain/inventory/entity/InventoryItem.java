@@ -76,6 +76,10 @@ public class InventoryItem {
 
     @Builder.Default
     @Column(nullable = false)
+    private Integer minQuantity = 5;
+
+    @Builder.Default
+    @Column(nullable = false)
     private boolean archived = false;
 
     /** 보관 항목일 때 수량을 차감한 원본 실시간 재고 아이템 ID. 보관 해제 시 이 항목에 수량을 복원한다. */
@@ -135,6 +139,7 @@ public class InventoryItem {
                 .normalPrice(source.normalPrice)
                 .retailPrice(source.retailPrice)
                 .quantity(archiveQuantity)
+                .minQuantity(source.getEffectiveMinQuantity())
                 .archived(true)
                 .sourceItemId(source.getId())
                 .archiveLabel(label)
@@ -177,6 +182,31 @@ public class InventoryItem {
      */
     public void clearQuantityForSnapshot() {
         this.quantity = 0;
+    }
+
+    /** 최소 보유 수량을 수정합니다. */
+    public void updateMinQuantity(int minQuantity) {
+        if (minQuantity < 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        this.minQuantity = minQuantity;
+    }
+
+    /** null 레거시 데이터를 기본값으로 보정한 최소 보유 수량입니다. */
+    public int getEffectiveMinQuantity() {
+        return minQuantity == null ? 5 : minQuantity;
+    }
+
+    /** 현재 수량과 최소 보유 수량 기준의 재고 상태를 계산합니다. */
+    public StockStatus getStockStatus() {
+        int currentQuantity = quantity == null ? 0 : quantity;
+        if (currentQuantity <= 0) {
+            return StockStatus.OUT_OF_STOCK;
+        }
+        if (currentQuantity < getEffectiveMinQuantity()) {
+            return StockStatus.LOW;
+        }
+        return StockStatus.SUFFICIENT;
     }
 
     /** 본사 사용분을 전산 재고에서 차감합니다. */

@@ -33,13 +33,15 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     /** 특정 매장의 비보관(실시간) 재고 항목 전체 — 전체 교체 스냅샷 시 기준 목록 */
     List<InventoryItem> findByBrandIdAndStoreCodeAndArchivedFalse(Long brandId, String storeCode);
 
-    @Query("""
+    @Query(
+            value = """
             select i
             from InventoryItem i
-            left join i.archiveLabel l
+            left join fetch i.archiveLabel l
             where i.brandId = :brandId
               and (:storeId is null or i.storeId = :storeId)
               and (:archived is null or i.archived = :archived)
+              and (:alertsOnly = false or (i.archived = false and (i.quantity <= 0 or i.quantity < coalesce(i.minQuantity, 5))))
               and (:labelName is null or l.name = :labelName)
               and (:category is null or i.category = :category)
               and (
@@ -51,14 +53,68 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                 or lower(i.colorName) like lower(concat('%', :query, '%'))
                 or lower(i.sizeName) like lower(concat('%', :query, '%'))
               )
-            """)
+            order by
+              case
+                when :prioritizeAlerts = true and i.quantity <= 0 then 0
+                when :prioritizeAlerts = true and i.quantity > 0 and i.quantity < coalesce(i.minQuantity, 5) then 1
+                else 2
+              end asc,
+              case
+                when :prioritizeAlerts = true and i.quantity < coalesce(i.minQuantity, 5) then i.quantity
+                else 999999
+              end asc,
+              i.updatedAt desc,
+              i.id desc
+            """,
+            countQuery = """
+            select count(i)
+            from InventoryItem i
+            left join i.archiveLabel l
+            where i.brandId = :brandId
+              and (:storeId is null or i.storeId = :storeId)
+              and (:archived is null or i.archived = :archived)
+              and (:alertsOnly = false or (i.archived = false and (i.quantity <= 0 or i.quantity < coalesce(i.minQuantity, 5))))
+              and (:labelName is null or l.name = :labelName)
+              and (:category is null or i.category = :category)
+              and (
+                :query is null
+                or lower(i.productName) like lower(concat('%', :query, '%'))
+                or lower(i.productCode) like lower(concat('%', :query, '%'))
+                or lower(i.barcode) like lower(concat('%', :query, '%'))
+                or lower(i.storeName) like lower(concat('%', :query, '%'))
+                or lower(i.colorName) like lower(concat('%', :query, '%'))
+                or lower(i.sizeName) like lower(concat('%', :query, '%'))
+              )
+            """
+    )
     Page<InventoryItem> search(
             @Param("brandId") Long brandId,
             @Param("storeId") Long storeId,
             @Param("query") String query,
             @Param("archived") Boolean archived,
+            @Param("alertsOnly") boolean alertsOnly,
+            @Param("prioritizeAlerts") boolean prioritizeAlerts,
             @Param("labelName") String labelName,
             @Param("category") ProductCategory category,
+            Pageable pageable
+    );
+
+    @Query("""
+            select i
+            from InventoryItem i
+            where i.brandId = :brandId
+              and (:storeId is null or i.storeId = :storeId)
+              and i.archived = false
+              and (i.quantity <= 0 or i.quantity < coalesce(i.minQuantity, 5))
+            order by
+              case when i.quantity <= 0 then 0 else 1 end asc,
+              i.quantity asc,
+              i.updatedAt desc,
+              i.id desc
+            """)
+    List<InventoryItem> findAlerts(
+            @Param("brandId") Long brandId,
+            @Param("storeId") Long storeId,
             Pageable pageable
     );
 

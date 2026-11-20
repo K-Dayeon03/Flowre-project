@@ -24,13 +24,15 @@ class InventoryExcelLoaderTest {
 
     private InventoryItemRepository inventoryItemRepository;
     private StoreRepository storeRepository;
+    private InventoryStockAlertNotifier stockAlertNotifier;
     private InventoryExcelLoader loader;
 
     @BeforeEach
     void setUp() {
         inventoryItemRepository = mock(InventoryItemRepository.class);
         storeRepository = mock(StoreRepository.class);
-        loader = new InventoryExcelLoader(inventoryItemRepository, storeRepository);
+        stockAlertNotifier = mock(InventoryStockAlertNotifier.class);
+        loader = new InventoryExcelLoader(inventoryItemRepository, storeRepository, stockAlertNotifier);
         when(inventoryItemRepository.findByBrandIdAndStoreCodeAndArchivedFalse(eq(1L), eq("0000")))
                 .thenReturn(List.of());
         when(inventoryItemRepository.findByBrandIdAndStoreCodeAndArchivedFalse(eq(1L), eq("0886")))

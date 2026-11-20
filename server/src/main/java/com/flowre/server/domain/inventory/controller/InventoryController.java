@@ -7,6 +7,7 @@ import com.flowre.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
@@ -24,20 +25,30 @@ public class InventoryController {
 
     private final InventoryService inventoryService;
 
-    /** GET /api/inventories?query=&storeId=&archived=&labelName=&category=&page=0 */
+    /** GET /api/inventories?query=&storeId=&archived=&alertsOnly=&labelName=&category=&page=0 */
     @GetMapping
     public ResponseEntity<ApiResponse<InventoryPageResponse>> search(
             @AuthenticationPrincipal User user,
             @RequestParam(required = false) Long storeId,
             @RequestParam(required = false) String query,
             @RequestParam(required = false) Boolean archived,
+            @RequestParam(required = false) Boolean alertsOnly,
             @RequestParam(required = false) String labelName,
             @RequestParam(required = false) String category,
             @Min(value = 0, message = "페이지 번호는 0 이상이어야 합니다.")
             @RequestParam(defaultValue = "0") int page
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
-                inventoryService.search(user, storeId, query, archived, labelName, category, page)));
+                inventoryService.search(user, storeId, query, archived, alertsOnly, labelName, category, page)));
+    }
+
+    /** GET /api/inventories/alerts?storeId= — 부족/소진 재고 상위 30건 */
+    @GetMapping("/alerts")
+    public ResponseEntity<ApiResponse<List<InventoryResponse>>> alerts(
+            @AuthenticationPrincipal User user,
+            @RequestParam(required = false) Long storeId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(inventoryService.getAlerts(user, storeId)));
     }
 
     /** GET /api/inventories/category-counts?storeId=&archived= — 카테고리별 재고 건수 */
@@ -113,6 +124,16 @@ public class InventoryController {
         return ResponseEntity.ok(ApiResponse.ok(inventoryService.adjust(user, id, request)));
     }
 
+    /** PATCH /api/inventories/{id}/min-quantity */
+    @PatchMapping("/{id}/min-quantity")
+    public ResponseEntity<ApiResponse<InventoryResponse>> updateMinQuantity(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id,
+            @Valid @RequestBody InventoryMinQuantityRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(inventoryService.updateMinQuantity(user, id, request)));
+    }
+
     /** GET /api/inventories/transactions */
     @GetMapping("/transactions")
     public ResponseEntity<ApiResponse<List<InventoryTransactionResponse>>> getTransactions(@AuthenticationPrincipal User user) {
@@ -135,10 +156,10 @@ public class InventoryController {
     }
 
     /** POST /api/inventories/upload */
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<InventoryLoadResponse>> upload(
             @AuthenticationPrincipal User user,
-            @RequestPart("file") MultipartFile file
+            @RequestParam("file") MultipartFile file
     ) {
         return ResponseEntity.ok(ApiResponse.ok(inventoryService.uploadDailyInventory(user, file)));
     }

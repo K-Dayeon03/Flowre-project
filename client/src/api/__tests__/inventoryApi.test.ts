@@ -25,20 +25,31 @@ const fakeInventory = (overrides?: Partial<InventoryItem>): InventoryItem => ({
   normalPrice: 49900,
   retailPrice: 29900,
   quantity: 12,
+  minQuantity: 5,
+  stockStatus: 'SUFFICIENT',
   archived: false,
   ...overrides,
 });
 
 describe('inventoryApi.search()', () => {
   it('GET /api/inventories 호출과 검색 파라미터를 전달한다', async () => {
-    const list = [fakeInventory()];
+    const page = { items: [fakeInventory()], totalCount: 1, totalPages: 1, hasNext: false };
     mock.onGet('/api/inventories', {
-      params: { query: '다운필', archived: false },
-    }).reply(200, { data: list });
+      params: { query: '다운필', archived: false, alertsOnly: true },
+    }).reply(200, { data: page });
 
-    const result = await inventoryApi.search({ query: '다운필', archived: false });
+    const result = await inventoryApi.search({ query: '다운필', archived: false, alertsOnly: true });
 
-    expect(result).toEqual(list);
+    expect(result).toEqual(page);
+  });
+
+  it('GET /api/inventories/alerts 호출 결과를 반환한다', async () => {
+    const alerts = [fakeInventory({ quantity: 0, stockStatus: 'OUT_OF_STOCK' })];
+    mock.onGet('/api/inventories/alerts').reply(200, { data: alerts });
+
+    const result = await inventoryApi.getAlerts();
+
+    expect(result).toEqual(alerts);
   });
 });
 
@@ -80,6 +91,21 @@ describe('inventoryApi.deduct()', () => {
 
     expect(result.quantity).toBe(10);
     expect(result.version).toBe(1);
+  });
+});
+
+describe('inventoryApi.updateMinQuantity()', () => {
+  it('최소 보유 수량을 PATCH로 수정한다', async () => {
+    const updated = fakeInventory({ minQuantity: 8, stockStatus: 'LOW' });
+    mock.onPatch('/api/inventories/1/min-quantity').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({ minQuantity: 8 });
+      return [200, { data: updated }];
+    });
+
+    const result = await inventoryApi.updateMinQuantity(1, 8);
+
+    expect(result.minQuantity).toBe(8);
+    expect(result.stockStatus).toBe('LOW');
   });
 });
 
