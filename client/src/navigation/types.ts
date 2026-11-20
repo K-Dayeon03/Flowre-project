@@ -33,6 +33,7 @@ export type MainStackParamList = {
   } | undefined;
   SalesDashboard: undefined;
   Attendance: undefined;
+  CommunicationHub: undefined;
   DocumentList: undefined;
   DocumentDetail: { documentId: number; title: string };
   DocumentUpload: { documentId?: number } | undefined;
